@@ -1,5 +1,7 @@
 package dev.converge.api.auth;
 
+import jakarta.servlet.DispatcherType;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -29,6 +31,9 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.spa())
                 .securityContext(context -> context.securityContextRepository(contexts))
                 .authorizeHttpRequests(auth -> auth
+                        // Error dispatches must stay public: otherwise a 403 (e.g. a CSRF rejection) is forwarded
+                        // to /error, which then demands authentication and turns the response into a 401.
+                        .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers("/api/actuator/health", "/api/actuator/health/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/register", "/api/v1/auth/login").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/auth/csrf").permitAll()
