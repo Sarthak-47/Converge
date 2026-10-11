@@ -4,6 +4,7 @@ import java.net.http.HttpClient;
 import java.time.Duration;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProperty;
 import org.springframework.boot.health.contributor.AbstractHealthIndicator;
 import org.springframework.boot.health.contributor.Health;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
@@ -15,6 +16,7 @@ import org.springframework.web.client.RestClient;
  * health endpoint covers every component a document edit depends on.
  */
 @Component("collab")
+@ConditionalOnBooleanProperty(name = "converge.collab.health.enabled", matchIfMissing = true)
 public class CollabHealthIndicator extends AbstractHealthIndicator {
 
     private static final Duration TIMEOUT = Duration.ofSeconds(2);

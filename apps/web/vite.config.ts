@@ -5,6 +5,8 @@ import { defineConfig } from 'vite'
 // the collaboration socket, matching production routing (design §12.4).
 export default defineConfig({
   plugins: [react()],
+  // Monaco's core is ~2.7 MB minified; it is split into the lazily loaded workspace route.
+  build: { chunkSizeWarningLimit: 3000 },
   server: {
     port: 5173,
     proxy: {

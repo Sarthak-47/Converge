@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
-import { fetchHealth, type ServiceRow } from './health.ts'
-import './App.css'
+import { Link } from 'react-router'
+import { fetchHealth, type ServiceRow } from '../health.ts'
 
 const POLL_MS = 5000
 
-function App() {
+export function StatusPage() {
   const [rows, setRows] = useState<ServiceRow[] | null>(null)
 
   useEffect(() => {
@@ -19,10 +19,10 @@ function App() {
   }, [])
 
   return (
-    <main className="shell">
+    <main className="status-page">
       <header>
         <h1>Converge</h1>
-        <p>Phase 0 · stack health</p>
+        <p>Stack health · <Link to="/">Back to workspaces</Link></p>
       </header>
       {rows === null ? (
         <p className="muted">Checking services…</p>
@@ -40,4 +40,3 @@ function App() {
   )
 }
 
-export default App
