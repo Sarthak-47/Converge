@@ -60,7 +60,9 @@ test('saved work survives an API restart', async ({ page }) => {
 
 test('a stale save is caught instead of overwriting newer text', async ({ browser }) => {
   const email = `conflict-${Date.now()}@example.test`
-  const first = await browser.newPage()
+  // Both tabs share one context (and so one session), like two tabs of the same browser.
+  const context = await browser.newContext()
+  const first = await context.newPage()
   await first.goto('/register')
   await first.getByLabel('Email').fill(email)
   await first.getByLabel('Display name').fill('Conflict')
@@ -74,7 +76,7 @@ test('a stale save is caught instead of overwriting newer text', async ({ browse
   const url = first.url()
 
   // A second tab of the same user opens the same file before the first one saves.
-  const second = await first.context().newPage()
+  const second = await context.newPage()
   await second.goto(url)
   await second.locator('.tree-name', { hasText: 'notes.md' }).click()
   await expect(second.locator('.monaco-editor')).toBeVisible()
