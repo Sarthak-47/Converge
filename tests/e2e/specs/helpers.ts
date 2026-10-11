@@ -1,5 +1,5 @@
 import { execSync } from 'node:child_process'
-import { expect, type Browser, type Page } from '@playwright/test'
+import { expect, type Browser, type Page, type WebSocketRoute } from '@playwright/test'
 
 export const password = 'correct horse battery'
 
@@ -42,13 +42,46 @@ export async function openFile(page: Page, name: string) {
   await expect(page.locator('.monaco-editor')).toBeVisible()
 }
 
+/**
+ * Simulates losing and regaining the network for one browser. Playwright's setOffline() does not cut
+ * WebSockets that are already open, so the collaboration socket is routed through the test: going
+ * offline closes it and refuses reconnects, and HTTP (including ticket requests) is blocked too.
+ */
+export type Network = { goOffline(): Promise<void>; goOnline(): Promise<void> }
+
+async function controllableNetwork(page: Page): Promise<Network> {
+  let offline = false
+  const sockets = new Set<WebSocketRoute>()
+  await page.routeWebSocket(/\/collab/, (ws) => {
+    if (offline) {
+      void ws.close({ code: 4000, reason: 'Simulated network loss' })
+      return
+    }
+    ws.connectToServer()
+    sockets.add(ws)
+    ws.onClose(() => sockets.delete(ws))
+  })
+  return {
+    async goOffline() {
+      offline = true
+      await page.context().setOffline(true)
+      await Promise.all([...sockets].map((ws) => ws.close({ code: 4000, reason: 'Simulated network loss' })))
+    },
+    async goOnline() {
+      offline = false
+      await page.context().setOffline(false)
+    },
+  }
+}
+
 /** A second, independent browser (own cookies and sockets) signed in as the same person. */
 export async function secondBrowser(browser: Browser, email: string, workspaceUrl: string) {
   const context = await browser.newContext()
   const page = await context.newPage()
+  const network = await controllableNetwork(page)
   await signIn(page, email)
   await page.goto(workspaceUrl)
-  return { context, page }
+  return { context, page, network }
 }
 
 /** Types at the end of the document. Uses plain words so Monaco's auto-closing never alters the text. */

@@ -41,11 +41,11 @@ test('two browsers editing one file converge, through offline work and a server 
   expect(merged).toContain('beta from ben')
 
   // Ben loses the network and keeps typing; Asha keeps typing too. Nothing is lost on reconnect.
-  await ben.context.setOffline(true)
+  await ben.network.goOffline()
   await expect(ben.page.locator('.statusbar [data-sync]')).toHaveAttribute('data-sync', 'offline', { timeout: 30_000 })
   await typeAtEnd(ben.page, 'written offline ')
   await typeAtEnd(page, 'written online ')
-  await ben.context.setOffline(false)
+  await ben.network.goOnline()
   await waitUntilSaved(ben.page)
   await expect.poll(async () => (await editorText(page)) === (await editorText(ben.page)), { timeout: 30_000 }).toBe(true)
   expect(await editorText(page)).toContain('written offline')
