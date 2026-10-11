@@ -1,9 +1,12 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router'
 import { api, ApiError, type FileKind, type FileNode, type Workspace } from '../api.ts'
+import { useAuth } from '../auth.tsx'
+import { ChatPanel } from '../components/ChatPanel.tsx'
 import { FileTree } from '../components/FileTree.tsx'
 import { TopBar } from '../components/TopBar.tsx'
 import { monaco } from '../editor/monaco.ts'
+import { useWorkspaceChannel, type ChatMessage, type WorkspaceEvent } from '../realtime/workspaceChannel.ts'
 
 const CodeEditor = lazy(() => import('../editor/CodeEditor.tsx'))
 
@@ -24,6 +27,7 @@ function modelUri(file: FileNode) {
 
 export default function WorkspacePage() {
   const { workspaceId = '' } = useParams()
+  const { user } = useAuth()
   const [workspace, setWorkspace] = useState<Workspace | null>(null)
   const [files, setFiles] = useState<FileNode[]>([])
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -34,16 +38,19 @@ export default function WorkspacePage() {
   const [saveState, setSaveState] = useState<SaveState>('idle')
   const [conflict, setConflict] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const [chat, setChat] = useState<ChatMessage[]>([])
+  const [remoteSave, setRemoteSave] = useState<string | null>(null)
 
   const canEdit = workspace?.role === 'OWNER' || workspace?.role === 'EDITOR'
   const activeFile = files.find((f) => f.id === activeId) ?? null
 
   useEffect(() => {
     const opened = openFiles.current
-    Promise.all([api.workspace(workspaceId), api.tree(workspaceId)])
-      .then(([w, tree]) => {
+    Promise.all([api.workspace(workspaceId), api.tree(workspaceId), api.chatHistory(workspaceId)])
+      .then(([w, tree, history]) => {
         setWorkspace(w)
         setFiles(tree)
+        setChat(history.reverse())
       })
       .catch((e: Error) => setLoadError(e.message))
     return () => {
@@ -72,6 +79,46 @@ export default function WorkspacePage() {
     setActiveId(fileId)
     setActiveModel(fileId ? openFiles.current.get(fileId)?.model ?? null : null)
   }
+
+  /** Applies another client's change. Tree events refetch the tree; saves reload clean files in place. */
+  async function onRemoteEvent(event: WorkspaceEvent) {
+    if (event.type === 'FILE_SAVED') {
+      const open = openFiles.current.get(event.payload.fileId)
+      if (!open || event.payload.version <= open.baseVersion) return
+      if (open.model.getAlternativeVersionId() === open.savedVersionId) {
+        const latest = await api.content(event.payload.fileId)
+        open.model.setValue(latest.text)
+        open.baseVersion = latest.version
+        open.savedVersionId = open.model.getAlternativeVersionId()
+        refreshDirty()
+      } else {
+        setRemoteSave(event.payload.fileId)
+      }
+      return
+    }
+    const tree = await api.tree(workspaceId)
+    setFiles(tree)
+    if (event.type === 'FILE_DELETED') {
+      const gone = (f: string) => !tree.some((n) => n.id === f)
+      openFiles.current.forEach((open, id) => {
+        if (gone(id)) {
+          open.model.dispose()
+          openFiles.current.delete(id)
+        }
+      })
+      if (activeId && gone(activeId)) {
+        activate(null)
+        setMessage(`"${event.payload.path}" was deleted by someone else.`)
+      }
+      refreshDirty()
+    }
+  }
+
+  const channel = useWorkspaceChannel(workspaceId, {
+    onEvent: (event) => void onRemoteEvent(event),
+    onChat: (m) => setChat((list) => (list.some((x) => x.id === m.id) ? list : [...list, m])),
+    onError: (m) => setMessage(m),
+  })
 
   async function openFile(file: FileNode) {
     setMessage(null)
@@ -185,6 +232,9 @@ export default function WorkspacePage() {
       <TopBar>
         <span className="workspace-name">{workspace?.name ?? '…'}</span>
         {workspace && <span className="role-badge">{workspace.role.toLowerCase()}</span>}
+        <span className={`connection ${channel.state}`} title="Realtime connection">
+          {channel.state === 'connected' ? 'Live' : channel.state === 'connecting' ? 'Connecting…' : 'Reconnecting…'}
+        </span>
       </TopBar>
       <aside className="sidebar">
         <FileTree
@@ -206,6 +256,12 @@ export default function WorkspacePage() {
             <button type="button" className="ghost" onClick={() => void resolveConflict('theirs')}>Load theirs</button>
           </div>
         )}
+        {remoteSave && remoteSave === activeId && conflict !== activeId && (
+          <div className="banner warning" role="status">
+            <span>Someone saved a newer version of this file. Saving will ask which version to keep.</span>
+            <button type="button" className="ghost" onClick={() => setRemoteSave(null)}>Dismiss</button>
+          </div>
+        )}
         {message && <div className="banner error-banner" role="alert">{message}</div>}
         {activeModel ? (
           <Suspense fallback={<div className="center muted">Loading editor…</div>}>
@@ -215,6 +271,13 @@ export default function WorkspacePage() {
           <div className="center muted">{files.length ? 'Select a file to start editing.' : 'Create a file to start editing.'}</div>
         )}
       </section>
+      <ChatPanel
+        messages={chat}
+        currentUserId={user?.id}
+        canPost={workspace !== null && workspace.role !== 'VIEWER'}
+        connected={channel.state === 'connected'}
+        onSend={channel.sendChat}
+      />
       <footer className="statusbar">
         <span>{activeFile?.path ?? ''}</span>
         <span>{activeFile ? activeFile.language ?? 'plain text' : ''}</span>

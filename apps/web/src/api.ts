@@ -99,4 +99,15 @@ export const api = {
   content: (fileId: string) => request<Content>('GET', `/files/${fileId}/content`),
   save: (fileId: string, text: string, baseVersion: number) =>
     request<Content>('PUT', `/files/${fileId}/content`, { text, baseVersion }),
+
+  chatHistory: (workspaceId: string) => request<ChatHistoryEntry[]>('GET', `/workspaces/${workspaceId}/chat`),
+}
+
+export type ChatHistoryEntry = {
+  id: string
+  workspaceId: string
+  userId: string
+  displayName: string
+  body: string
+  createdAt: string
 }

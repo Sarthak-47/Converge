@@ -270,7 +270,7 @@ button.icon:hover {
 /* IDE */
 .ide {
   display: grid;
-  grid-template-columns: 260px 1fr;
+  grid-template-columns: 260px 1fr 280px;
   grid-template-rows: auto 1fr auto;
   height: 100%;
 }
@@ -332,6 +332,61 @@ button.icon:hover {
 .banner.error-banner {
   background: var(--down-bg);
   color: var(--down-text);
+}
+
+/* Realtime */
+.connection {
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  background: var(--warn-bg);
+  color: var(--warn-text);
+}
+
+.connection.connected {
+  background: var(--up-bg);
+  color: var(--up-text);
+}
+
+.chat {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-left: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.chat-messages {
+  flex: 1;
+  overflow: auto;
+  list-style: none;
+  margin: 0;
+  padding: 4px 12px;
+}
+
+.chat-messages li {
+  padding: 6px 0;
+}
+
+.chat-messages p {
+  margin: 2px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.chat-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.chat-messages li.mine strong {
+  color: var(--accent);
+}
+
+.chat-form {
+  padding: 8px;
+  border-top: 1px solid var(--border);
 }
 
 /* File tree */
@@ -465,6 +520,16 @@ button.icon:hover {
 .badge.down {
   background: var(--down-bg);
   color: var(--down-text);
+}
+
+@media (max-width: 1000px) {
+  .ide {
+    grid-template-columns: 220px 1fr;
+  }
+
+  .chat {
+    display: none;
+  }
 }
 
 @media (max-width: 640px) {

@@ -5,15 +5,18 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import dev.converge.api.common.ApiException;
+import dev.converge.api.realtime.WorkspaceEvent;
 import dev.converge.api.workspace.Role;
 import dev.converge.api.workspace.WorkspaceAccess;
 
@@ -42,10 +45,12 @@ public class FileService {
 
     private final JdbcClient jdbc;
     private final WorkspaceAccess access;
+    private final ApplicationEventPublisher events;
 
-    public FileService(JdbcClient jdbc, WorkspaceAccess access) {
+    public FileService(JdbcClient jdbc, WorkspaceAccess access, ApplicationEventPublisher events) {
         this.jdbc = jdbc;
         this.access = access;
+        this.events = events;
     }
 
     public List<FileNode> tree(UUID workspaceId, UUID userId) {
@@ -82,7 +87,9 @@ public class FileService {
                     .params(id, sha256(""))
                     .update();
         }
-        return new FileNode(id, workspaceId, parentId, name, kind, path, language, 0);
+        FileNode created = new FileNode(id, workspaceId, parentId, name, kind, path, language, 0);
+        events.publishEvent(WorkspaceEvent.of("FILE_CREATED", workspaceId, userId, Map.of("file", created)));
+        return created;
     }
 
     /**
@@ -135,7 +142,10 @@ public class FileService {
         if (updated == 0) {
             throw ApiException.conflict("This item was changed by someone else; refresh and try again");
         }
-        return liveNode(fileId);
+        FileNode moved = liveNode(fileId);
+        events.publishEvent(WorkspaceEvent.of("FILE_MOVED", node.workspaceId(), userId,
+                Map.of("file", moved, "oldPath", node.path())));
+        return moved;
     }
 
     /** Soft-deletes a file or a folder and everything inside it (design §8.10). */
@@ -154,6 +164,8 @@ public class FileService {
                     .params(node.workspaceId(), node.path() + "/")
                     .update();
         }
+        events.publishEvent(WorkspaceEvent.of("FILE_DELETED", node.workspaceId(), userId,
+                Map.of("fileId", fileId, "path", node.path(), "kind", node.kind())));
     }
 
     public Content content(UUID fileId, UUID userId) {
@@ -186,6 +198,8 @@ public class FileService {
         if (updated == 0) {
             throw ApiException.conflict("This file was saved by someone else since you opened it");
         }
+        events.publishEvent(WorkspaceEvent.of("FILE_SAVED", node.workspaceId(), userId,
+                Map.of("fileId", fileId, "version", baseVersion + 1, "contentHash", hash)));
         return new Content(fileId, node.path(), node.language(), text, baseVersion + 1, hash);
     }
 
