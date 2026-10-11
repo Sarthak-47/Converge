@@ -1,0 +1,37 @@
+spring:
+  application:
+    name: converge-api
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/converge}
+    username: ${DATABASE_USER:converge}
+    password: ${DATABASE_PASSWORD:converge}
+    # Fail fast when the database is unreachable so health checks and requests report errors
+    # in seconds rather than hanging on the 30 s pool default.
+    hikari:
+      connection-timeout: 3000
+      validation-timeout: 2000
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      # Lettuce defaults to a 60 s command timeout, which makes /health hang when Redis is down.
+      connect-timeout: 2s
+      timeout: 2s
+  threads:
+    virtual:
+      enabled: true
+
+converge:
+  collab:
+    base-url: ${COLLAB_URL:http://localhost:1234}
+
+management:
+  endpoints:
+    web:
+      base-path: /api/actuator
+      exposure:
+        include: health
+  endpoint:
+    health:
+      # Phase 0 only: component details are public. Restrict to authorized users with auth (Phase 5).
+      show-details: always

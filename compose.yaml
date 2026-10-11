@@ -1,0 +1,4 @@
+# Entry point so `docker compose up` works from the repository root (and reads ./.env).
+name: converge
+include:
+  - infra/compose.yaml
