@@ -544,9 +544,9 @@ button.icon:hover {
   }
 }
 
-/* Remote selections and cursors drawn by y-monaco (per-user colours arrive with presence in Phase 4). */
+/* Remote selections and cursors drawn by y-monaco; per-person colours and names are injected by CodeEditor. */
 .yRemoteSelection {
-  background-color: rgb(250 129 0 / 0.35);
+  background-color: rgb(250 129 0 / 0.3);
 }
 
 .yRemoteSelectionHead {
@@ -554,4 +554,52 @@ button.icon:hover {
   height: 100%;
   border-left: 2px solid rgb(250 129 0);
   box-sizing: border-box;
+}
+
+.yRemoteSelectionHead::after {
+  position: absolute;
+  top: -1.3em;
+  left: -2px;
+  padding: 0 4px;
+  border-radius: 3px 3px 3px 0;
+  color: #fff;
+  font-size: 11px;
+  line-height: 1.3em;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* Presence */
+.presence {
+  display: flex;
+  align-items: center;
+}
+
+.avatar {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin-left: -4px;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.editor-peers {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.peer-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
 }

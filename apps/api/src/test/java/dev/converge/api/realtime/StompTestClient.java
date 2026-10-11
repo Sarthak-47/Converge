@@ -29,18 +29,24 @@ import org.springframework.web.socket.messaging.WebSocketStompClient;
 public final class StompTestClient implements AutoCloseable {
 
     private final String baseUrl;
-    private final CookieManager cookies = new CookieManager();
+    private final CookieManager cookies;
     private final HttpClient http;
     private StompSession session;
     public final BlockingQueue<String> errors = new LinkedBlockingQueue<>();
 
-    private StompTestClient(int port) {
-        this.baseUrl = "http://localhost:" + port;
+    private StompTestClient(String baseUrl, CookieManager cookies) {
+        this.baseUrl = baseUrl;
+        this.cookies = cookies;
         this.http = HttpClient.newBuilder().cookieHandler(cookies).version(HttpClient.Version.HTTP_1_1).build();
     }
 
+    /** Another tab of the same signed-in browser: same cookies, separate socket. */
+    public StompTestClient secondTab() throws Exception {
+        return new StompTestClient(baseUrl, cookies).connect();
+    }
+
     public static StompTestClient signUp(int port, String name) throws Exception {
-        StompTestClient client = new StompTestClient(port);
+        StompTestClient client = new StompTestClient("http://localhost:" + port, new CookieManager());
         String email = name.toLowerCase() + "-" + UUID.randomUUID() + "@example.test";
         client.send("POST", "/api/v1/auth/register",
                 "{\"email\":\"" + email + "\",\"displayName\":\"" + name + "\",\"password\":\"correct horse battery\"}", 201);
@@ -122,6 +128,24 @@ public final class StompTestClient implements AutoCloseable {
             }
         });
         Thread.sleep(200); // let the SUBSCRIBE reach the broker before the test publishes
+        return received;
+    }
+
+    /** Like {@link #subscribe} but for payloads that are not JSON objects, such as the presence list. */
+    public BlockingQueue<Object> subscribeAny(String destination) throws InterruptedException {
+        BlockingQueue<Object> received = new LinkedBlockingQueue<>();
+        session.subscribe(destination, new StompFrameHandler() {
+            @Override
+            public Type getPayloadType(StompHeaders headers) {
+                return Object.class;
+            }
+
+            @Override
+            public void handleFrame(StompHeaders headers, Object payload) {
+                received.add(payload);
+            }
+        });
+        Thread.sleep(200);
         return received;
     }
 

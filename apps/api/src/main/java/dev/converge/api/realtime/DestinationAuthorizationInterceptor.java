@@ -34,18 +34,23 @@ public class DestinationAuthorizationInterceptor implements ChannelInterceptor {
     private static final String UUID_RE = "([0-9a-fA-F-]{36})";
 
     private static final Rule[] RULES = {
-            new Rule(StompCommand.SUBSCRIBE, Pattern.compile("^/topic/workspace/" + UUID_RE + "/(chat|events)$"), Role.VIEWER, false),
+            new Rule(StompCommand.SUBSCRIBE, Pattern.compile("^/topic/workspace/" + UUID_RE + "/(chat|events|presence)$"), Role.VIEWER, false),
+            new Rule(StompCommand.SUBSCRIBE, Pattern.compile("^/app/workspace/" + UUID_RE + "/presence$"), Role.VIEWER, false),
             new Rule(StompCommand.SEND, Pattern.compile("^/app/workspace/" + UUID_RE + "/chat$"), Role.COMMENTER, false),
             new Rule(StompCommand.SUBSCRIBE, Pattern.compile("^/topic/file/" + UUID_RE + "/naive$"), Role.VIEWER, true),
             new Rule(StompCommand.SEND, Pattern.compile("^/app/file/" + UUID_RE + "/naive$"), Role.EDITOR, true),
     };
 
+    private static final Pattern PRESENCE_TOPIC = Pattern.compile("^/topic/workspace/" + UUID_RE + "/presence$");
+
     private final WorkspaceAccess access;
     private final JdbcClient jdbc;
+    private final PresenceTracker presence;
 
-    public DestinationAuthorizationInterceptor(WorkspaceAccess access, JdbcClient jdbc) {
+    public DestinationAuthorizationInterceptor(WorkspaceAccess access, JdbcClient jdbc, PresenceTracker presence) {
         this.access = access;
         this.jdbc = jdbc;
+        this.presence = presence;
     }
 
     @Override
@@ -72,6 +77,10 @@ public class DestinationAuthorizationInterceptor implements ChannelInterceptor {
                     access.require(workspaceId, user.id(), rule.minimum());
                 } catch (ApiException e) {
                     throw new AccessDeniedException(e.getMessage());
+                }
+                if (command == StompCommand.SUBSCRIBE && PRESENCE_TOPIC.matcher(destination).matches()) {
+                    // Recorded only now, after authorization, so a rejected subscriber never shows as online.
+                    presence.join(workspaceId, stomp.getSessionId(), stomp.getSubscriptionId(), user);
                 }
                 return message;
             }

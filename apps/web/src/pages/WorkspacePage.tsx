@@ -1,11 +1,12 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useParams } from 'react-router'
 import { api, type FileKind, type FileNode, type Workspace } from '../api.ts'
 import { useAuth } from '../auth.tsx'
 import { ChatPanel } from '../components/ChatPanel.tsx'
 import { FileTree } from '../components/FileTree.tsx'
+import { PresenceAvatars } from '../components/PresenceAvatars.tsx'
 import { TopBar } from '../components/TopBar.tsx'
-import { CollabDocument, type SyncState } from '../editor/collabDocument.ts'
+import { CollabDocument, type Peer, type SyncState } from '../editor/collabDocument.ts'
 import { monaco } from '../editor/monaco.ts'
 import { useWorkspaceChannel, type ChatMessage, type WorkspaceEvent } from '../realtime/workspaceChannel.ts'
 
@@ -13,6 +14,8 @@ const CodeEditor = lazy(() => import('../editor/CodeEditor.tsx'))
 
 /** An opened file: its live replica plus the Monaco model that shows it. Kept in a ref; read by handlers. */
 type OpenFile = { live: CollabDocument; model: monaco.editor.ITextModel }
+
+const NO_PEERS: Peer[] = []
 
 const SYNC_LABEL: Record<SyncState, string> = {
   connecting: 'Connecting…',
@@ -60,6 +63,12 @@ export default function WorkspacePage() {
       opened.clear()
     }
   }, [workspaceId])
+
+  const activeLive = active?.open.live
+  const peers = useSyncExternalStore(
+    useCallback((listener: () => void) => activeLive?.subscribePeers(listener) ?? (() => undefined), [activeLive]),
+    () => activeLive?.peers() ?? NO_PEERS,
+  )
 
   const unsyncedIds = new Set(Object.entries(syncStates).filter(([, s]) => s === 'saving' || s === 'offline').map(([id]) => id))
 
@@ -164,6 +173,7 @@ export default function WorkspacePage() {
         <span className={`connection ${channel.state}`} title="Realtime connection">
           {channel.state === 'connected' ? 'Live' : channel.state === 'connecting' ? 'Connecting…' : 'Reconnecting…'}
         </span>
+        <PresenceAvatars online={channel.online} />
       </TopBar>
       <aside className="sidebar">
         <FileTree
@@ -179,6 +189,16 @@ export default function WorkspacePage() {
       </aside>
       <section className="editor-area">
         {message && <div className="banner error-banner" role="alert">{message}</div>}
+        {active && peers.length > 0 && (
+          <div className="editor-peers" aria-label="Also editing this file">
+            <span>Also here:</span>
+            {peers.map((p) => (
+              <span key={p.clientId} className="peer">
+                <span className="peer-dot" style={{ background: p.color }} /> {p.name}
+              </span>
+            ))}
+          </div>
+        )}
         {active ? (
           <Suspense fallback={<div className="center muted">Loading editor…</div>}>
             <CodeEditor model={active.open.model} live={active.open.live} readOnly={!canEdit || activeState === 'denied'} />

@@ -30,6 +30,9 @@ export type ChatMessage = {
 
 export type ConnectionState = 'connecting' | 'connected' | 'reconnecting'
 
+/** Someone with this workspace open, across all their tabs. */
+export type OnlineUser = { userId: string; displayName: string; connections: number }
+
 type Handlers = {
   onEvent: (event: WorkspaceEvent) => void
   onChat: (message: ChatMessage) => void
@@ -47,6 +50,7 @@ function socketUrl() {
  */
 export function useWorkspaceChannel(workspaceId: string, handlers: Handlers) {
   const [state, setState] = useState<ConnectionState>('connecting')
+  const [online, setOnline] = useState<OnlineUser[]>([])
   const latest = useRef(handlers)
   const client = useRef<Client | null>(null)
 
@@ -70,6 +74,9 @@ export function useWorkspaceChannel(workspaceId: string, handlers: Handlers) {
           stomp.subscribe(`/topic/workspace/${workspaceId}/events`, (m) => latest.current.onEvent(parse<WorkspaceEvent>(m))),
           stomp.subscribe(`/topic/workspace/${workspaceId}/chat`, (m) => latest.current.onChat(parse<ChatMessage>(m))),
           stomp.subscribe('/user/queue/errors', (m) => latest.current.onError(parse<{ message: string }>(m).message)),
+          // Updates as people come and go, plus a one-time snapshot of who is here right now.
+          stomp.subscribe(`/topic/workspace/${workspaceId}/presence`, (m) => setOnline(parse<OnlineUser[]>(m))),
+          stomp.subscribe(`/app/workspace/${workspaceId}/presence`, (m) => setOnline(parse<OnlineUser[]>(m))),
         ]
       },
       onWebSocketClose: () => setState(everConnected ? 'reconnecting' : 'connecting'),
@@ -88,5 +95,5 @@ export function useWorkspaceChannel(workspaceId: string, handlers: Handlers) {
     client.current?.publish({ destination: `/app/workspace/${workspaceId}/chat`, body: JSON.stringify({ body }) })
   }
 
-  return { state, sendChat }
+  return { state, online, sendChat }
 }
