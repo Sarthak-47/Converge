@@ -30,8 +30,11 @@ public class FileController {
     public record CreateFile(@NotNull UUID workspaceId, UUID parentId, @NotNull String name, @NotNull Kind kind) {
     }
 
-    /** Omitted fields keep their value; {@code moveToRoot} moves the item to the top level. */
-    public record MoveFile(String name, UUID parentId, boolean moveToRoot, @NotNull Integer rowVersion) {
+    /**
+     * Omitted fields keep their value; {@code moveToRoot} moves the item to the top level. Boxed types, because
+     * Jackson 3 rejects a missing primitive instead of defaulting it.
+     */
+    public record MoveFile(String name, UUID parentId, Boolean moveToRoot, @NotNull Integer rowVersion) {
     }
 
     public record SaveContent(@NotNull String text, @NotNull Integer baseVersion) {
@@ -56,7 +59,8 @@ public class FileController {
 
     @PatchMapping("/api/v1/files/{id}")
     FileNode move(@AuthenticationPrincipal AppUser user, @PathVariable UUID id, @Valid @RequestBody MoveFile body) {
-        return files.move(id, body.name(), body.parentId(), body.moveToRoot(), body.rowVersion(), user.id());
+        return files.move(id, body.name(), body.parentId(), Boolean.TRUE.equals(body.moveToRoot()), body.rowVersion(),
+                user.id());
     }
 
     @DeleteMapping("/api/v1/files/{id}")

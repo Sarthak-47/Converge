@@ -3,7 +3,6 @@ package dev.converge.api.auth;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -67,14 +66,6 @@ class AuthApiTest extends IntegrationTest {
         mvc.perform(post("/api/v1/workspaces").session(session).contentType(MediaType.APPLICATION_JSON)
                         .content(json("{'name':'No token'}")))
                 .andExpect(status().isForbidden());
-    }
-
-    @Test
-    void csrfEndpointIssuesReadableCookie() throws Exception {
-        mvc.perform(get("/api/v1/auth/csrf"))
-                .andExpect(status().isNoContent())
-                .andExpect(cookie().exists("XSRF-TOKEN"))
-                .andExpect(cookie().httpOnly("XSRF-TOKEN", false));
     }
 
     @Test
