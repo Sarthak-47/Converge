@@ -83,3 +83,10 @@ Decisions made while working autonomously, newest last. Each entry says what was
 - **Property test**: 40 random interleavings of local writes on two machines, remote edits and dropped connections always end with both checkouts and the workspace identical. A separate test exercises the real chokidar watcher.
 - **Test folders live in `.tmp/` inside the repository**, never in the system temp directory, per the project rules.
 - **Not yet done**: persisting replicas to SQLite for offline work across app restarts, and hot/cold files (every tracked file currently holds a live replica). Both are follow-ups; neither changes the merge rules.
+
+## 2026-10-12 — Phase 7 (part 2): Electron shell
+
+- **`apps/desktop`** loads the same web app, with context isolation, a sandboxed renderer, no Node in the page, navigation locked to the Converge origin, and IPC accepted only from that origin. The bridge runs in the main process with the window's session cookie.
+- **Workspace trust prompt** before any folder is synced.
+- **The Electron binary is not downloaded on install** (`ELECTRON_SKIP_BINARY_DOWNLOAD=1` in CI and Docker). Run `npm run setup -w apps/desktop` once to fetch it into `.cache/electron`, then `npm run desktop` (with the stack running) to launch.
+- **Not yet verified by running the app**: this machine has no Electron binary yet and Docker was stopped overnight. The bridge itself is covered by unit, property and live-stack tests.

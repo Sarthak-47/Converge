@@ -9,6 +9,10 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # Only the desktop app needs Electron's ~100 MB binary; CI type-checks it without downloading.
+  ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+
 jobs:
   api:
     name: API (Java 21, Maven)

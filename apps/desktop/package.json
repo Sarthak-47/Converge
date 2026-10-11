@@ -1,0 +1,22 @@
+{
+  "name": "@converge/desktop",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Converge desktop app: the web client plus a live local checkout (design §12).",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "npm run build --workspace @converge/sync-bridge && tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "setup": "node scripts/fetch-electron.mjs",
+    "start": "npm run build && electron ."
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "electron": "^44.7.0",
+    "typescript": "~6.0.2"
+  },
+  "dependencies": {
+    "@converge/sync-bridge": "^0.0.0"
+  }
+}

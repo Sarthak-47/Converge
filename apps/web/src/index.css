@@ -743,3 +743,14 @@ select {
 .editor-host[hidden] {
   display: none;
 }
+
+/* Desktop sync */
+.sync-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 360px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

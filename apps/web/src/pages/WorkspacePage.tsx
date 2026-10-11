@@ -6,6 +6,7 @@ import { ChatPanel } from '../components/ChatPanel.tsx'
 import { FileTree } from '../components/FileTree.tsx'
 import { MembersDialog } from '../components/MembersDialog.tsx'
 import { PresenceAvatars } from '../components/PresenceAvatars.tsx'
+import { SyncControl } from '../components/SyncControl.tsx'
 import { TopBar } from '../components/TopBar.tsx'
 import { CollabDocument, type Peer, type SyncState } from '../editor/collabDocument.ts'
 import { monaco } from '../editor/monaco.ts'
@@ -210,6 +211,7 @@ export default function WorkspacePage() {
           {channel.state === 'connected' ? 'Live' : channel.state === 'connecting' ? 'Connecting…' : 'Reconnecting…'}
         </span>
         <PresenceAvatars online={channel.online} />
+        {workspace && <SyncControl workspaceId={workspace.id} />}
         {workspace && (
           <button type="button" className="ghost" onClick={() => setShowMembers(true)}>Members</button>
         )}
