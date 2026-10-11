@@ -89,5 +89,6 @@ test('a stale save is caught instead of overwriting newer text', async ({ browse
   await second.locator('.monaco-editor').first().click()
   await second.keyboard.type('second tab is stale')
   await second.keyboard.press('ControlOrMeta+s')
-  await expect(second.getByRole('alert')).toContainText('saved by someone else')
+  // Target the conflict banner itself: Monaco also renders role=alert regions for screen readers.
+  await expect(second.locator('.banner.warning')).toContainText('saved by someone else')
 })
