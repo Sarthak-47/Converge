@@ -7,6 +7,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
@@ -131,18 +132,22 @@ public final class StompTestClient implements AutoCloseable {
         return received;
     }
 
-    /** Like {@link #subscribe} but for payloads that are not JSON objects, such as the presence list. */
-    public BlockingQueue<Object> subscribeAny(String destination) throws InterruptedException {
-        BlockingQueue<Object> received = new LinkedBlockingQueue<>();
+    /**
+     * Like {@link #subscribe} but for JSON array payloads, such as the presence list. The converter needs a
+     * concrete target type: asking for Object yields the raw bytes.
+     */
+    public BlockingQueue<List<Map<String, Object>>> subscribeList(String destination) throws InterruptedException {
+        BlockingQueue<List<Map<String, Object>>> received = new LinkedBlockingQueue<>();
         session.subscribe(destination, new StompFrameHandler() {
             @Override
             public Type getPayloadType(StompHeaders headers) {
-                return Object.class;
+                return List.class;
             }
 
             @Override
+            @SuppressWarnings("unchecked")
             public void handleFrame(StompHeaders headers, Object payload) {
-                received.add(payload);
+                received.add((List<Map<String, Object>>) payload);
             }
         });
         Thread.sleep(200);
