@@ -81,13 +81,17 @@ test('a stale save is caught instead of overwriting newer text', async ({ browse
   await second.locator('.tree-name', { hasText: 'notes.md' }).click()
   await expect(second.locator('.monaco-editor')).toBeVisible()
 
+  // The second tab has unsaved edits when the first tab saves, so it is warned instead of reloaded.
+  await second.locator('.monaco-editor').first().click()
+  await second.keyboard.type('second tab is stale')
+
   await first.locator('.monaco-editor').first().click()
   await first.keyboard.type('first tab wins')
   await first.keyboard.press('ControlOrMeta+s')
   await expect(first.locator('.statusbar')).toContainText('Saved')
+  await expect(second.locator('.banner.warning')).toContainText('Someone saved a newer version')
 
   await second.locator('.monaco-editor').first().click()
-  await second.keyboard.type('second tab is stale')
   await second.keyboard.press('ControlOrMeta+s')
   // Target the conflict banner itself: Monaco also renders role=alert regions for screen readers.
   await expect(second.locator('.banner.warning')).toContainText('saved by someone else')
