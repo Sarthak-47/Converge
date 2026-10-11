@@ -26,6 +26,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import dev.converge.api.workspace.MemberService;
+
 @RestController
 @RequestMapping("/api/v1/auth")
 public class AuthController {
@@ -49,19 +51,22 @@ public class AuthController {
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final SecurityContextRepository contexts;
+    private final MemberService members;
 
     public AuthController(UserRepository users, PasswordEncoder passwordEncoder,
-            AuthenticationManager authenticationManager, SecurityContextRepository contexts) {
+            AuthenticationManager authenticationManager, SecurityContextRepository contexts, MemberService members) {
         this.users = users;
         this.passwordEncoder = passwordEncoder;
         this.authenticationManager = authenticationManager;
         this.contexts = contexts;
+        this.members = members;
     }
 
     @PostMapping("/register")
     ResponseEntity<UserView> register(@Valid @RequestBody RegisterRequest body, HttpServletRequest request,
             HttpServletResponse response) {
         AppUser user = users.create(body.email(), body.displayName(), passwordEncoder.encode(body.password()));
+        members.acceptInvitations(user);
         signIn(user, request, response);
         return ResponseEntity.status(HttpStatus.CREATED).body(UserView.of(user));
     }
@@ -71,6 +76,7 @@ public class AuthController {
         Authentication result = authenticationManager.authenticate(
                 UsernamePasswordAuthenticationToken.unauthenticated(body.email(), body.password()));
         AppUser user = (AppUser) result.getPrincipal();
+        members.acceptInvitations(user);
         signIn(user, request, response);
         return UserView.of(user);
     }

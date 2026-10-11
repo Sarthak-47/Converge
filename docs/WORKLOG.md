@@ -56,3 +56,12 @@ Decisions made while working autonomously, newest last. Each entry says what was
 - **Snapshot plus updates**: a `@SubscribeMapping` returns who is online now directly to the new subscriber, and later changes arrive on the presence topic, so the broadcast sent while the subscription is being set up is never missed.
 - **Coloured, named cursors from Yjs awareness.** Peer data comes from other clients, so names are length-limited and escaped for CSS, and colours must match a strict `hsl(...)` pattern before they reach any stylesheet.
 - **`useSyncExternalStore` for the peer list**, with a cached snapshot that changes only when awareness does.
+
+## 2026-10-12 — Phase 5: team features
+
+- **Adding people by email.** An existing account is added at once; an unknown email becomes a pending invitation that is accepted automatically when that person registers or signs in. This needs no email delivery yet, and invitations are visible only to owners because they reveal addresses.
+- **Last-owner guard**: the only owner cannot be demoted or removed; anyone else can leave.
+- **Live permission changes (FR-18).** REST calls and STOMP sends are re-authorized on every request already. For long-lived sockets, an after-commit listener asks the collaboration service to set the person's document connections read-only, read-write, or close them (close code 4403), and closes a removed member's workspace-channel sockets through a per-user session registry. Closing all of a removed member's sockets also drops their other workspaces' sockets briefly; they reconnect automatically, which was judged simpler and safer than per-workspace socket surgery.
+- **Audit log** (`audit_events`): membership changes, invitations and role changes, written in the same transaction as the change, readable by owners.
+- **Health endpoint**: component status stays public for the status page, but details (versions, error messages) are no longer exposed.
+- **Fixes found by CI on earlier phases**: Playwright's `setOffline()` leaves established WebSockets open, so offline is now simulated by routing the collaboration socket through the test; the STOMP converter returns raw bytes when asked for `Object`, so list payloads use `List.class`; Monaco renders its own `role=alert`/`role=status` regions, so tests target the app's elements instead.

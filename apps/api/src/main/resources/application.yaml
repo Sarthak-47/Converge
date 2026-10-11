@@ -50,5 +50,6 @@ management:
         include: health
   endpoint:
     health:
-      # Phase 0 only: component details are public. Restrict to authorized users with auth (Phase 5).
-      show-details: always
+      # Component status (UP/DOWN) is public for the status page; details such as versions are not.
+      show-components: always
+      show-details: never

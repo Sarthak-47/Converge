@@ -9,6 +9,7 @@ import org.springframework.messaging.simp.config.MessageBrokerRegistry;
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
+import org.springframework.web.socket.config.annotation.WebSocketTransportRegistration;
 
 /**
  * The workspace channel: STOMP over WebSocket at /ws (design §7.1). The handshake is an ordinary HTTP request,
@@ -20,11 +21,13 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     private final DestinationAuthorizationInterceptor authorization;
+    private final WebSocketSessions sessions;
     private final List<String> allowedOrigins;
 
-    public WebSocketConfig(DestinationAuthorizationInterceptor authorization,
+    public WebSocketConfig(DestinationAuthorizationInterceptor authorization, WebSocketSessions sessions,
             @Value("${converge.websocket.allowed-origins:}") List<String> allowedOrigins) {
         this.authorization = authorization;
+        this.sessions = sessions;
         this.allowedOrigins = allowedOrigins.stream().filter(o -> !o.isBlank()).toList();
     }
 
@@ -42,6 +45,11 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         registry.enableSimpleBroker("/topic", "/queue");
         registry.setApplicationDestinationPrefixes("/app");
         registry.setUserDestinationPrefix("/user");
+    }
+
+    @Override
+    public void configureWebSocketTransport(WebSocketTransportRegistration registration) {
+        registration.addDecoratorFactory(sessions::decorate);
     }
 
     @Override

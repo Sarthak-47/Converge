@@ -1,9 +1,10 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { useParams } from 'react-router'
-import { api, type FileKind, type FileNode, type Workspace } from '../api.ts'
+import { useNavigate, useParams } from 'react-router'
+import { api, ApiError, type FileKind, type FileNode, type Workspace } from '../api.ts'
 import { useAuth } from '../auth.tsx'
 import { ChatPanel } from '../components/ChatPanel.tsx'
 import { FileTree } from '../components/FileTree.tsx'
+import { MembersDialog } from '../components/MembersDialog.tsx'
 import { PresenceAvatars } from '../components/PresenceAvatars.tsx'
 import { TopBar } from '../components/TopBar.tsx'
 import { CollabDocument, type Peer, type SyncState } from '../editor/collabDocument.ts'
@@ -33,6 +34,8 @@ function modelUri(file: FileNode) {
 export default function WorkspacePage() {
   const { workspaceId = '' } = useParams()
   const { user } = useAuth()
+  const navigate = useNavigate()
+  const [showMembers, setShowMembers] = useState(false)
   const [workspace, setWorkspace] = useState<Workspace | null>(null)
   const [files, setFiles] = useState<FileNode[]>([])
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -103,9 +106,22 @@ export default function WorkspacePage() {
     setActive({ id: file.id, open })
   }
 
-  /** Applies another client's tree change. Content changes arrive through each file's live replica. */
+  /** Re-reads my role after a membership change; losing access entirely closes the workspace. */
+  async function refreshAccess() {
+    try {
+      setWorkspace(await api.workspace(workspaceId))
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) setLoadError('You no longer have access to this workspace.')
+    }
+  }
+
+  /** Applies another client's change. Content changes arrive through each file's live replica. */
   async function onRemoteEvent(event: WorkspaceEvent) {
     if (event.type === 'FILE_SAVED') return
+    if (event.type === 'MEMBER_ADDED' || event.type === 'MEMBER_ROLE_CHANGED' || event.type === 'MEMBER_REMOVED') {
+      if (event.payload.userId === user?.id) await refreshAccess()
+      return
+    }
     const tree = await api.tree(workspaceId)
     setFiles(tree)
     for (const node of tree) {
@@ -124,7 +140,11 @@ export default function WorkspacePage() {
   const channel = useWorkspaceChannel(workspaceId, {
     onEvent: (event) => void onRemoteEvent(event),
     onChat: (m) => setChat((list) => (list.some((x) => x.id === m.id) ? list : [...list, m])),
-    onError: (m) => setMessage(m),
+    // A rejected resubscription after a reconnect usually means access was just removed.
+    onError: (m) => {
+      setMessage(m)
+      void refreshAccess()
+    },
   })
 
   async function createFile(parentId: string | null, name: string, kind: FileKind) {
@@ -174,7 +194,13 @@ export default function WorkspacePage() {
           {channel.state === 'connected' ? 'Live' : channel.state === 'connecting' ? 'Connecting…' : 'Reconnecting…'}
         </span>
         <PresenceAvatars online={channel.online} />
+        {workspace && (
+          <button type="button" className="ghost" onClick={() => setShowMembers(true)}>Members</button>
+        )}
       </TopBar>
+      {showMembers && workspace && user && (
+        <MembersDialog workspace={workspace} currentUserId={user.id} onClose={() => setShowMembers(false)} onLeft={() => navigate('/')} />
+      )}
       <aside className="sidebar">
         <FileTree
           files={files}

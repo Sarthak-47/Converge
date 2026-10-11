@@ -1,6 +1,6 @@
 import { Client, type IMessage, type StompSubscription } from '@stomp/stompjs'
 import { useEffect, useRef, useState } from 'react'
-import type { FileNode } from '../api.ts'
+import type { FileNode, Role } from '../api.ts'
 
 /** Envelope for workspace events (design §7.3). */
 export type WorkspaceEvent =
@@ -8,6 +8,8 @@ export type WorkspaceEvent =
   | Envelope<'FILE_MOVED', { file: FileNode; oldPath: string }>
   | Envelope<'FILE_DELETED', { fileId: string; path: string; kind: FileNode['kind'] }>
   | Envelope<'FILE_SAVED', { fileId: string; version: number; contentHash: string }>
+  | Envelope<'MEMBER_ADDED' | 'MEMBER_ROLE_CHANGED', { userId: string; role: Role }>
+  | Envelope<'MEMBER_REMOVED', { userId: string }>
 
 type Envelope<T extends string, P> = {
   type: T

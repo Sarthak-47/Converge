@@ -102,8 +102,23 @@ export const api = {
 
   ticket: (fileId: string) => request<{ ticket: string; expiresAt: string }>('POST', '/realtime/tickets', { fileId }),
 
+  members: (workspaceId: string) => request<Roster>('GET', `/workspaces/${workspaceId}/members`),
+  addMember: (workspaceId: string, email: string, role: Role) =>
+    request<{ member: Member | null; invitation: Invitation | null }>('POST', `/workspaces/${workspaceId}/members`, { email, role }),
+  changeRole: (workspaceId: string, userId: string, role: Role) =>
+    request<Member>('PATCH', `/workspaces/${workspaceId}/members/${userId}`, { role }),
+  removeMember: (workspaceId: string, userId: string) => request<void>('DELETE', `/workspaces/${workspaceId}/members/${userId}`),
+  cancelInvitation: (workspaceId: string, invitationId: string) =>
+    request<void>('DELETE', `/workspaces/${workspaceId}/invitations/${invitationId}`),
+
   chatHistory: (workspaceId: string) => request<ChatHistoryEntry[]>('GET', `/workspaces/${workspaceId}/chat`),
 }
+
+export type Member = { userId: string; email: string; displayName: string; role: Role; joinedAt: string }
+
+export type Invitation = { id: string; email: string; role: Role; createdAt: string }
+
+export type Roster = { members: Member[]; invitations: Invitation[] }
 
 export type ChatHistoryEntry = {
   id: string

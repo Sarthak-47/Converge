@@ -52,6 +52,18 @@ public class CollabClient {
         }
     }
 
+    /**
+     * Updates a person's open document connections in one workspace: "read-only", "read-write" or "close"
+     * (design §5.3, /internal/connections/revoke).
+     */
+    public void revoke(UUID userId, UUID workspaceId, String action) {
+        client.post().uri("/internal/connections/revoke")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("userId", userId, "workspaceId", workspaceId, "action", action))
+                .retrieve()
+                .toBodilessEntity();
+    }
+
     /** Asks the collaboration service to store pending edits now, so materialized text is current. */
     public void flush(UUID fileId) {
         try {

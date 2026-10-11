@@ -68,6 +68,13 @@ export class CollabDocument {
         this.denied = true
         this.emit()
       },
+      onClose: ({ event }) => {
+        // 4403: the server closed the connection because workspace access was removed (FR-18).
+        if (event.code === 4403) {
+          this.denied = true
+          this.emit()
+        }
+      },
     })
     this.provider.setAwarenessField('user', { name: user.displayName, color: colorFor(user.id) })
     this.provider.awareness?.on('change', this.onAwareness)
