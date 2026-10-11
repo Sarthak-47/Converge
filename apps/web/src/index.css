@@ -674,3 +674,72 @@ select {
 .notice {
   color: var(--up-text);
 }
+
+/* History */
+.editor-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.history {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  flex: 1;
+  min-height: 0;
+}
+
+.history-list {
+  overflow: auto;
+  border-right: 1px solid var(--border);
+}
+
+.history-list ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.version {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.version.active {
+  background: var(--active);
+}
+
+.history-diff {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.history-diff .editor-peers {
+  justify-content: space-between;
+}
+
+.banner.notice-banner {
+  background: var(--up-bg);
+  color: var(--up-text);
+}
+
+.editor-host {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.editor-host[hidden] {
+  display: none;
+}

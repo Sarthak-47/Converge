@@ -8,8 +8,10 @@ import { DocumentNotFoundError, storeDocument, TEXT_FIELD } from './persistence.
 import { REVOKE_ACTIONS, revokeConnections, type LiveConnection, type RevokeAction } from './revoke.js'
 import { applyTextChange } from './textDiff.js'
 
-const ROUTE = /^\/internal\/documents\/([^/]+)\/(apply-text|flush)$/
+const ROUTE = /^\/internal\/documents\/([^/]+)\/(apply-text|flush|close)$/
 const REVOKE_ROUTE = '/internal/connections/revoke'
+/** Close code the web client recognises as "this file was deleted". */
+const FILE_DELETED = { code: 4404, reason: 'File deleted' }
 const MAX_BODY_BYTES = 4 * 1024 * 1024
 
 function tokenMatches(presented: string | undefined): boolean {
@@ -59,6 +61,16 @@ export async function handleInternal(
   if (!isFileId(fileId)) return reply(response, 404, { error: 'Unknown document' })
 
   try {
+    if (action === 'close') {
+      const document = hocuspocus.documents.get(fileId)
+      let closed = 0
+      document?.connections.forEach((_clients, connection) => {
+        connection.close(FILE_DELETED)
+        closed++
+      })
+      return reply(response, 200, { closed })
+    }
+
     if (action === 'flush') {
       const document = hocuspocus.documents.get(fileId)
       if (document) await storeDocument(db, fileId, document)

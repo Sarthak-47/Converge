@@ -111,6 +111,12 @@ export const api = {
   cancelInvitation: (workspaceId: string, invitationId: string) =>
     request<void>('DELETE', `/workspaces/${workspaceId}/invitations/${invitationId}`),
 
+  history: (fileId: string) => request<Version[]>('GET', `/files/${fileId}/history`),
+  checkpoint: (fileId: string, label?: string) => request<Version>('POST', `/files/${fileId}/snapshots`, { label }),
+  snapshotText: (fileId: string, snapshotId: string) =>
+    request<{ id: string; versionNo: number; text: string }>('GET', `/files/${fileId}/snapshots/${snapshotId}`),
+  restore: (fileId: string, snapshotId: string) => request<Version>('POST', `/files/${fileId}/restore`, { snapshotId }),
+
   chatHistory: (workspaceId: string) => request<ChatHistoryEntry[]>('GET', `/workspaces/${workspaceId}/chat`),
 }
 
@@ -119,6 +125,17 @@ export type Member = { userId: string; email: string; displayName: string; role:
 export type Invitation = { id: string; email: string; role: Role; createdAt: string }
 
 export type Roster = { members: Member[]; invitations: Invitation[] }
+
+export type Version = {
+  id: string
+  versionNo: number
+  reason: 'MANUAL' | 'AUTO' | 'PRE_EXTERNAL'
+  label: string | null
+  createdBy: string | null
+  createdByName: string | null
+  createdAt: string
+  contentHash: string
+}
 
 export type ChatHistoryEntry = {
   id: string

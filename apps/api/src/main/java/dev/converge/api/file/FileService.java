@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import dev.converge.api.common.ApiException;
+import dev.converge.api.history.HistoryService;
 import dev.converge.api.realtime.CollabClient;
 import dev.converge.api.realtime.WorkspaceEvent;
 import dev.converge.api.workspace.Role;
@@ -48,12 +49,19 @@ public class FileService {
     private final WorkspaceAccess access;
     private final ApplicationEventPublisher events;
     private final CollabClient collab;
+    private final HistoryService history;
 
-    public FileService(JdbcClient jdbc, WorkspaceAccess access, ApplicationEventPublisher events, CollabClient collab) {
+    /** Published after commit with every file a delete removed, so their live documents can be closed. */
+    public record FilesDeleted(List<UUID> fileIds) {
+    }
+
+    public FileService(JdbcClient jdbc, WorkspaceAccess access, ApplicationEventPublisher events, CollabClient collab,
+            HistoryService history) {
         this.jdbc = jdbc;
         this.access = access;
         this.events = events;
         this.collab = collab;
+        this.history = history;
     }
 
     public List<FileNode> tree(UUID workspaceId, UUID userId) {
@@ -156,6 +164,13 @@ public class FileService {
     public void delete(UUID fileId, int rowVersion, UUID userId) {
         FileNode node = liveNode(fileId);
         access.require(node.workspaceId(), userId, Role.EDITOR);
+        List<UUID> removedFiles = jdbc.sql("""
+                select id from files
+                where workspace_id = ? and deleted_at is null and kind = 'FILE' and (id = ? or starts_with(path, ?))
+                """)
+                .params(node.workspaceId(), fileId, node.path() + "/")
+                .query(UUID.class)
+                .list();
         int updated = jdbc.sql("update files set deleted_at = now() where id = ? and row_version = ? and deleted_at is null")
                 .params(fileId, rowVersion)
                 .update();
@@ -169,6 +184,7 @@ public class FileService {
         }
         events.publishEvent(WorkspaceEvent.of("FILE_DELETED", node.workspaceId(), userId,
                 Map.of("fileId", fileId, "path", node.path(), "kind", node.kind())));
+        events.publishEvent(new FilesDeleted(removedFiles));
     }
 
     public Content content(UUID fileId, UUID userId) {
@@ -201,6 +217,7 @@ public class FileService {
                 throw ApiException.conflict("This file changed since you read it");
             }
         }
+        history.beforeExternalChange(fileId, userId, "Before an update through the API");
         collab.applyText(fileId, text, "api:" + userId);
         Content saved = content(fileId, userId);
         events.publishEvent(WorkspaceEvent.of("FILE_SAVED", node.workspaceId(), userId,

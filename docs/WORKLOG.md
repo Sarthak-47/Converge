@@ -65,3 +65,11 @@ Decisions made while working autonomously, newest last. Each entry says what was
 - **Audit log** (`audit_events`): membership changes, invitations and role changes, written in the same transaction as the change, readable by owners.
 - **Health endpoint**: component status stays public for the status page, but details (versions, error messages) are no longer exposed.
 - **Fixes found by CI on earlier phases**: Playwright's `setOffline()` leaves established WebSockets open, so offline is now simulated by routing the collaboration socket through the test; the STOMP converter returns raw bytes when asked for `Object`, so list payloads use `List.class`; Monaco renders its own `role=alert`/`role=status` regions, so tests target the app's elements instead.
+
+## 2026-10-12 — Phase 6: history
+
+- **Versions are plaintext snapshots** (design §9.4): taken on request (named checkpoints), automatically for files that have been quiet for 30 seconds since their last change, and always just before an external change (API writes and restores), so every restore can itself be undone. A version identical to the previous one is skipped; numbering is per file and retried on a concurrent insert.
+- **Every version reads freshly flushed text**: the API asks the collaboration service to store pending edits first, so a checkpoint never misses the last couple of seconds of typing.
+- **Restore is an external change**: the old text is merged in through `apply-text`, so edits made concurrently with the restore survive. Gate D is tested deterministically: one browser goes offline and edits an unchanged region while the other restores; after reconnecting, both converge on the restored text plus the offline edit.
+- **Diff view uses Monaco's diff editor** with the live model on the right; the editor stays mounted (hidden) behind the history view so the binding keeps that side current.
+- **Deleting files closes their live documents** after commit (close code 4404), including every file inside a deleted folder.

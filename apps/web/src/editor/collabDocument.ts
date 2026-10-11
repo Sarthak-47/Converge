@@ -3,7 +3,7 @@ import * as Y from 'yjs'
 import { api } from '../api.ts'
 
 /** What the status bar shows for a live document. */
-export type SyncState = 'connecting' | 'syncing' | 'saving' | 'saved' | 'offline' | 'denied'
+export type SyncState = 'connecting' | 'syncing' | 'saving' | 'saved' | 'offline' | 'denied' | 'deleted'
 
 /** Name of the shared type holding a file's text; the collaboration service uses the same name. */
 const TEXT_FIELD = 'content'
@@ -49,6 +49,7 @@ export class CollabDocument {
   readonly undoManager = new Y.UndoManager(this.text, { trackedOrigins: new Set() })
   private status: WebSocketStatus = WebSocketStatus.Connecting
   private denied = false
+  private deleted = false
   private onChange: (state: SyncState) => void
 
   constructor(fileId: string, user: { id: string; displayName: string }, onChange: (state: SyncState) => void) {
@@ -74,6 +75,11 @@ export class CollabDocument {
           this.denied = true
           this.emit()
         }
+        // 4404: the file was deleted while open (design §8.10).
+        if (event.code === 4404) {
+          this.deleted = true
+          this.emit()
+        }
       },
     })
     this.provider.setAwarenessField('user', { name: user.displayName, color: colorFor(user.id) })
@@ -81,6 +87,7 @@ export class CollabDocument {
   }
 
   get state(): SyncState {
+    if (this.deleted) return 'deleted'
     if (this.denied) return 'denied'
     if (this.status === WebSocketStatus.Disconnected) return 'offline'
     if (this.status === WebSocketStatus.Connecting) return 'connecting'

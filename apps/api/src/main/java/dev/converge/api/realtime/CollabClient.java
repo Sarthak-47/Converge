@@ -64,6 +64,11 @@ public class CollabClient {
                 .toBodilessEntity();
     }
 
+    /** Disconnects everyone from a deleted file's live document (close code 4404). */
+    public void close(UUID fileId) {
+        client.post().uri("/internal/documents/{id}/close", fileId).retrieve().toBodilessEntity();
+    }
+
     /** Asks the collaboration service to store pending edits now, so materialized text is current. */
     public void flush(UUID fileId) {
         try {

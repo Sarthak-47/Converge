@@ -12,6 +12,7 @@ import { monaco } from '../editor/monaco.ts'
 import { useWorkspaceChannel, type ChatMessage, type WorkspaceEvent } from '../realtime/workspaceChannel.ts'
 
 const CodeEditor = lazy(() => import('../editor/CodeEditor.tsx'))
+const HistoryView = lazy(() => import('../editor/HistoryView.tsx'))
 
 /** An opened file: its live replica plus the Monaco model that shows it. Kept in a ref; read by handlers. */
 type OpenFile = { live: CollabDocument; model: monaco.editor.ITextModel }
@@ -25,6 +26,7 @@ const SYNC_LABEL: Record<SyncState, string> = {
   saved: 'All changes saved',
   offline: 'Offline · changes will sync when reconnected',
   denied: 'You no longer have access to this file',
+  deleted: 'This file was deleted',
 }
 
 function modelUri(file: FileNode) {
@@ -36,6 +38,8 @@ export default function WorkspacePage() {
   const { user } = useAuth()
   const navigate = useNavigate()
   const [showMembers, setShowMembers] = useState(false)
+  const [showHistory, setShowHistory] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
   const [workspace, setWorkspace] = useState<Workspace | null>(null)
   const [files, setFiles] = useState<FileNode[]>([])
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -104,6 +108,7 @@ export default function WorkspacePage() {
       openFiles.current.set(file.id, open)
     }
     setActive({ id: file.id, open })
+    setShowHistory(false)
   }
 
   /** Re-reads my role after a membership change; losing access entirely closes the workspace. */
@@ -146,6 +151,17 @@ export default function WorkspacePage() {
       void refreshAccess()
     },
   })
+
+  async function createCheckpoint() {
+    if (!activeId) return
+    const label = window.prompt('Name this checkpoint (optional)') ?? undefined
+    try {
+      const version = await api.checkpoint(activeId, label || undefined)
+      setNotice(`Saved checkpoint v${version.versionNo}.`)
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : 'Could not create a checkpoint')
+    }
+  }
 
   async function createFile(parentId: string | null, name: string, kind: FileKind) {
     const node = await api.createFile(workspaceId, parentId, name, kind)
@@ -225,10 +241,47 @@ export default function WorkspacePage() {
             ))}
           </div>
         )}
-        {active ? (
-          <Suspense fallback={<div className="center muted">Loading editor…</div>}>
-            <CodeEditor model={active.open.model} live={active.open.live} readOnly={!canEdit || activeState === 'denied'} />
+        {notice && (
+          <div className="banner notice-banner" role="status">
+            <span>{notice}</span>
+            <button type="button" className="ghost" onClick={() => setNotice(null)}>Dismiss</button>
+          </div>
+        )}
+        {active && (
+          <div className="editor-toolbar">
+            {canEdit && (
+              <button type="button" className="ghost" onClick={() => void createCheckpoint()}>Checkpoint</button>
+            )}
+            <button type="button" className={showHistory ? 'primary' : 'ghost'} aria-pressed={showHistory} onClick={() => setShowHistory((v) => !v)}>
+              History
+            </button>
+          </div>
+        )}
+        {active && showHistory && (
+          <Suspense fallback={<div className="center muted">Loading history…</div>}>
+            <HistoryView
+              fileId={active.id}
+              current={active.open.model}
+              canRestore={canEdit}
+              onClose={() => setShowHistory(false)}
+              onRestored={(version) => {
+                setShowHistory(false)
+                setNotice(`Restored version ${version}. The previous text was saved as a new version.`)
+              }}
+            />
           </Suspense>
+        )}
+        {active ? (
+          // Stays mounted while history is open, so the binding keeps the live text (and the diff) current.
+          <div className="editor-host" hidden={showHistory}>
+            <Suspense fallback={<div className="center muted">Loading editor…</div>}>
+              <CodeEditor
+                model={active.open.model}
+                live={active.open.live}
+                readOnly={!canEdit || activeState === 'denied' || activeState === 'deleted'}
+              />
+            </Suspense>
+          </div>
         ) : (
           <div className="center muted">{files.length ? 'Select a file to start editing.' : 'Create a file to start editing.'}</div>
         )}
