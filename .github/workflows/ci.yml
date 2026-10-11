@@ -49,6 +49,8 @@ jobs:
       - run: npm run typecheck
       - name: Collaboration service tests (including property tests)
         run: npm test --workspace @converge/collab
+      - name: Desktop sync bridge tests (Gate F)
+        run: npm test --workspace @converge/sync-bridge
 
   stack:
     name: Compose stack + end-to-end tests
@@ -75,8 +77,12 @@ jobs:
       - name: Install Chromium for Playwright
         run: npx playwright install --with-deps chromium
         working-directory: tests/e2e
-      - name: End-to-end tests (gates A and B, realtime)
+      - name: End-to-end tests (gates A, B and D, team, presence)
         run: npm run e2e
+      - name: Desktop sync against the live stack (Gate F)
+        run: npm test --workspace @converge/sync-bridge -- live
+        env:
+          CONVERGE_LIVE_URL: http://localhost:8000
       - if: failure()
         uses: actions/upload-artifact@v7
         with:

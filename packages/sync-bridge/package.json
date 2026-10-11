@@ -1,0 +1,30 @@
+{
+  "name": "@converge/sync-bridge",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Keeps a local folder in live two-way sync with a Converge workspace (design §12).",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@hocuspocus/provider": "^4.7.0",
+    "@stomp/stompjs": "^7.4.0",
+    "chokidar": "^5.0.0",
+    "fast-diff": "^1.3.0",
+    "ignore": "^7.0.12",
+    "ws": "^8.22.0",
+    "yjs": "^13.6.33"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "@types/ws": "^8.18.2",
+    "fast-check": "^4.10.2",
+    "typescript": "~6.0.2",
+    "vitest": "^5.0.3"
+  }
+}
