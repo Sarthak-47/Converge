@@ -1,25 +1,27 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router'
-import { api, ApiError, type FileKind, type FileNode, type Workspace } from '../api.ts'
+import { api, type FileKind, type FileNode, type Workspace } from '../api.ts'
 import { useAuth } from '../auth.tsx'
 import { ChatPanel } from '../components/ChatPanel.tsx'
 import { FileTree } from '../components/FileTree.tsx'
 import { TopBar } from '../components/TopBar.tsx'
+import { CollabDocument, type SyncState } from '../editor/collabDocument.ts'
 import { monaco } from '../editor/monaco.ts'
 import { useWorkspaceChannel, type ChatMessage, type WorkspaceEvent } from '../realtime/workspaceChannel.ts'
 
 const CodeEditor = lazy(() => import('../editor/CodeEditor.tsx'))
 
-/** Editor bookkeeping for an opened file. Kept in a ref: it changes on every save and is read only by handlers. */
-type OpenFile = {
-  model: monaco.editor.ITextModel
-  /** Server content version this text is based on; sent with saves to detect conflicts. */
-  baseVersion: number
-  /** Monaco's alternative version id at the last save; differs from the current one while unsaved. */
-  savedVersionId: number
-}
+/** An opened file: its live replica plus the Monaco model that shows it. Kept in a ref; read by handlers. */
+type OpenFile = { live: CollabDocument; model: monaco.editor.ITextModel }
 
-type SaveState = 'idle' | 'saving' | 'error'
+const SYNC_LABEL: Record<SyncState, string> = {
+  connecting: 'Connecting…',
+  syncing: 'Syncing…',
+  saving: 'Saving…',
+  saved: 'All changes saved',
+  offline: 'Offline · changes will sync when reconnected',
+  denied: 'You no longer have access to this file',
+}
 
 function modelUri(file: FileNode) {
   return monaco.Uri.from({ scheme: 'inmemory', authority: 'converge', path: `/${file.id}/${file.name}` })
@@ -32,16 +34,13 @@ export default function WorkspacePage() {
   const [files, setFiles] = useState<FileNode[]>([])
   const [loadError, setLoadError] = useState<string | null>(null)
   const openFiles = useRef(new Map<string, OpenFile>())
-  const [activeId, setActiveId] = useState<string | null>(null)
-  const [activeModel, setActiveModel] = useState<monaco.editor.ITextModel | null>(null)
-  const [dirtyIds, setDirtyIds] = useState<Set<string>>(new Set())
-  const [saveState, setSaveState] = useState<SaveState>('idle')
-  const [conflict, setConflict] = useState<string | null>(null)
+  const [active, setActive] = useState<{ id: string; open: OpenFile } | null>(null)
+  const [syncStates, setSyncStates] = useState<Record<string, SyncState>>({})
   const [message, setMessage] = useState<string | null>(null)
   const [chat, setChat] = useState<ChatMessage[]>([])
-  const [remoteSave, setRemoteSave] = useState<string | null>(null)
 
   const canEdit = workspace?.role === 'OWNER' || workspace?.role === 'EDITOR'
+  const activeId = active?.id ?? null
   const activeFile = files.find((f) => f.id === activeId) ?? null
 
   useEffect(() => {
@@ -54,63 +53,62 @@ export default function WorkspacePage() {
       })
       .catch((e: Error) => setLoadError(e.message))
     return () => {
-      opened.forEach((f) => f.model.dispose())
+      opened.forEach((f) => {
+        f.live.destroy()
+        f.model.dispose()
+      })
       opened.clear()
     }
   }, [workspaceId])
 
-  const refreshDirty = useCallback(() => {
-    const next = new Set<string>()
-    openFiles.current.forEach((f, id) => {
-      if (f.model.getAlternativeVersionId() !== f.savedVersionId) next.add(id)
-    })
-    setDirtyIds((prev) => (prev.size === next.size && [...next].every((id) => prev.has(id)) ? prev : next))
-  }, [])
+  const unsyncedIds = new Set(Object.entries(syncStates).filter(([, s]) => s === 'saving' || s === 'offline').map(([id]) => id))
 
   useEffect(() => {
     const warn = (e: BeforeUnloadEvent) => {
-      if (dirtyIds.size > 0) e.preventDefault()
+      if ([...openFiles.current.values()].some((f) => f.live.hasUnsyncedChanges)) e.preventDefault()
     }
     window.addEventListener('beforeunload', warn)
     return () => window.removeEventListener('beforeunload', warn)
-  }, [dirtyIds])
+  }, [])
 
-  function activate(fileId: string | null) {
-    setActiveId(fileId)
-    setActiveModel(fileId ? openFiles.current.get(fileId)?.model ?? null : null)
+  const close = useCallback((fileId: string) => {
+    const open = openFiles.current.get(fileId)
+    if (!open) return
+    open.live.destroy()
+    open.model.dispose()
+    openFiles.current.delete(fileId)
+    setSyncStates(({ [fileId]: _closed, ...rest }) => rest)
+    setActive((current) => (current?.id === fileId ? null : current))
+  }, [])
+
+  function openFile(file: FileNode) {
+    if (!user) return
+    setMessage(null)
+    let open = openFiles.current.get(file.id)
+    if (!open) {
+      const live = new CollabDocument(file.id, user, (state) => setSyncStates((s) => ({ ...s, [file.id]: state })))
+      const model = monaco.editor.createModel('', file.language ?? undefined, modelUri(file))
+      open = { live, model }
+      openFiles.current.set(file.id, open)
+    }
+    setActive({ id: file.id, open })
   }
 
-  /** Applies another client's change. Tree events refetch the tree; saves reload clean files in place. */
+  /** Applies another client's tree change. Content changes arrive through each file's live replica. */
   async function onRemoteEvent(event: WorkspaceEvent) {
-    if (event.type === 'FILE_SAVED') {
-      const open = openFiles.current.get(event.payload.fileId)
-      if (!open || event.payload.version <= open.baseVersion) return
-      if (open.model.getAlternativeVersionId() === open.savedVersionId) {
-        const latest = await api.content(event.payload.fileId)
-        open.model.setValue(latest.text)
-        open.baseVersion = latest.version
-        open.savedVersionId = open.model.getAlternativeVersionId()
-        refreshDirty()
-      } else {
-        setRemoteSave(event.payload.fileId)
-      }
-      return
-    }
+    if (event.type === 'FILE_SAVED') return
     const tree = await api.tree(workspaceId)
     setFiles(tree)
-    if (event.type === 'FILE_DELETED') {
-      const gone = (f: string) => !tree.some((n) => n.id === f)
-      openFiles.current.forEach((open, id) => {
-        if (gone(id)) {
-          open.model.dispose()
-          openFiles.current.delete(id)
-        }
-      })
-      if (activeId && gone(activeId)) {
-        activate(null)
-        setMessage(`"${event.payload.path}" was deleted by someone else.`)
+    for (const node of tree) {
+      const open = openFiles.current.get(node.id)
+      if (open && open.model.getLanguageId() !== (node.language ?? 'plaintext')) {
+        monaco.editor.setModelLanguage(open.model, node.language ?? 'plaintext')
       }
-      refreshDirty()
+    }
+    if (event.type === 'FILE_DELETED') {
+      const deletedActive = activeId !== null && !tree.some((n) => n.id === activeId)
+      ;[...openFiles.current.keys()].filter((id) => !tree.some((n) => n.id === id)).forEach(close)
+      if (deletedActive) setMessage(`"${event.payload.path}" was deleted by someone else.`)
     }
   }
 
@@ -120,73 +118,10 @@ export default function WorkspacePage() {
     onError: (m) => setMessage(m),
   })
 
-  async function openFile(file: FileNode) {
-    setMessage(null)
-    if (!openFiles.current.has(file.id)) {
-      try {
-        const content = await api.content(file.id)
-        const model = monaco.editor.createModel(content.text, content.language ?? undefined, modelUri(file))
-        openFiles.current.set(file.id, {
-          model,
-          baseVersion: content.version,
-          savedVersionId: model.getAlternativeVersionId(),
-        })
-      } catch (e) {
-        setMessage(e instanceof Error ? e.message : 'Could not open the file')
-        return
-      }
-    }
-    setConflict(null)
-    activate(file.id)
-  }
-
-  const save = useCallback(async () => {
-    const open = activeId ? openFiles.current.get(activeId) : undefined
-    if (!activeId || !open || !canEdit) return
-    const versionId = open.model.getAlternativeVersionId()
-    if (versionId === open.savedVersionId) return
-    setSaveState('saving')
-    try {
-      const saved = await api.save(activeId, open.model.getValue(), open.baseVersion)
-      open.baseVersion = saved.version
-      open.savedVersionId = versionId
-      setSaveState('idle')
-      setConflict(null)
-    } catch (e) {
-      if (e instanceof ApiError && e.status === 409) {
-        setConflict(activeId)
-        setSaveState('idle')
-      } else {
-        setSaveState('error')
-        setMessage(e instanceof Error ? e.message : 'Save failed')
-      }
-    }
-    refreshDirty()
-  }, [activeId, canEdit, refreshDirty])
-
-  /** Conflict resolution, chosen explicitly by the user: keep my text, or take theirs. */
-  async function resolveConflict(keep: 'mine' | 'theirs') {
-    const open = conflict ? openFiles.current.get(conflict) : undefined
-    if (!conflict || !open) return
-    const latest = await api.content(conflict)
-    if (keep === 'theirs') {
-      if (!window.confirm('Replace your unsaved changes with the saved version?')) return
-      open.model.setValue(latest.text)
-      open.baseVersion = latest.version
-      open.savedVersionId = open.model.getAlternativeVersionId()
-      setConflict(null)
-      refreshDirty()
-    } else {
-      open.baseVersion = latest.version
-      setConflict(null)
-      await save()
-    }
-  }
-
   async function createFile(parentId: string | null, name: string, kind: FileKind) {
     const node = await api.createFile(workspaceId, parentId, name, kind)
     setFiles((list) => [...list, node])
-    if (kind === 'FILE') await openFile(node)
+    if (kind === 'FILE') openFile(node)
   }
 
   async function renameFile(file: FileNode, name: string) {
@@ -204,13 +139,8 @@ export default function WorkspacePage() {
   async function deleteFile(file: FileNode) {
     await api.deleteFile(file)
     const removed = (f: FileNode) => f.id === file.id || f.path.startsWith(`${file.path}/`)
-    files.filter(removed).forEach((f) => {
-      openFiles.current.get(f.id)?.model.dispose()
-      openFiles.current.delete(f.id)
-    })
+    files.filter(removed).forEach((f) => close(f.id))
     setFiles((list) => list.filter((f) => !removed(f)))
-    if (activeId && !openFiles.current.has(activeId)) activate(null)
-    refreshDirty()
   }
 
   if (loadError) {
@@ -224,8 +154,7 @@ export default function WorkspacePage() {
     )
   }
 
-  const isDirty = activeId !== null && dirtyIds.has(activeId)
-  const status = !activeFile ? '' : saveState === 'saving' ? 'Saving…' : isDirty ? 'Unsaved changes · Ctrl+S to save' : 'Saved'
+  const activeState = activeId ? syncStates[activeId] ?? 'connecting' : null
 
   return (
     <div className="ide">
@@ -240,7 +169,7 @@ export default function WorkspacePage() {
         <FileTree
           files={files}
           activeFileId={activeId}
-          dirtyIds={dirtyIds}
+          dirtyIds={unsyncedIds}
           canEdit={canEdit}
           onOpen={openFile}
           onCreate={createFile}
@@ -249,23 +178,10 @@ export default function WorkspacePage() {
         />
       </aside>
       <section className="editor-area">
-        {conflict && conflict === activeId && (
-          <div className="banner warning" role="alert">
-            <span>This file was saved by someone else since you opened it.</span>
-            <button type="button" onClick={() => void resolveConflict('mine')}>Overwrite with mine</button>
-            <button type="button" className="ghost" onClick={() => void resolveConflict('theirs')}>Load theirs</button>
-          </div>
-        )}
-        {remoteSave && remoteSave === activeId && conflict !== activeId && (
-          <div className="banner warning" role="status">
-            <span>Someone saved a newer version of this file. Saving will ask which version to keep.</span>
-            <button type="button" className="ghost" onClick={() => setRemoteSave(null)}>Dismiss</button>
-          </div>
-        )}
         {message && <div className="banner error-banner" role="alert">{message}</div>}
-        {activeModel ? (
+        {active ? (
           <Suspense fallback={<div className="center muted">Loading editor…</div>}>
-            <CodeEditor model={activeModel} readOnly={!canEdit} onSave={() => void save()} onChange={refreshDirty} />
+            <CodeEditor model={active.open.model} live={active.open.live} readOnly={!canEdit || activeState === 'denied'} />
           </Suspense>
         ) : (
           <div className="center muted">{files.length ? 'Select a file to start editing.' : 'Create a file to start editing.'}</div>
@@ -281,7 +197,9 @@ export default function WorkspacePage() {
       <footer className="statusbar">
         <span>{activeFile?.path ?? ''}</span>
         <span>{activeFile ? activeFile.language ?? 'plain text' : ''}</span>
-        <span className={isDirty ? 'unsaved' : ''}>{status}</span>
+        <span className={activeState === 'offline' || activeState === 'denied' ? 'unsaved' : ''} data-sync={activeState ?? ''}>
+          {activeState ? SYNC_LABEL[activeState] : ''}
+        </span>
       </footer>
     </div>
   )

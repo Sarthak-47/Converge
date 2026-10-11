@@ -4,15 +4,15 @@ A real-time, multi-user development environment: a browser IDE with collaborativ
 
 The full design — architecture, protocols, roadmap and decision log — is in [docs/Converge_System_Design.docx](docs/Converge_System_Design.docx) (Revision 4).
 
-**Status:** Phase 0 (project skeleton). Every service boots with one command and reports its health; no product features yet.
+**Status:** live collaborative editing works end to end: accounts, workspaces, a file tree, chat and real-time co-editing in Monaco backed by Yjs, with automated multi-browser tests for persistence and convergence. See [docs/WORKLOG.md](docs/WORKLOG.md) for the decisions behind each step.
 
 ## Architecture at a glance
 
 | Service | Path | Stack | Role |
 |---|---|---|---|
-| Web | `apps/web` | Vite + React + TypeScript | Browser client (Monaco and Yjs arrive in Phases 1 and 3) |
+| Web | `apps/web` | Vite + React + TypeScript | Browser client: Monaco bound to Yjs, file tree, chat |
 | API | `apps/api` | Spring Boot 4.1, Java 21, Maven | Identity, workspaces, files, history, Git and job orchestration |
-| Collab | `apps/collab` | Node 24 + Hocuspocus (Yjs) | Document synchronization only; rejects all document connections until ticket auth (Phase 3) |
+| Collab | `apps/collab` | Node 24 + Hocuspocus (Yjs) | Document synchronization: ticket auth, persistence, merging external changes |
 | nginx | `infra/nginx` | nginx | Single origin: `/` web, `/api` and `/ws` API, `/collab` collaboration socket; `/internal` is never routed |
 | PostgreSQL 18, Redis 8 | `infra/compose.yaml` | | Durable state; transient fan-out and rate limits |
 
@@ -62,6 +62,16 @@ npm run typecheck
 
 ```bash
 cd apps/api && mvn test
+```
+
+```bash
+npm test --workspace @converge/collab
+```
+
+End-to-end tests run against the full Compose stack (start it first):
+
+```bash
+npm run e2e
 ```
 
 ## Repository layout

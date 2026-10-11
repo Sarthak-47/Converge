@@ -47,6 +47,8 @@ jobs:
       - run: npm ci
       - run: npm run lint --workspace @converge/web
       - run: npm run typecheck
+      - name: Collaboration service tests (including property tests)
+        run: npm test --workspace @converge/collab
 
   stack:
     name: Compose stack + end-to-end tests
@@ -73,7 +75,7 @@ jobs:
       - name: Install Chromium for Playwright
         run: npx playwright install --with-deps chromium
         working-directory: tests/e2e
-      - name: End-to-end tests (Gate A and save conflicts)
+      - name: End-to-end tests (gates A and B, realtime)
         run: npm run e2e
       - if: failure()
         uses: actions/upload-artifact@v7

@@ -32,6 +32,9 @@ services:
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-converge}:${POSTGRES_PASSWORD:-converge}@postgres:5432/${POSTGRES_DB:-converge}
       REDIS_URL: redis://redis:6379
+      API_URL: http://api:8080
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:-dev-internal-token}
+      COLLAB_ALLOWED_ORIGINS: ${PUBLIC_ORIGIN:-http://localhost:8000}
     depends_on:
       postgres:
         condition: service_healthy
@@ -47,6 +50,7 @@ services:
       DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-converge}
       REDIS_HOST: redis
       COLLAB_URL: http://collab:1234
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:-dev-internal-token}
     depends_on:
       postgres:
         condition: service_healthy

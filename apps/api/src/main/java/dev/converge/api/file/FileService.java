@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import dev.converge.api.common.ApiException;
+import dev.converge.api.realtime.CollabClient;
 import dev.converge.api.realtime.WorkspaceEvent;
 import dev.converge.api.workspace.Role;
 import dev.converge.api.workspace.WorkspaceAccess;
@@ -46,11 +47,13 @@ public class FileService {
     private final JdbcClient jdbc;
     private final WorkspaceAccess access;
     private final ApplicationEventPublisher events;
+    private final CollabClient collab;
 
-    public FileService(JdbcClient jdbc, WorkspaceAccess access, ApplicationEventPublisher events) {
+    public FileService(JdbcClient jdbc, WorkspaceAccess access, ApplicationEventPublisher events, CollabClient collab) {
         this.jdbc = jdbc;
         this.access = access;
         this.events = events;
+        this.collab = collab;
     }
 
     public List<FileNode> tree(UUID workspaceId, UUID userId) {
@@ -178,29 +181,31 @@ public class FileService {
                 .single();
     }
 
-    /** Saves new text only if nobody saved since {@code baseVersion}; otherwise 409 (the lost-update guard). */
-    @Transactional
-    public Content save(UUID fileId, String text, int baseVersion, UUID userId) {
+    /**
+     * Writes text from outside the editor (an API client, later restores and agents). Live content belongs to the
+     * Yjs document (design §6.4), so the text is never written here: the collaboration service merges it into
+     * the live document as the minimal set of edits (design §8.9), and concurrent typing is preserved.
+     * {@code baseVersion}, when given, still guards against acting on a stale read.
+     */
+    public Content save(UUID fileId, String text, Integer baseVersion, UUID userId) {
         FileNode node = liveFile(fileId);
         access.require(node.workspaceId(), userId, Role.EDITOR);
         Objects.requireNonNull(text, "text");
         if (text.length() > MAX_CONTENT_CHARS) {
             throw ApiException.badRequest("Files can be at most 1,000,000 characters");
         }
-        String hash = sha256(text);
-        int updated = jdbc.sql("""
-                update documents set text_content = ?, content_hash = ?, content_version = content_version + 1,
-                       updated_at = now()
-                where file_id = ? and content_version = ?
-                """)
-                .params(text, hash, fileId, baseVersion)
-                .update();
-        if (updated == 0) {
-            throw ApiException.conflict("This file was saved by someone else since you opened it");
+        if (baseVersion != null) {
+            int current = jdbc.sql("select content_version from documents where file_id = ?").param(fileId)
+                    .query(Integer.class).single();
+            if (current != baseVersion) {
+                throw ApiException.conflict("This file changed since you read it");
+            }
         }
+        collab.applyText(fileId, text, "api:" + userId);
+        Content saved = content(fileId, userId);
         events.publishEvent(WorkspaceEvent.of("FILE_SAVED", node.workspaceId(), userId,
-                Map.of("fileId", fileId, "version", baseVersion + 1, "contentHash", hash)));
-        return new Content(fileId, node.path(), node.language(), text, baseVersion + 1, hash);
+                Map.of("fileId", fileId, "version", saved.version(), "contentHash", saved.contentHash())));
+        return saved;
     }
 
     private FileNode liveFile(UUID fileId) {

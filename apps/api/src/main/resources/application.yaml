@@ -35,6 +35,8 @@ server:
         secure: ${COOKIE_SECURE:false}
 
 converge:
+  # Shared secret for service-to-service calls on /internal/** (design §5.3). Empty refuses all of them.
+  internal-token: ${INTERNAL_TOKEN:}
   collab:
     base-url: ${COLLAB_URL:http://localhost:1234}
     health:

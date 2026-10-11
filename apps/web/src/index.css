@@ -543,3 +543,15 @@ button.icon:hover {
     border-bottom: 1px solid var(--border);
   }
 }
+
+/* Remote selections and cursors drawn by y-monaco (per-user colours arrive with presence in Phase 4). */
+.yRemoteSelection {
+  background-color: rgb(250 129 0 / 0.35);
+}
+
+.yRemoteSelectionHead {
+  position: absolute;
+  height: 100%;
+  border-left: 2px solid rgb(250 129 0);
+  box-sizing: border-box;
+}

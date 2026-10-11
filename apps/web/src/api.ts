@@ -100,6 +100,8 @@ export const api = {
   save: (fileId: string, text: string, baseVersion: number) =>
     request<Content>('PUT', `/files/${fileId}/content`, { text, baseVersion }),
 
+  ticket: (fileId: string) => request<{ ticket: string; expiresAt: string }>('POST', '/realtime/tickets', { fileId }),
+
   chatHistory: (workspaceId: string) => request<ChatHistoryEntry[]>('GET', `/workspaces/${workspaceId}/chat`),
 }
 

@@ -37,7 +37,7 @@ public class FileController {
     public record MoveFile(String name, UUID parentId, Boolean moveToRoot, @NotNull Integer rowVersion) {
     }
 
-    public record SaveContent(@NotNull String text, @NotNull Integer baseVersion) {
+    public record SaveContent(@NotNull String text, Integer baseVersion) {
     }
 
     private final FileService files;
