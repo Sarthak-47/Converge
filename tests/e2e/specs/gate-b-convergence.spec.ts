@@ -8,6 +8,7 @@ import {
   restart,
   secondBrowser,
   typeAtEnd,
+  typeAtStart,
   uniqueEmail,
   waitUntilSaved,
 } from './helpers.ts'
@@ -27,8 +28,13 @@ test('two browsers editing one file converge, through offline work and a server 
   const ben = await secondBrowser(browser, email, workspaceUrl)
   await openFile(ben.page, 'shared.md')
 
-  // Both type at once. The naive relay would keep only one of these (see NaiveBroadcastTest).
-  await Promise.all([typeAtEnd(page, 'alpha from asha '), typeAtEnd(ben.page, 'beta from ben ')])
+  await typeAtEnd(page, 'middle ')
+  await expect.poll(() => editorText(ben.page)).toContain('middle')
+
+  // Both type at once, at opposite ends. The naive relay would keep only one of these
+  // (see NaiveBroadcastTest). Typing at the very same position at the same instant interleaves
+  // characters, which is correct CRDT behaviour but makes a poor assertion.
+  await Promise.all([typeAtEnd(page, 'alpha from asha '), typeAtStart(ben.page, 'beta from ben ')])
   await expect.poll(async () => (await editorText(page)) === (await editorText(ben.page)), { timeout: 20_000 }).toBe(true)
   const merged = await editorText(page)
   expect(merged).toContain('alpha from asha')

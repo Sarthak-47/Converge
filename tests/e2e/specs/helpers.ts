@@ -58,6 +58,13 @@ export async function typeAtEnd(page: Page, text: string) {
   await page.keyboard.type(text)
 }
 
+/** Types at the very start of the document. */
+export async function typeAtStart(page: Page, text: string) {
+  await page.locator('.monaco-editor .view-lines').click()
+  await page.keyboard.press('ControlOrMeta+Home')
+  await page.keyboard.type(text)
+}
+
 export async function editorText(page: Page): Promise<string> {
   return page.evaluate(() => {
     const lines = [...document.querySelectorAll('.monaco-editor .view-lines .view-line')]
