@@ -13,9 +13,10 @@ import dev.converge.api.HttpIntegrationTest;
 import dev.converge.api.realtime.StompTestClient;
 
 /**
- * Reproduces the bug that motivates Phase 3 (design §8.1). Both users start from "hello". Asha inserts " A",
- * Ben inserts " B", each sending their whole document. The relay keeps whichever arrived last, so one
- * person's edit is silently lost. This test passes because the bug is real; Phase 3's tests show Yjs keeping both.
+ * Reproduces the bug that motivates the CRDT-based editor (design §8.1). Both users start from "hello". Asha
+ * inserts " A", Ben inserts " B", each sending their whole document. The relay keeps whichever arrived last,
+ * so one person's edit is silently lost. This test passes because the bug is real; the Yjs end-to-end tests
+ * show both edits kept.
  */
 class NaiveBroadcastTest extends HttpIntegrationTest {
 
@@ -37,8 +38,9 @@ class NaiveBroadcastTest extends HttpIntegrationTest {
             assertThat(updates.poll(5, TimeUnit.SECONDS)).isNotNull();
             String finalText = relay.current(java.util.UUID.fromString(file));
 
-            assertThat(finalText).isEqualTo("hello B");
-            assertThat(finalText).as("Asha's edit is gone: the lost-update problem").doesNotContain("A");
+            // Inbound STOMP messages are handled on a thread pool, so either edit may arrive last.
+            // Whichever does, the other is silently discarded: that is the lost-update problem.
+            assertThat(finalText).isIn("hello A", "hello B");
         }
     }
 }
