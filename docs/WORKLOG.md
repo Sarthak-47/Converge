@@ -90,3 +90,10 @@ Decisions made while working autonomously, newest last. Each entry says what was
 - **Workspace trust prompt** before any folder is synced.
 - **The Electron binary is not downloaded on install** (`ELECTRON_SKIP_BINARY_DOWNLOAD=1` in CI and Docker). Run `npm run setup -w apps/desktop` once to fetch it into `.cache/electron`, then `npm run desktop` (with the stack running) to launch.
 - **Not yet verified by running the app**: this machine has no Electron binary yet and Docker was stopped overnight. The bridge itself is covered by unit, property and live-stack tests.
+
+## 2026-10-12 — Desktop sync: merging offline work across restarts
+
+- **Each file's base is persisted in the checkout** at `.converge/state/<fileId>.json` (base text, the Yjs state that produced it, line-ending style), written atomically and in order per file. On the next start, a file that changed on disk while the app was closed is merged three-way against that base, so both the offline edits and teammates' concurrent edits survive; previously the local copy was set aside in the trash.
+- **Plain files instead of SQLite** (the design mentioned SQLite): no native module has to be downloaded or rebuilt for Electron, and one small file per tracked document is all this needs. Stopping the bridge keeps saved bases; deleting a file (locally or remotely) removes its base.
+- **Known limit**: if the server's document were rebuilt from scratch (for example a database restore to an older backup), a saved base could reference operations the server no longer has; Yjs would then hold those local edits back rather than corrupt anything. Recovering from that case is left for later.
+- **CI confirmed the live-stack sync test** (two real bridges against the real API and collaboration service) passes, and `main` now includes the sync bridge and desktop shell.

@@ -240,6 +240,27 @@ describe('safety (Gate F)', () => {
     expect(await read(b, 'offline.txt')).toBe(expected)
   })
 
+  it('merges edits made while the app was closed when it starts again', async () => {
+    const id = server.addFile('notes.md', 'line one\n')
+    const first = await started('first')
+    await first.bridge.stop()
+
+    // While the app is closed, this machine edits the file and a teammate edits the workspace.
+    await writeFile(path.join(first.root, 'notes.md'), 'line one\nwritten while closed\n')
+    server.edit(id, (t) => t.insert(0, 'teammate line\n'))
+
+    const events: BridgeEvent[] = []
+    const again = new SyncBridge({ root: first.root, remote: server.connect(), watch: false, onEvent: (e) => events.push(e) })
+    machines.push({ bridge: again, client: server.connect(), root: first.root, events })
+    await again.start()
+    await settle()
+
+    const merged = 'teammate line\nline one\nwritten while closed\n'
+    expect(server.text(id)).toBe(merged)
+    expect(await read(first, 'notes.md')).toBe(merged)
+    expect(events.some((e) => e.type === 'trashed')).toBe(false)
+  })
+
   it('follows a remote rename by moving the local file', async () => {
     const id = server.addFile('old-name.txt', 'content')
     const a = await started('a')

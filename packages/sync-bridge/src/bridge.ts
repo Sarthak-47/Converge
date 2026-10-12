@@ -6,6 +6,7 @@ import ignore, { type Ignore } from 'ignore'
 import * as Y from 'yjs'
 import { assertNoLinks, BRIDGE_DIR, resolveInside, toWorkspacePath, UnsafePathError } from './paths.js'
 import { TEXT_FIELD, type RemoteEntry, type RemoteWorkspace } from './remote.js'
+import { StateStore } from './stateStore.js'
 import { applyTextChange, detectEol, looksBinary, MAX_SYNC_BYTES, toLf, withEol, type Eol } from './text.js'
 
 export type BridgeEvent =
@@ -65,8 +66,11 @@ export class SyncBridge {
   private watcher: FSWatcher | null = null
   private stopTree: (() => void) | null = null
   private stopped = false
+  private readonly state: StateStore
 
-  constructor(private readonly options: BridgeOptions) {}
+  constructor(private readonly options: BridgeOptions) {
+    this.state = new StateStore(path.resolve(options.root))
+  }
 
   get root() {
     return path.resolve(this.options.root)
@@ -90,7 +94,9 @@ export class SyncBridge {
     this.stopTree?.()
     await this.watcher?.close()
     await this.idle()
-    for (const tracked of [...this.files.values()]) this.untrack(tracked)
+    // Stopping keeps the saved bases: they are what lets the next start merge offline edits.
+    for (const tracked of [...this.files.values()]) this.untrack(tracked, false)
+    await this.state.flush()
   }
 
   /** Waits until every queued operation, including ones queued meanwhile, has finished. */
@@ -201,6 +207,7 @@ export class SyncBridge {
     this.files.set(entry.path, tracked)
 
     const disk = await this.readDisk(absolute)
+    const saved = disk.kind === 'text' && !preferLocal ? await this.state.load(entry.id) : null
     if (disk.kind === 'skip') {
       this.emit({ type: 'skipped', path: entry.path, reason: disk.reason })
     } else if (disk.kind === 'text' && preferLocal) {
@@ -209,6 +216,13 @@ export class SyncBridge {
     } else if (disk.kind === 'text' && toLf(disk.raw) === text.toString()) {
       tracked.eol = detectEol(disk.raw)
       this.setBase(tracked, text.toString(), Y.encodeStateAsUpdate(doc))
+    } else if (disk.kind === 'text' && saved) {
+      // Known base from the last run: merge edits made on disk while the app was closed (design §12.6).
+      tracked.eol = saved.eol
+      this.setBase(tracked, saved.baseText, saved.baseState)
+      if (toLf(disk.raw) !== saved.baseText) this.mergeLocal(tracked, disk.raw)
+      if (toLf(disk.raw) === text.toString()) this.setBase(tracked, text.toString(), Y.encodeStateAsUpdate(doc))
+      else await this.writeToDisk(tracked)
     } else {
       // First bind: the live document wins (design §12.9). A differing local copy is kept in the trash.
       if (disk.kind === 'text') await this.moveToTrash(tracked)
@@ -341,6 +355,7 @@ export class SyncBridge {
   private setBase(tracked: Tracked, text: string, state: Uint8Array) {
     tracked.baseText = text
     tracked.baseState = state
+    this.state.save(tracked.id, { path: tracked.path, baseText: text, baseState: state, eol: tracked.eol })
   }
 
   // ---- Helpers ---------------------------------------------------------------------------------------------
@@ -360,7 +375,9 @@ export class SyncBridge {
     return { kind: 'text', raw: bytes.toString('utf8') }
   }
 
-  private untrack(tracked: Tracked) {
+  /** Stops mirroring a file; `forget` also drops its saved base (deleted files have nothing to resume). */
+  private untrack(tracked: Tracked, forget = true) {
+    if (forget) this.state.remove(tracked.id)
     tracked.stopObserving()
     this.options.remote.close(tracked.id)
     if (this.files.get(tracked.path) === tracked) this.files.delete(tracked.path)
