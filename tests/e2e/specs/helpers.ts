@@ -3,12 +3,16 @@ import { expect, type Browser, type Page, type WebSocketRoute } from '@playwrigh
 
 export const password = 'correct horse battery'
 
+/** Absolute URLs, so helpers also work in Electron windows, which have no Playwright base URL. */
+const BASE_URL = process.env.E2E_BASE_URL ?? 'http://localhost:8000'
+export const url = (path: string) => new URL(path, BASE_URL).href
+
 export function uniqueEmail(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1e6)}@example.test`
 }
 
 export async function register(page: Page, email: string, name = 'Tester') {
-  await page.goto('/register')
+  await page.goto(url('/register'))
   await page.getByLabel('Email').fill(email)
   await page.getByLabel('Display name').fill(name)
   await page.getByLabel('Password').fill(password)
@@ -17,7 +21,7 @@ export async function register(page: Page, email: string, name = 'Tester') {
 }
 
 export async function signIn(page: Page, email: string) {
-  await page.goto('/login')
+  await page.goto(url('/login'))
   await page.getByLabel('Email').fill(email)
   await page.getByLabel('Password').fill(password)
   await page.getByRole('button', { name: 'Sign in' }).click()

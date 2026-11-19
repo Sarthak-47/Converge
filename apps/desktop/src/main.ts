@@ -10,6 +10,12 @@ import { HttpRemoteWorkspace, SyncBridge, type BridgeEvent } from '@converge/syn
 const SERVER = new URL(process.env.CONVERGE_URL ?? 'http://localhost:8000')
 const here = path.dirname(fileURLToPath(import.meta.url))
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+/**
+ * End-to-end test hook: native folder pickers and message boxes cannot be automated, so when this variable
+ * is set the picker returns it and the trust prompt is skipped for that exact folder only. Only whoever
+ * launches the app can set it.
+ */
+const E2E_SYNC_FOLDER = process.env.CONVERGE_E2E_SYNC_FOLDER ? path.resolve(process.env.CONVERGE_E2E_SYNC_FOLDER) : null
 
 type Running = { workspaceId: string; folder: string; bridge: SyncBridge; remote: HttpRemoteWorkspace }
 
@@ -66,6 +72,7 @@ async function stopSync() {
 
 ipcMain.handle('sync:choose-folder', async (event) => {
   fromApp(event)
+  if (E2E_SYNC_FOLDER) return E2E_SYNC_FOLDER
   const result = await dialog.showOpenDialog(window!, {
     title: 'Choose a folder for this workspace',
     properties: ['openDirectory', 'createDirectory'],
@@ -80,7 +87,8 @@ ipcMain.handle('sync:start', async (event, request: { workspaceId?: unknown; fol
   const { workspaceId, folder } = request as { workspaceId: string; folder: string }
 
   // Workspace trust (design §12.12): nothing syncs until the person agrees, for this folder.
-  const { response } = await dialog.showMessageBox(window!, {
+  const trustedByTest = E2E_SYNC_FOLDER !== null && path.resolve(folder) === E2E_SYNC_FOLDER
+  const { response } = trustedByTest ? { response: 0 } : await dialog.showMessageBox(window!, {
     type: 'warning',
     buttons: ['Trust and sync', 'Cancel'],
     defaultId: 1,

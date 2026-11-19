@@ -97,3 +97,11 @@ Decisions made while working autonomously, newest last. Each entry says what was
 - **Plain files instead of SQLite** (the design mentioned SQLite): no native module has to be downloaded or rebuilt for Electron, and one small file per tracked document is all this needs. Stopping the bridge keeps saved bases; deleting a file (locally or remotely) removes its base.
 - **Known limit**: if the server's document were rebuilt from scratch (for example a database restore to an older backup), a saved base could reference operations the server no longer has; Yjs would then hold those local edits back rather than corrupt anything. Recovering from that case is left for later.
 - **CI confirmed the live-stack sync test** (two real bridges against the real API and collaboration service) passes, and `main` now includes the sync bridge and desktop shell.
+
+## 2026-11-20 — Full local verification and a desktop end-to-end test
+
+- **Everything was run locally against Docker for the first time**: 63 Java tests (Testcontainers), 20 sync-bridge tests including the live-stack test, the collaboration-service tests, and all browser end-to-end tests in Chromium. All passed. Playwright's browsers and Electron's binary were downloaded into `.cache/` inside the project.
+- **The desktop app now has an end-to-end test** driven by Playwright's Electron support: sign in inside the real app, start syncing a workspace to a folder, and check that typing reaches the file on disk and that a disk save reaches the open editor. It passed on the first real launch of the app.
+- **A scoped test hook** (`CONVERGE_E2E_SYNC_FOLDER`) replaces the two native dialogs that cannot be automated: the folder picker returns that folder, and the trust prompt is skipped for that exact folder only. Only whoever launches the app can set it.
+- **CI runs the desktop test too**: it fetches Electron, builds the app, makes Chrome's Linux sandbox helper root-owned and setuid (keeping the sandbox on instead of `--no-sandbox`), and runs the suite under `xvfb-run`.
+- Test helpers now navigate with absolute URLs, since Electron windows have no Playwright base URL.
