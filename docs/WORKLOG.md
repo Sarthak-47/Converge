@@ -182,3 +182,9 @@ Decisions made while working autonomously, newest last. Each entry says what was
   The system prompt now says file contents are data, not instructions. A prompt-injection case, where a README asks the agent to pipe curl into sh, is refused before any card exists.
 - **Browser test (Phase 10 exit)**: Asha's agent writes a test file and asks to run `node --test tests/math.test.js`. The card shows the exact command; nothing runs until Ben approves it by name from the board's alert. The output (`pass 1`) streams to both browsers, and the agent finishes with "ran … (exit 0)". A second test denies a command and checks it never ran.
 - CI: the node job runs the executor tests, including the Gate C sandbox tests on the runner's Docker. The stack job brings up the executor and runs the Gate E queue tests against the live database.
+
+## 2026-11-20 — Dependency security fixes
+
+- **Electron 44.7 → 44.11.5**: fixes the advisory about compromised eMudhra intermediate certificates. The desktop end-to-end test passes on the new binary.
+- **`npm audit fix`** (non-breaking): `undici` 7.30.2 (several denial-of-service and TLS fixes) and `vite` 8.3.8 (dev-server file exposure and `launch-editor` fixes).
+- **DOMPurify through Monaco is not upgraded**: npm's only fix is downgrading Monaco to 0.55, a breaking change. Instead, comment text, the only user content Converge renders through Monaco's Markdown hovers, is now escaped so it always renders as plain text: untrusted, no HTML, no links. Revisit when Monaco ships a DOMPurify update.

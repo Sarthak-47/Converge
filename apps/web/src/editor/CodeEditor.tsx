@@ -20,6 +20,11 @@ type Props = {
 
 const darkScheme = window.matchMedia('(prefers-color-scheme: dark)')
 
+/** Escapes every Markdown control character, so text renders literally in a Markdown hover. */
+function plainMarkdown(text: string) {
+  return text.replace(/[\\`*_{}[\]()#+\-.!|<>~&]/g, (c) => `\\${c}`)
+}
+
 /** Escapes a value for use inside a double-quoted CSS string. */
 function cssString(value: string) {
   return `"${value.replace(/[\\"]/g, '\\$&').replace(/[\n\r]/g, ' ')}"`
@@ -121,7 +126,8 @@ export default function CodeEditor({ model, live, readOnly, highlights = [], rev
       const to = model.getPositionAt(end)
       return {
         range: new monaco.Range(from.lineNumber, from.column, to.lineNumber, to.column),
-        options: { inlineClassName: 'comment-range', hoverMessage: { value: title } },
+        // Comment text is user content: escaped so Monaco shows it as plain text, never markup or links.
+        options: { inlineClassName: 'comment-range', hoverMessage: { value: plainMarkdown(title), isTrusted: false, supportHtml: false } },
       }
     })
     decorations.current?.clear()
