@@ -46,7 +46,16 @@ export class HttpRemoteWorkspace implements RemoteWorkspace {
       heartbeatIncoming: 10000,
       heartbeatOutgoing: 10000,
       onConnect: () => {
-        this.stomp.subscribe(`/topic/workspace/${options.workspaceId}/events`, () => this.treeChanged())
+        this.stomp.subscribe(`/topic/workspace/${options.workspaceId}/events`, (message) => {
+          // Agent lane traffic (transcripts, turn status) never changes the tree.
+          let type = ''
+          try {
+            type = String((JSON.parse(message.body) as { type?: unknown }).type ?? '')
+          } catch {
+            // an unparseable event still triggers a refresh below
+          }
+          if (!type.startsWith('AGENT_')) this.treeChanged()
+        })
         this.treeChanged() // catch up on anything missed while disconnected
       },
     })

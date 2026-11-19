@@ -4,6 +4,7 @@
   "workspaces": [
     "apps/web",
     "apps/collab",
+    "apps/agent-runner",
     "apps/desktop",
     "packages/sync-bridge",
     "tests/e2e"
@@ -12,7 +13,7 @@
     "dev:web": "npm run dev --workspace @converge/web",
     "dev:collab": "npm run dev --workspace @converge/collab",
     "build": "npm run build --workspaces",
-    "typecheck": "npm run typecheck --workspace @converge/collab && npm run typecheck --workspace @converge/sync-bridge && npm run build --workspace @converge/sync-bridge && npm run typecheck --workspace @converge/desktop && npm run build --workspace @converge/web",
+    "typecheck": "npm run typecheck --workspace @converge/collab && npm run typecheck --workspace @converge/agent-runner && npm run typecheck --workspace @converge/sync-bridge && npm run build --workspace @converge/sync-bridge && npm run typecheck --workspace @converge/desktop && npm run build --workspace @converge/web",
     "e2e": "npm test --workspace @converge/e2e",
     "desktop": "npm run start --workspace @converge/desktop"
   }

@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState, useSyncExtern
 import { useNavigate, useParams } from 'react-router'
 import { api, ApiError, type FileKind, type FileNode, type Workspace } from '../api.ts'
 import { useAuth } from '../auth.tsx'
+import { AgentPanel } from '../components/AgentPanel.tsx'
 import { ChatPanel } from '../components/ChatPanel.tsx'
 import { FileTree } from '../components/FileTree.tsx'
 import { MembersDialog } from '../components/MembersDialog.tsx'
@@ -49,6 +50,8 @@ export default function WorkspacePage() {
   const [syncStates, setSyncStates] = useState<Record<string, SyncState>>({})
   const [message, setMessage] = useState<string | null>(null)
   const [chat, setChat] = useState<ChatMessage[]>([])
+  const [sideTab, setSideTab] = useState<'chat' | 'agents'>('chat')
+  const [agentSignal, setAgentSignal] = useState(0)
 
   const canEdit = workspace?.role === 'OWNER' || workspace?.role === 'EDITOR'
   const activeId = active?.id ?? null
@@ -124,6 +127,10 @@ export default function WorkspacePage() {
   /** Applies another client's change. Content changes arrive through each file's live replica. */
   async function onRemoteEvent(event: WorkspaceEvent) {
     if (event.type === 'FILE_SAVED') return
+    if (event.type.startsWith('AGENT_')) {
+      setAgentSignal((n) => n + 1)
+      return
+    }
     if (event.type === 'MEMBER_ADDED' || event.type === 'MEMBER_ROLE_CHANGED' || event.type === 'MEMBER_REMOVED') {
       if (event.payload.userId === user?.id) await refreshAccess()
       return
@@ -288,13 +295,23 @@ export default function WorkspacePage() {
           <div className="center muted">{files.length ? 'Select a file to start editing.' : 'Create a file to start editing.'}</div>
         )}
       </section>
-      <ChatPanel
-        messages={chat}
-        currentUserId={user?.id}
-        canPost={workspace !== null && workspace.role !== 'VIEWER'}
-        connected={channel.state === 'connected'}
-        onSend={channel.sendChat}
-      />
+      <div className="side-panel">
+        <div className="side-tabs" role="tablist">
+          <button type="button" role="tab" aria-selected={sideTab === 'chat'} className={sideTab === 'chat' ? 'active' : ''} onClick={() => setSideTab('chat')}>Chat</button>
+          <button type="button" role="tab" aria-selected={sideTab === 'agents'} className={sideTab === 'agents' ? 'active' : ''} onClick={() => setSideTab('agents')}>Agents</button>
+        </div>
+        {sideTab === 'chat' ? (
+          <ChatPanel
+            messages={chat}
+            currentUserId={user?.id}
+            canPost={workspace !== null && workspace.role !== 'VIEWER'}
+            connected={channel.state === 'connected'}
+            onSend={channel.sendChat}
+          />
+        ) : (
+          user && <AgentPanel workspaceId={workspaceId} currentUser={user} canEdit={canEdit} refreshSignal={agentSignal} />
+        )}
+      </div>
       <footer className="statusbar">
         <span>{activeFile?.path ?? ''}</span>
         <span>{activeFile ? activeFile.language ?? 'plain text' : ''}</span>

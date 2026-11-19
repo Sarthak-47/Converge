@@ -37,6 +37,16 @@ server:
 converge:
   # Shared secret for service-to-service calls on /internal/** (design §5.3). Empty refuses all of them.
   internal-token: ${INTERNAL_TOKEN:}
+  # AES-256 key (base64, 32 bytes) for members' API keys and agent transcripts at rest (design §13.5).
+  # Empty disables agents.
+  secrets-key: ${SECRETS_KEY:}
+  agent:
+    runner-url: ${AGENT_RUNNER_URL:http://localhost:4100}
+    # Design §13.4: Opus 5.5 with effort set explicitly (the model's own default is medium).
+    model: ${AGENT_MODEL:claude-opus-5-5}
+    effort: ${AGENT_EFFORT:high}
+    # Hard cap per turn, in micro-dollars, enforced from recorded usage.
+    cost-cap-micros: ${AGENT_COST_CAP_MICROS:2000000}
   collab:
     base-url: ${COLLAB_URL:http://localhost:1234}
     health:

@@ -51,6 +51,8 @@ services:
       REDIS_HOST: redis
       COLLAB_URL: http://collab:1234
       INTERNAL_TOKEN: ${INTERNAL_TOKEN:-dev-internal-token}
+      AGENT_RUNNER_URL: http://agent-runner:4100
+      SECRETS_KEY: ${SECRETS_KEY:-ZGV2ZWxvcG1lbnQtb25seS1zZWNyZXRzLWtleS0zMiE=}
     depends_on:
       postgres:
         condition: service_healthy
@@ -58,6 +60,36 @@ services:
         condition: service_healthy
       collab:
         condition: service_healthy
+
+  # Runs agent turns on the Claude API (design §13.4). Members' own keys arrive per turn from the API.
+  agent-runner:
+    build:
+      context: ..
+      dockerfile: apps/agent-runner/Dockerfile
+    environment:
+      API_URL: http://api:8080
+      COLLAB_WS_URL: ws://collab:1234
+      COLLAB_ORIGIN: ${PUBLIC_ORIGIN:-http://localhost:8000}
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:-dev-internal-token}
+      # Empty means the real Claude API. The end-to-end tests point it at the scripted fake model.
+      ANTHROPIC_BASE_URL: ${AGENT_MODEL_URL:-}
+    depends_on:
+      collab:
+        condition: service_healthy
+
+  # Scripted stand-in for the Claude API, for tests only:
+  #   COMPOSE_PROFILES=fake-model AGENT_MODEL_URL=http://fake-model:9100 docker compose up -d
+  fake-model:
+    profiles: [fake-model]
+    build:
+      context: ..
+      dockerfile: apps/agent-runner/Dockerfile
+    command: ["node", "dist/testing/fakeModelMain.js"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:9100/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   nginx:
     build:

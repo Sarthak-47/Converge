@@ -27,6 +27,7 @@ import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
+import dev.converge.api.agent.AgentRunnerClient;
 import dev.converge.api.realtime.CollabClient;
 
 /**
@@ -36,12 +37,14 @@ import dev.converge.api.realtime.CollabClient;
 @SpringBootTest(properties = {
         "converge.collab.health.enabled=false",
         "management.health.redis.enabled=false",
-        "converge.internal-token=" + IntegrationTest.INTERNAL_TOKEN
+        "converge.internal-token=" + IntegrationTest.INTERNAL_TOKEN,
+        "converge.secrets-key=" + IntegrationTest.SECRETS_KEY
 })
 @AutoConfigureMockMvc
 public abstract class IntegrationTest {
 
     public static final String INTERNAL_TOKEN = "test-internal-token";
+    public static final String SECRETS_KEY = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
 
     @ServiceConnection
     static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:18-alpine");
@@ -59,6 +62,10 @@ public abstract class IntegrationTest {
     /** Stands in for the collaboration service, storing text exactly as its store hook does. */
     @MockitoBean
     protected CollabClient collab;
+
+    /** Stands in for the agent runner; tests drive its internal API calls themselves. */
+    @MockitoBean
+    protected AgentRunnerClient agentRunner;
 
     @BeforeEach
     void simulateCollaborationService() {

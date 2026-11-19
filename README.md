@@ -4,7 +4,7 @@ A real-time, multi-user development environment: a browser IDE with collaborativ
 
 The full design — architecture, protocols, roadmap and decision log — is in [docs/Converge_System_Design.docx](docs/Converge_System_Design.docx) (Revision 4).
 
-**Status:** live collaborative editing works end to end: accounts, workspaces, a file tree, chat and real-time co-editing in Monaco backed by Yjs, with automated multi-browser tests for persistence and convergence. See [docs/WORKLOG.md](docs/WORKLOG.md) for the decisions behind each step.
+**Status:** live collaborative editing, version history, a desktop app that keeps a local folder in two-way sync, and coding agents that work in the same live files as people (each turn paid with its sponsor's own API key, and revertible). See [docs/WORKLOG.md](docs/WORKLOG.md) for the decisions behind each step.
 
 ## Architecture at a glance
 
@@ -13,6 +13,7 @@ The full design — architecture, protocols, roadmap and decision log — is in 
 | Web | `apps/web` | Vite + React + TypeScript | Browser client: Monaco bound to Yjs, file tree, chat |
 | API | `apps/api` | Spring Boot 4.1, Java 21, Maven | Identity, workspaces, files, history, Git and job orchestration |
 | Collab | `apps/collab` | Node 24 + Hocuspocus (Yjs) | Document synchronization: ticket auth, persistence, merging external changes |
+| Agent runner | `apps/agent-runner` | Node 24 + Anthropic SDK | Agent turns on the Claude API; agents edit live documents as their own Yjs clients |
 | nginx | `infra/nginx` | nginx | Single origin: `/` web, `/api` and `/ws` API, `/collab` collaboration socket; `/internal` is never routed |
 | PostgreSQL 18, Redis 8 | `infra/compose.yaml` | | Durable state; transient fan-out and rate limits |
 
@@ -27,6 +28,18 @@ docker compose up -d --build
 Open http://localhost:8000 to see the health of every service. The API's aggregated health (database, Redis and the collaboration service) is at http://localhost:8000/api/actuator/health.
 
 Default database credentials are development-only values from `.env.example`; copy it to `.env` to change them.
+
+## Agents
+
+Open a workspace, switch the right-hand panel to **Agents**, and save your own Anthropic API key. It is stored encrypted and only a hint is shown back. Every turn runs on the key of the member who prompts it.
+
+To try agents without a key or any cost, start the stack with the scripted fake model:
+
+```bash
+COMPOSE_PROFILES=fake-model AGENT_MODEL_URL=http://fake-model:9100 docker compose up -d --build
+```
+
+Any key-shaped value then works (for example `sk-ant-test-0000000000000000`), and prompts drive the fake with directive lines such as `@tool read_file {"path":"app.ts"}`. See `apps/agent-runner/src/testing/fakeModel.ts` for the directives. Outside development, set `SECRETS_KEY` to your own value (`openssl rand -base64 32`).
 
 ## Develop a service locally
 

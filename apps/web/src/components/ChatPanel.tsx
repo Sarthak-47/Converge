@@ -29,9 +29,6 @@ export function ChatPanel({ messages, currentUserId, canPost, connected, onSend 
 
   return (
     <aside className="chat" aria-label="Chat">
-      <div className="tree-header">
-        <span>Chat</span>
-      </div>
       <ol className="chat-messages" ref={list}>
         {messages.length === 0 && <li className="muted small">No messages yet.</li>}
         {messages.map((m) => (

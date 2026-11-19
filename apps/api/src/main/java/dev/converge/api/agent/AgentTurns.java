@@ -1,0 +1,334 @@
+package dev.converge.api.agent;
+
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.regex.Pattern;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DuplicateKeyException;
+import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionTemplate;
+
+import dev.converge.api.agent.AgentRunnerClient.History;
+import dev.converge.api.agent.AgentRunnerClient.RevertFile;
+import dev.converge.api.agent.AgentRunnerClient.Sponsor;
+import dev.converge.api.agent.AgentRunnerClient.StartTurn;
+import dev.converge.api.common.ApiException;
+import dev.converge.api.realtime.WorkspaceEvent;
+import dev.converge.api.workspace.Role;
+import dev.converge.api.workspace.WorkspaceAccess;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.json.JsonMapper;
+
+/**
+ * Agent turns (design §13): one sponsor per turn, paid with that member's own key; a lane transcript that
+ * every member can watch; a cost ledger with a hard cap; and "Revert this turn".
+ */
+@Service
+public class AgentTurns {
+
+    public record Turn(UUID id, UUID laneUserId, UUID sponsorId, String sponsorName, String model, String status,
+            String error, long costMicros, long costCapMicros, Instant startedAt, Instant endedAt, String revertStatus,
+            boolean revertible, List<Map<String, Object>> events) {
+    }
+
+    static final Pattern SECRET = Pattern.compile("sk-ant-[A-Za-z0-9_\\-]{8,}");
+    private static final TypeReference<Map<String, Object>> MAP = new TypeReference<>() {
+    };
+
+    private final JdbcClient jdbc;
+    private final WorkspaceAccess access;
+    private final ProviderKeys keys;
+    private final SecretBox box;
+    private final AgentRunnerClient runner;
+    private final ApplicationEventPublisher events;
+    private final TransactionTemplate tx;
+    private final JsonMapper json = JsonMapper.builder().build();
+    private final String model;
+    private final String effort;
+    private final long costCapMicros;
+
+    public AgentTurns(JdbcClient jdbc, WorkspaceAccess access, ProviderKeys keys, SecretBox box,
+            AgentRunnerClient runner, ApplicationEventPublisher events, TransactionTemplate tx,
+            @Value("${converge.agent.model}") String model, @Value("${converge.agent.effort}") String effort,
+            @Value("${converge.agent.cost-cap-micros}") long costCapMicros) {
+        this.jdbc = jdbc;
+        this.access = access;
+        this.keys = keys;
+        this.box = box;
+        this.runner = runner;
+        this.events = events;
+        this.tx = tx;
+        this.model = model;
+        this.effort = effort;
+        this.costCapMicros = costCapMicros;
+    }
+
+    /** Starts a turn in the member's own lane, paid with their own key (design §13.5). */
+    public Turn start(UUID workspaceId, UUID userId, String displayName, String prompt) {
+        access.require(workspaceId, userId, Role.EDITOR);
+        String apiKey = keys.reveal(userId).orElseThrow(() -> ApiException.conflict(
+                "Add your Anthropic API key before prompting your agent"));
+        UUID turnId = UUID.randomUUID();
+        List<History> history = history(workspaceId, userId);
+        try {
+            tx.executeWithoutResult(status -> {
+                jdbc.sql("""
+                        insert into agent_turns (id, workspace_id, lane_user_id, sponsor_id, model, status, cost_cap_micros)
+                        values (?, ?, ?, ?, ?, 'RUNNING', ?)
+                        """)
+                        .params(turnId, workspaceId, userId, userId, model, costCapMicros)
+                        .update();
+                append(turnId, workspaceId, userId, Map.of("kind", "prompt", "text", prompt));
+                publish("AGENT_TURN_STARTED", workspaceId, userId, turnId);
+            });
+        } catch (DuplicateKeyException e) {
+            throw ApiException.conflict("Your agent is already working on a turn; stop it or wait for it to finish");
+        }
+        try {
+            runner.start(new StartTurn(turnId, workspaceId, new Sponsor(userId, displayName), apiKey, model, effort,
+                    prompt, history, costCapMicros));
+        } catch (ApiException e) {
+            finish(turnId, "FAILED", "The agent runner is unavailable");
+            throw e;
+        }
+        return turn(workspaceId, turnId);
+    }
+
+    public List<Turn> list(UUID workspaceId, UUID userId) {
+        access.require(workspaceId, userId, Role.VIEWER);
+        List<UUID> ids = jdbc.sql("select id from agent_turns where workspace_id = ? order by started_at desc limit 30")
+                .param(workspaceId).query(UUID.class).list();
+        return ids.reversed().stream().map(id -> turn(workspaceId, id)).toList();
+    }
+
+    /** Only the sponsor steers a running turn, because it spends their key (design §13.6). */
+    public Turn cancel(UUID workspaceId, UUID turnId, UUID userId) {
+        access.require(workspaceId, userId, Role.EDITOR);
+        TurnRow row = row(turnId);
+        if (!row.workspaceId().equals(workspaceId)) throw ApiException.notFound("Turn");
+        if (!row.sponsorId().equals(userId)) throw ApiException.forbidden("Only the turn's sponsor can stop it");
+        if (!"RUNNING".equals(row.status())) return turn(workspaceId, turnId);
+        if (!runner.cancel(turnId)) {
+            finish(turnId, "CANCELLED", "The agent runner no longer had this turn");
+        }
+        return turn(workspaceId, turnId);
+    }
+
+    /**
+     * Undoes one finished turn's edits without touching anyone else's (design §13.2). The revert is claimed by
+     * compare-and-set, so two clicks cannot revert twice.
+     */
+    public Turn revert(UUID workspaceId, UUID turnId, UUID userId, String displayName) {
+        access.require(workspaceId, userId, Role.EDITOR);
+        TurnRow row = row(turnId);
+        if (!row.workspaceId().equals(workspaceId)) throw ApiException.notFound("Turn");
+        int claimed = jdbc.sql("""
+                update agent_turns set revert_status = 'REVERTING', reverted_by = ?
+                where id = ? and status <> 'RUNNING' and revert_status is null
+                  and exists (select 1 from agent_turn_files f where f.turn_id = agent_turns.id)
+                """).params(userId, turnId).update();
+        if (claimed == 0) throw ApiException.conflict("This turn is running, has no edits, or was already reverted");
+        try {
+            List<RevertFile> files = jdbc.sql("""
+                    select f.file_id, f.doc_state, f.undo::text as undo from agent_turn_files f
+                    join files on files.id = f.file_id and files.deleted_at is null
+                    where f.turn_id = ?
+                    """)
+                    .param(turnId)
+                    .query((rs, n) -> new RevertFile(rs.getObject("file_id", UUID.class),
+                            Base64.getEncoder().encodeToString(rs.getBytes("doc_state")),
+                            json.readValue(rs.getString("undo"), MAP)))
+                    .list();
+            runner.revert(turnId, displayName, files);
+        } catch (RuntimeException e) {
+            jdbc.sql("update agent_turns set revert_status = null, reverted_by = null where id = ?").param(turnId).update();
+            throw e;
+        }
+        tx.executeWithoutResult(status -> {
+            jdbc.sql("update agent_turns set revert_status = 'REVERTED', reverted_at = now() where id = ?")
+                    .param(turnId).update();
+            publish("AGENT_TURN_REVERTED", workspaceId, userId, turnId);
+        });
+        return turn(workspaceId, turnId);
+    }
+
+    // ---- Called by the runner, through AgentInternalController -----------------------------------------
+
+    record TurnRow(UUID id, UUID workspaceId, UUID sponsorId, String status, String revertStatus, UUID revertedBy) {
+    }
+
+    TurnRow row(UUID turnId) {
+        return jdbc.sql("select id, workspace_id, sponsor_id, status, revert_status, reverted_by from agent_turns where id = ?")
+                .param(turnId)
+                .query((rs, n) -> new TurnRow(rs.getObject("id", UUID.class), rs.getObject("workspace_id", UUID.class),
+                        rs.getObject("sponsor_id", UUID.class), rs.getString("status"), rs.getString("revert_status"),
+                        rs.getObject("reverted_by", UUID.class)))
+                .optional()
+                .orElseThrow(() -> ApiException.notFound("Turn"));
+    }
+
+    /**
+     * The person a runner call acts as: the sponsor while the turn runs, or whoever is reverting it. Their role
+     * is checked on every call, so removing a member stops their agent at its next tool call.
+     */
+    UUID actingUser(TurnRow row) {
+        UUID user;
+        if ("RUNNING".equals(row.status())) {
+            user = row.sponsorId();
+        } else if ("REVERTING".equals(row.revertStatus())) {
+            user = row.revertedBy();
+        } else {
+            throw ApiException.conflict("The turn is not running");
+        }
+        try {
+            access.require(row.workspaceId(), user, Role.EDITOR);
+        } catch (ApiException e) {
+            throw ApiException.forbidden("The member behind this turn can no longer edit this workspace");
+        }
+        return user;
+    }
+
+    TurnRow running(UUID turnId) {
+        TurnRow row = row(turnId);
+        if (!"RUNNING".equals(row.status())) throw ApiException.conflict("The turn is not running");
+        actingUser(row);
+        return row;
+    }
+
+    void event(UUID turnId, Map<String, Object> event) {
+        TurnRow row = running(turnId);
+        tx.executeWithoutResult(status -> append(turnId, row.workspaceId(), row.sponsorId(), event));
+    }
+
+    long usage(UUID turnId, long input, long output, long cacheRead, long cacheWrite, long cost) {
+        running(turnId);
+        return jdbc.sql("""
+                update agent_turns set input_tokens = input_tokens + ?, output_tokens = output_tokens + ?,
+                    cache_read_tokens = cache_read_tokens + ?, cache_write_tokens = cache_write_tokens + ?,
+                    cost_micros = cost_micros + ?
+                where id = ? returning cost_micros
+                """)
+                .params(input, output, cacheRead, cacheWrite, cost, turnId)
+                .query(Long.class)
+                .single();
+    }
+
+    void saveRevertState(UUID turnId, UUID fileId, byte[] state, Map<String, Object> undo) {
+        TurnRow row = running(turnId);
+        int inWorkspace = jdbc.sql("select count(*) from files where id = ? and workspace_id = ?")
+                .params(fileId, row.workspaceId()).query(Integer.class).single();
+        if (inWorkspace == 0) throw ApiException.notFound("File");
+        jdbc.sql("""
+                insert into agent_turn_files (turn_id, file_id, doc_state, undo) values (?, ?, ?, cast(? as jsonb))
+                on conflict (turn_id, file_id) do update set doc_state = excluded.doc_state, undo = excluded.undo
+                """)
+                .params(turnId, fileId, state, json.writeValueAsString(undo))
+                .update();
+    }
+
+    void finish(UUID turnId, String status, String error) {
+        TurnRow row = row(turnId);
+        tx.executeWithoutResult(t -> {
+            int updated = jdbc.sql("update agent_turns set status = ?, error = ?, ended_at = now() where id = ? and status = 'RUNNING'")
+                    .params(status, error == null ? null : redact(error), turnId)
+                    .update();
+            if (updated > 0) publish("AGENT_TURN_FINISHED", row.workspaceId(), row.sponsorId(), turnId);
+        });
+    }
+
+    // ---- Helpers ---------------------------------------------------------------------------------------
+
+    static String redact(String text) {
+        return SECRET.matcher(text).replaceAll("sk-ant-…redacted");
+    }
+
+    private void append(UUID turnId, UUID workspaceId, UUID actorId, Map<String, Object> event) {
+        Map<String, Object> clean = new LinkedHashMap<>();
+        event.forEach((key, value) -> clean.put(key, value instanceof String s ? redact(s) : value));
+        int seq = jdbc.sql("select coalesce(max(seq), 0) + 1 from transcript_chunks where turn_id = ?")
+                .param(turnId).query(Integer.class).single();
+        String kind = String.valueOf(clean.getOrDefault("kind", "text"));
+        jdbc.sql("insert into transcript_chunks (turn_id, seq, kind, ciphertext) values (?, ?, ?, ?)")
+                .params(turnId, seq, kind, box.seal(json.writeValueAsString(clean), chunkContext(turnId, seq)))
+                .update();
+        clean.put("seq", seq);
+        clean.put("turnId", turnId);
+        events.publishEvent(WorkspaceEvent.of("AGENT_TURN_EVENT", workspaceId, actorId, clean));
+    }
+
+    private void publish(String type, UUID workspaceId, UUID actorId, UUID turnId) {
+        events.publishEvent(WorkspaceEvent.of(type, workspaceId, actorId, Map.of("turnId", turnId)));
+    }
+
+    private static String chunkContext(UUID turnId, int seq) {
+        return "transcript:" + turnId + ":" + seq;
+    }
+
+    private List<Map<String, Object>> transcript(UUID turnId) {
+        return jdbc.sql("select seq, ciphertext from transcript_chunks where turn_id = ? order by seq")
+                .param(turnId)
+                .query((rs, n) -> {
+                    int seq = rs.getInt("seq");
+                    Map<String, Object> event = new LinkedHashMap<>(
+                            json.readValue(box.open(rs.getBytes("ciphertext"), chunkContext(turnId, seq)), MAP));
+                    event.put("seq", seq);
+                    return event;
+                })
+                .list();
+    }
+
+    /** The last few finished exchanges in a lane, so a follow-up prompt has context. */
+    private List<History> history(UUID workspaceId, UUID laneUserId) {
+        List<UUID> ids = jdbc.sql("""
+                select id from agent_turns where workspace_id = ? and lane_user_id = ? and status <> 'RUNNING'
+                order by started_at desc limit 5
+                """).params(workspaceId, laneUserId).query(UUID.class).list();
+        List<History> history = new ArrayList<>();
+        for (UUID id : ids.reversed()) {
+            String prompt = "";
+            String reply = "";
+            for (Map<String, Object> event : transcript(id)) {
+                if ("prompt".equals(event.get("kind"))) prompt = String.valueOf(event.get("text"));
+                if ("text".equals(event.get("kind"))) reply = String.valueOf(event.get("text"));
+            }
+            if (!prompt.isBlank()) history.add(new History(prompt, reply));
+        }
+        return history;
+    }
+
+    private Turn turn(UUID workspaceId, UUID turnId) {
+        Turn turn = jdbc.sql("""
+                select t.*, u.display_name,
+                       exists (select 1 from agent_turn_files f where f.turn_id = t.id) as has_edits
+                from agent_turns t join users u on u.id = t.sponsor_id
+                where t.id = ? and t.workspace_id = ?
+                """)
+                .params(turnId, workspaceId)
+                .query((rs, n) -> new Turn(turnId, rs.getObject("lane_user_id", UUID.class),
+                        rs.getObject("sponsor_id", UUID.class), rs.getString("display_name"), rs.getString("model"),
+                        rs.getString("status"), rs.getString("error"), rs.getLong("cost_micros"),
+                        rs.getLong("cost_cap_micros"), toInstant(rs.getTimestamp("started_at")),
+                        toInstant(rs.getTimestamp("ended_at")), rs.getString("revert_status"),
+                        rs.getBoolean("has_edits") && !"RUNNING".equals(rs.getString("status"))
+                                && rs.getString("revert_status") == null,
+                        List.of()))
+                .optional()
+                .orElseThrow(() -> ApiException.notFound("Turn"));
+        return new Turn(turn.id(), turn.laneUserId(), turn.sponsorId(), turn.sponsorName(), turn.model(), turn.status(),
+                turn.error(), turn.costMicros(), turn.costCapMicros(), turn.startedAt(), turn.endedAt(),
+                turn.revertStatus(), turn.revertible(), transcript(turnId));
+    }
+
+    private static Instant toInstant(Timestamp timestamp) {
+        return timestamp == null ? null : timestamp.toInstant();
+    }
+}

@@ -11,7 +11,8 @@ import org.springframework.core.env.Environment;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "converge.collab.health.enabled=false",
         "management.health.redis.enabled=false",
-        "converge.internal-token=" + IntegrationTest.INTERNAL_TOKEN
+        "converge.internal-token=" + IntegrationTest.INTERNAL_TOKEN,
+        "converge.secrets-key=" + IntegrationTest.SECRETS_KEY
 })
 public abstract class HttpIntegrationTest extends IntegrationTest {
 

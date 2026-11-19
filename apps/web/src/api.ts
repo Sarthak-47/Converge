@@ -118,6 +118,17 @@ export const api = {
   restore: (fileId: string, snapshotId: string) => request<Version>('POST', `/files/${fileId}/restore`, { snapshotId }),
 
   chatHistory: (workspaceId: string) => request<ChatHistoryEntry[]>('GET', `/workspaces/${workspaceId}/chat`),
+
+  agentKey: () => request<AgentKey>('GET', '/me/provider-keys/anthropic'),
+  setAgentKey: (apiKey: string) => request<AgentKey>('PUT', '/me/provider-keys/anthropic', { apiKey }),
+  removeAgentKey: () => request<void>('DELETE', '/me/provider-keys/anthropic'),
+  agentTurns: (workspaceId: string) => request<AgentTurn[]>('GET', `/workspaces/${workspaceId}/agent/turns`),
+  promptAgent: (workspaceId: string, prompt: string) =>
+    request<AgentTurn>('POST', `/workspaces/${workspaceId}/agent/turns`, { prompt }),
+  cancelTurn: (workspaceId: string, turnId: string) =>
+    request<AgentTurn>('POST', `/workspaces/${workspaceId}/agent/turns/${turnId}/cancel`),
+  revertTurn: (workspaceId: string, turnId: string) =>
+    request<AgentTurn>('POST', `/workspaces/${workspaceId}/agent/turns/${turnId}/revert`),
 }
 
 export type Member = { userId: string; email: string; displayName: string; role: Role; joinedAt: string }
@@ -144,4 +155,35 @@ export type ChatHistoryEntry = {
   displayName: string
   body: string
   createdAt: string
+}
+
+export type AgentKey = { configured: boolean; hint: string | null }
+
+export type AgentEvent = {
+  seq: number
+  kind: 'prompt' | 'text' | 'note' | 'tool'
+  text?: string
+  name?: string
+  summary?: string
+  ok?: boolean
+}
+
+export type AgentTurnStatus = 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED' | 'REFUSED' | 'BUDGET_EXCEEDED'
+
+/** One agent turn: exactly one sponsor, who pays for it with their own key (design §13.5). */
+export type AgentTurn = {
+  id: string
+  laneUserId: string
+  sponsorId: string
+  sponsorName: string
+  model: string
+  status: AgentTurnStatus
+  error: string | null
+  costMicros: number
+  costCapMicros: number
+  startedAt: string
+  endedAt: string | null
+  revertStatus: 'REVERTING' | 'REVERTED' | null
+  revertible: boolean
+  events: AgentEvent[]
 }

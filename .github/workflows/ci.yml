@@ -55,11 +55,17 @@ jobs:
         run: npm test --workspace @converge/collab
       - name: Desktop sync bridge tests (Gate F)
         run: npm test --workspace @converge/sync-bridge
+      - name: Agent runner tests (edits, revert property tests, scripted model)
+        run: npm test --workspace @converge/agent-runner
 
   stack:
     name: Compose stack + end-to-end tests
     runs-on: ubuntu-latest
     needs: [api, node]
+    env:
+      # Agent turns run against the scripted fake model: deterministic, free, and no key needed.
+      COMPOSE_PROFILES: fake-model
+      AGENT_MODEL_URL: http://fake-model:9100
     steps:
       - uses: actions/checkout@v7
       - run: docker compose up -d --build
@@ -89,7 +95,7 @@ jobs:
           # running Electron with --no-sandbox.
           sudo chown root node_modules/electron/dist/chrome-sandbox
           sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
-      - name: End-to-end tests (gates A, B and D, team, presence, desktop sync)
+      - name: End-to-end tests (gates A, B and D, team, presence, desktop sync, agents)
         run: xvfb-run --auto-servernum npm run e2e
       - name: Desktop sync against the live stack (Gate F)
         run: npm test --workspace @converge/sync-bridge -- live

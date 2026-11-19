@@ -10,6 +10,7 @@ export type WorkspaceEvent =
   | Envelope<'FILE_SAVED', { fileId: string; version: number; contentHash: string }>
   | Envelope<'MEMBER_ADDED' | 'MEMBER_ROLE_CHANGED', { userId: string; role: Role }>
   | Envelope<'MEMBER_REMOVED', { userId: string }>
+  | Envelope<'AGENT_TURN_STARTED' | 'AGENT_TURN_EVENT' | 'AGENT_TURN_FINISHED' | 'AGENT_TURN_REVERTED', { turnId: string }>
 
 type Envelope<T extends string, P> = {
   type: T

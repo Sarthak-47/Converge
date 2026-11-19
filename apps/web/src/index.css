@@ -270,7 +270,7 @@ button.icon:hover {
 /* IDE */
 .ide {
   display: grid;
-  grid-template-columns: 260px 1fr 280px;
+  grid-template-columns: 260px 1fr 320px;
   grid-template-rows: auto 1fr auto;
   height: 100%;
 }
@@ -348,12 +348,42 @@ button.icon:hover {
   color: var(--up-text);
 }
 
-.chat {
+.side-panel {
   display: flex;
   flex-direction: column;
   min-height: 0;
   border-left: 1px solid var(--border);
   background: var(--surface);
+}
+
+.side-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 6px 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.side-tabs button {
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  padding: 6px 10px;
+  color: var(--muted);
+}
+
+.side-tabs button.active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+.chat,
+.agents {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .chat-messages {
@@ -753,4 +783,122 @@ select {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Agent lanes */
+.agent-turns {
+  flex: 1;
+  overflow: auto;
+  list-style: none;
+  margin: 0;
+  padding: 8px 12px;
+}
+
+.agent-turn {
+  padding: 8px 0 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.agent-turn p {
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.agent-turn-head,
+.agent-turn-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.agent-turn-foot {
+  margin-top: 6px;
+}
+
+.agent-turn-foot button {
+  padding: 3px 8px;
+}
+
+.agent-status {
+  font-size: 0.8rem;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--muted);
+}
+
+.agent-status.status-running {
+  background: var(--warn-bg);
+  color: var(--warn-text);
+}
+
+.agent-status.status-succeeded {
+  background: var(--up-bg);
+  color: var(--up-text);
+}
+
+.agent-status.status-failed,
+.agent-status.status-refused,
+.agent-status.status-budget_exceeded {
+  background: var(--down-bg);
+  color: var(--down-text);
+}
+
+.agent-tool {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.agent-tool.failed {
+  color: var(--down-text);
+}
+
+.agent-note {
+  font-style: italic;
+  font-size: 0.85rem;
+}
+
+.agent-error {
+  color: var(--down-text);
+  font-size: 0.85rem;
+}
+
+.agent-panel-error {
+  margin: 0;
+  padding: 4px 12px;
+}
+
+.agent-key-form,
+.agent-composer {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.agent-key-form p {
+  margin: 0;
+}
+
+.agent-composer textarea {
+  font: inherit;
+  width: 100%;
+  resize: vertical;
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+button.link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  text-decoration: underline;
+  font-size: inherit;
 }
