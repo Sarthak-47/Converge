@@ -1115,3 +1115,79 @@ button.link {
 .session-loading {
   padding: 12px;
 }
+
+/* Approval cards and sandbox output (design §13.7) */
+.approval-card {
+  margin: 6px 0;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--dirty);
+  border-radius: 6px;
+  background: var(--surface-2);
+}
+
+.approval-card[data-status='APPROVED'] {
+  border-left-color: var(--up-text);
+}
+
+.approval-card[data-status='DENIED'],
+.approval-card[data-status='EXPIRED'] {
+  border-left-color: var(--muted);
+}
+
+.approval-card p {
+  margin: 2px 0;
+}
+
+.approval-command {
+  display: block;
+  margin: 4px 0;
+  padding: 4px 6px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  background: var(--surface);
+  border-radius: 4px;
+  overflow-wrap: anywhere;
+}
+
+.approval-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.approval-actions button {
+  padding: 3px 10px;
+}
+
+.approval-state.denied,
+.job-status.status-failed,
+.job-status.status-outcome_unknown {
+  color: var(--down-text);
+}
+
+.job-status.status-succeeded {
+  color: var(--up-text);
+}
+
+.job-output {
+  max-height: 220px;
+  overflow: auto;
+  margin: 6px 0 0;
+  padding: 6px;
+  font-size: 0.75rem;
+  background: #0f141a;
+  color: #e6edf3;
+  border-radius: 4px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.job-output .out-stderr {
+  color: #f2b14c;
+}
+
+.job-output .out-system {
+  color: #93a1af;
+}

@@ -1,0 +1,28 @@
+{
+  "name": "@converge/executor",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Runs approved jobs in sandbox containers; the only component that holds the Docker socket (design §11).",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/main.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/dockerode": "^4.0.2",
+    "@types/node": "^24.19.2",
+    "@types/pg": "^8.23.1",
+    "@types/tar-stream": "^3.1.5",
+    "tsx": "^4.23.15",
+    "typescript": "~6.0.2",
+    "vitest": "^5.1.1"
+  },
+  "dependencies": {
+    "dockerode": "^5.0.1",
+    "pg": "^8.23.1",
+    "tar-stream": "^3.2.2"
+  }
+}

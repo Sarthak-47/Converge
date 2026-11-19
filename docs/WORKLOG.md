@@ -131,3 +131,54 @@ Decisions made while working autonomously, newest last. Each entry says what was
 - **Comments** attach to a code range, a turn or a plan step. Code anchors are Yjs relative positions created in the browser; the end anchor sticks to the character before it, so text typed just after the range does not join it. The editor highlights open comments, follows them through teammates' edits, and labels a comment "outdated" when its code is deleted. Comments are never deleted; they can be resolved and reopened, turned into a plan step, or sent to the author's own agent, and they stay linked to what they caused.
 - **The Commenter role** now means: read everything, chat, comment, and hold plan steps.
 - **Agent tests**: 16 runner tests (plan tools, steering, `KEY_REJECTED`), 8 new API tests, and 3 browser tests for Phases 8–9, all against the scripted fake model.
+
+## 2026-11-20 — Phase 10: approvals and sandboxed execution
+
+- **`apps/executor`** is the only service that holds the Docker socket. It claims queued jobs from PostgreSQL (`FOR UPDATE SKIP LOCKED`). In the same transaction it **independently re-checks the approval**:
+  - the command is on its own allowlist;
+  - the approval belongs to the same workspace, is APPROVED and unused;
+  - the approval carries the SHA-256 of exactly this action, recomputed by the executor.
+
+  Only then does it mark the approval used and the job RUNNING. Anything else marks the job FAILED, "Refused by the executor", without running it. Tests cover an altered command, pending, denied and already-used approvals, a hash for another action, and a command off the allowlist (Gate E, enforced where it runs).
+- **Commands are allowlisted templates, run as argv with no shell**: `npm test`, `npm run <script>`, `node --test [files]`. The API and the executor each keep a copy of the list; both test suites read one shared fixture of accepted and refused commands, so the copies cannot drift apart. The canonical action JSON is built the same way on both sides and checked by a test.
+- **The sandbox** is one throwaway container per job, removed afterwards; leftovers are removed when the executor starts. Its settings:
+  - no network;
+  - user 1000;
+  - all capabilities dropped;
+  - `no-new-privileges`;
+  - 512 MB of memory and no swap;
+  - one CPU;
+  - at most 256 processes;
+  - a tmpfs `/tmp`;
+  - a timeout (default 120 s);
+  - an output cap;
+  - an environment holding only harmless variables;
+  - nothing mounted from the host: the workspace's stored text is copied in as a tar.
+
+  `SANDBOX_RUNTIME=runsc` switches to gVisor. Gate C is tested against real Docker with deliberately arbitrary commands, to show the container holds even if a command slipped past the allowlist:
+  - network blocked;
+  - Docker socket absent;
+  - executor secrets absent;
+  - user ID 1000 with no effective capabilities;
+  - cgroup memory and process limits in place;
+  - the timeout kills the job;
+  - output is capped;
+  - no containers left behind.
+- **The executor itself runs as root** inside its own container, only to reach the socket, which is root-equivalent whoever holds it. This is documented in its Dockerfile. Rootless Docker or gVisor is required before execution is reachable by anyone else (design §11.3).
+- **Approvals**:
+  - a card stores the canonical action and its hash, the capabilities, the requester and an expiry (10 minutes);
+  - any editor or owner answers, and the first answer wins by compare-and-set; tested with two concurrent answers, which give exactly one decision and one job;
+  - approving queues the job in the same transaction, after storing the workspace's pending typing;
+  - unanswered cards expire, and so do cards left open when their turn ends.
+
+  Editors can also run an allowlisted command directly, for browser-only members: their request is their approval, and the executor checks it the same way.
+- **Outcome unknown**: jobs left RUNNING when the executor restarts become OUTCOME_UNKNOWN. They are never retried; the card asks a person to record what happened, once. Assumes a single executor process for now.
+- **The agent's `run_command` tool fails closed**:
+  - if the card cannot be created or read, the command does not run and the model is told so;
+  - a denial or expiry returns at once;
+  - cancelling while waiting stops the turn;
+  - the model gets the exit code, who approved, and the tail of the output.
+
+  The system prompt now says file contents are data, not instructions. A prompt-injection case, where a README asks the agent to pipe curl into sh, is refused before any card exists.
+- **Browser test (Phase 10 exit)**: Asha's agent writes a test file and asks to run `node --test tests/math.test.js`. The card shows the exact command; nothing runs until Ben approves it by name from the board's alert. The output (`pass 1`) streams to both browsers, and the agent finishes with "ran … (exit 0)". A second test denies a command and checks it never ran.
+- CI: the node job runs the executor tests, including the Gate C sandbox tests on the runner's Docker. The stack job brings up the executor and runs the Gate E queue tests against the live database.

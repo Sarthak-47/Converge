@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
-import { api, type AgentTurn, type Comment, type PlanStep, type Role, type SessionCard, type SessionDetail } from '../api.ts'
+import { api, type AgentTurn, type Approval, type Comment, type PlanStep, type Role, type SessionCard, type SessionDetail } from '../api.ts'
+import { ApprovalCard } from './ApprovalCard.tsx'
 import { AgentKeyForm, TurnCard } from './TurnCard.tsx'
 import { errorMessage, useAgentKey } from './agentKit.ts'
 
@@ -7,8 +8,10 @@ type Props = {
   workspaceId: string
   currentUser: { id: string; displayName: string }
   role: Role
-  /** Bumped whenever an agent, session or comment event arrives on the workspace channel. */
+  /** Bumped whenever an agent, session, comment or approval event arrives on the workspace channel. */
   refreshSignal: number
+  /** Bumped on job output and status events. */
+  jobSignal: number
   /** The open session, shared with the editor so new code comments attach to it. */
   sessionId: string | null
   onOpenSession: (sessionId: string | null) => void
@@ -31,12 +34,15 @@ const STEP_LABEL: Record<PlanStep['status'], string> = { TODO: 'To do', IN_PROGR
 export function SessionsPanel(props: Props) {
   const { workspaceId, role, refreshSignal, sessionId, onOpenSession } = props
   const [board, setBoard] = useState<SessionCard[]>([])
+  const [waiting, setWaiting] = useState<Approval[]>([])
   const [task, setTask] = useState('')
   const [error, setError] = useState<string | null>(null)
   const canEdit = role === 'OWNER' || role === 'EDITOR'
 
   useEffect(() => {
-    if (!sessionId) api.sessions(workspaceId).then(setBoard).catch(() => undefined)
+    if (sessionId) return
+    api.sessions(workspaceId).then(setBoard).catch(() => undefined)
+    api.approvals(workspaceId).then((all) => setWaiting(all.filter((a) => a.status === 'PENDING'))).catch(() => undefined)
   }, [workspaceId, sessionId, refreshSignal])
 
   function create(event: FormEvent) {
@@ -56,8 +62,13 @@ export function SessionsPanel(props: Props) {
   const alerts = board.filter((s) => s.status === 'AWAITING_TAKEOVER')
   return (
     <section className="agents sessions-board" aria-label="Sessions">
-      {alerts.length > 0 && (
+      {(alerts.length > 0 || waiting.length > 0) && (
         <div className="alerts-strip" role="status">
+          {waiting.map((a) => (
+            <button key={a.id} type="button" className="alert" onClick={() => a.sessionId && onOpenSession(a.sessionId)}>
+              Approval waiting: {a.requesterName}'s agent wants to run "{a.command}"
+            </button>
+          ))}
           {alerts.map((s) => (
             <button key={s.id} type="button" className="alert" onClick={() => onOpenSession(s.id)}>
               "{s.task}" is waiting for someone to take over from {s.driverName}
@@ -93,8 +104,9 @@ export function SessionsPanel(props: Props) {
   )
 }
 
-function SessionView({ workspaceId, currentUser, role, refreshSignal, sessionId, onOpenSession, onShowComment }: Props & { sessionId: string }) {
+function SessionView({ workspaceId, currentUser, role, refreshSignal, jobSignal, sessionId, onOpenSession, onShowComment }: Props & { sessionId: string }) {
   const [detail, setDetail] = useState<SessionDetail | null>(null)
+  const [approvals, setApprovals] = useState<Approval[]>([])
   const [comments, setComments] = useState<Comment[]>([])
   const [draft, setDraft] = useState('')
   const [newStep, setNewStep] = useState('')
@@ -109,6 +121,7 @@ function SessionView({ workspaceId, currentUser, role, refreshSignal, sessionId,
   const reload = useCallback(() => {
     api.session(sessionId).then(setDetail).catch((e) => setError(errorMessage(e, 'Could not load the session')))
     api.comments(workspaceId, { sessionId }).then(setComments).catch(() => undefined)
+    api.approvals(workspaceId, sessionId).then(setApprovals).catch(() => undefined)
   }, [workspaceId, sessionId])
 
   useEffect(() => {
@@ -268,7 +281,11 @@ function SessionView({ workspaceId, currentUser, role, refreshSignal, sessionId,
                 {laneTurns.map((turn) => (
                   <TurnCard key={turn.id} turn={turn} currentUserId={currentUser.id} canEdit={canEdit} busy={busy}
                     onStop={(t: AgentTurn) => void run(() => api.cancelTurn(workspaceId, t.id), 'Could not stop the turn')}
-                    onRevert={(t: AgentTurn) => void run(() => api.revertTurn(workspaceId, t.id), 'Could not revert the turn')} />
+                    onRevert={(t: AgentTurn) => void run(() => api.revertTurn(workspaceId, t.id), 'Could not revert the turn')}
+                    renderApproval={(approvalId) => {
+                      const approval = approvals.find((a) => a.id === approvalId)
+                      return approval && <ApprovalCard approval={approval} canDecide={canEdit} jobSignal={jobSignal} onChanged={reload} />
+                    }} />
                 ))}
               </ol>
               {canComment && laneTurns.length > 0 && (

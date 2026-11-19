@@ -257,6 +257,22 @@ public class AgentTurns {
         return user;
     }
 
+    /** What other parts of the API may know about a running turn. */
+    public record TurnRef(UUID workspaceId, UUID sessionId, UUID sponsorId) {
+    }
+
+    /** A running turn whose sponsor may still edit, or a conflict/forbidden error. */
+    public TurnRef runningRef(UUID turnId) {
+        TurnRow row = running(turnId);
+        return new TurnRef(row.workspaceId(), row.sessionId(), row.sponsorId());
+    }
+
+    /** Adds a transcript event to a running turn, within the caller's transaction. */
+    public void recordEvent(UUID turnId, Map<String, Object> event) {
+        TurnRow row = running(turnId);
+        append(turnId, row.workspaceId(), row.sponsorId(), event);
+    }
+
     TurnRow running(UUID turnId) {
         TurnRow row = row(turnId);
         if (!"RUNNING".equals(row.status())) throw ApiException.conflict("The turn is not running");
@@ -307,6 +323,14 @@ public class AgentTurns {
                     .update();
             if (updated == 0) return;
             publish("AGENT_TURN_FINISHED", row.workspaceId(), row.sponsorId(), turnId);
+            // A card nobody answered before the turn ended can no longer authorize anything.
+            int expired = jdbc.sql("""
+                    update approvals set status = 'EXPIRED', row_version = row_version + 1
+                    where turn_id = ? and status = 'PENDING'
+                    """).param(turnId).update();
+            if (expired > 0) {
+                events.publishEvent(WorkspaceEvent.of("APPROVAL_CHANGED", row.workspaceId(), row.sponsorId(), Map.of("turnId", turnId)));
+            }
             boolean cannotPay = "BUDGET_EXCEEDED".equals(status) || "KEY_REJECTED".equals(code);
             if (row.sessionId() != null && cannotPay) {
                 int stalled = jdbc.sql("""

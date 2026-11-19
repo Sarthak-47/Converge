@@ -77,6 +77,28 @@ services:
       collab:
         condition: service_healthy
 
+  # Runs approved jobs in sandbox containers (design §11). The only service with the Docker socket; it
+  # re-checks every job's approval itself before running it (design §13.7).
+  executor:
+    build:
+      context: ..
+      dockerfile: apps/executor/Dockerfile
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-converge}:${POSTGRES_PASSWORD:-converge}@postgres:5432/${POSTGRES_DB:-converge}
+      API_URL: http://api:8080
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:-dev-internal-token}
+      SANDBOX_IMAGE: ${SANDBOX_IMAGE:-node:24-alpine}
+      SANDBOX_RUNTIME: ${SANDBOX_RUNTIME:-}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    # The API applies the database migrations; until it has, the executor exits and is restarted.
+    restart: on-failure
+    depends_on:
+      postgres:
+        condition: service_healthy
+      api:
+        condition: service_started
+
   # Scripted stand-in for the Claude API, for tests only:
   #   COMPOSE_PROFILES=fake-model AGENT_MODEL_URL=http://fake-model:9100 docker compose up -d
   fake-model:

@@ -7,6 +7,13 @@ export type FileEntry = { id: string; path: string; kind: 'FILE' | 'FOLDER' }
 export type SearchHit = { path: string; line: number; text: string }
 export type StepStatus = 'TODO' | 'IN_PROGRESS' | 'DONE'
 export type PlanStep = { position: number; title: string; ownerName: string | null; status: StepStatus }
+export type ApprovalState = { status: 'PENDING' | 'APPROVED' | 'DENIED' | 'EXPIRED'; deciderName: string | null; jobId: string | null }
+export type JobState = {
+  status: 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELED' | 'OUTCOME_UNKNOWN'
+  exitCode: number | null
+  error: string | null
+  output: string
+}
 
 /**
  * The workspace as one agent turn sees it. Documents are opened as the turn's own Yjs client, with garbage
@@ -28,6 +35,13 @@ export interface TurnWorkspace {
   proposePlan(titles: string[]): Promise<PlanStep[]>
   /** Moves one of the sponsor's own steps. */
   setStepStatus(position: number, status: StepStatus): Promise<PlanStep[]>
+  /**
+   * Asks to run an allowlisted command (design §13.7): creates an approval card bound to this exact command.
+   * Throws if the command is not allowed or the API cannot be reached; the command then never runs.
+   */
+  requestCommand(command: string): Promise<{ approvalId: string }>
+  approval(approvalId: string): Promise<ApprovalState>
+  job(jobId: string): Promise<JobState>
   /** Shows the agent's cursor in a file (`null` hides it). */
   setCursor(fileId: string, index: number | null): void
   /** Waits until every local change has reached the server. */

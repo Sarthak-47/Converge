@@ -2,7 +2,7 @@ import * as Y from 'yjs'
 import type { UndoRecord } from '../src/edits.js'
 import type { TurnEvent, TurnLedger, TurnStatus } from '../src/turn.js'
 import { ApiCallError } from '../src/apiClient.js'
-import type { FileEntry, PlanStep, SearchHit, StepStatus, TurnWorkspace } from '../src/workspace.js'
+import type { ApprovalState, FileEntry, JobState, PlanStep, SearchHit, StepStatus, TurnWorkspace } from '../src/workspace.js'
 import { Hub } from './hub.js'
 
 /** An in-memory workspace: each file is a Hub, so a test can also join as a person and type. */
@@ -11,6 +11,12 @@ export class MemoryWorkspace implements TurnWorkspace {
   readonly cursors: Array<[string, number | null]> = []
   /** The session plan; the sponsor is "Asha". */
   readonly steps: PlanStep[] = []
+  /** Approval cards the agent created, and how the scripted teammate answers them. */
+  readonly commands: string[] = []
+  decision: ApprovalState['status'] = 'APPROVED'
+  jobResult: JobState = { status: 'SUCCEEDED', exitCode: 0, error: null, output: 'ok 1 adds\n# pass 1\n' }
+  apiDown = false
+  jobsStarted = 0
   private disconnects: Array<() => void> = []
   closed = false
   private ids = 0
@@ -70,6 +76,25 @@ export class MemoryWorkspace implements TurnWorkspace {
     if (step.ownerName !== 'Asha') throw new ApiCallError(403, `Step ${position} belongs to ${step.ownerName}`)
     step.status = status
     return this.steps
+  }
+
+  async requestCommand(command: string) {
+    if (this.apiDown) throw new Error('fetch failed')
+    if (!/^(npm test|npm run [a-z0-9:_-]+|node --test( [\w./-]+)*)$/.test(command)) {
+      throw new ApiCallError(400, 'Only allowlisted commands can run in the sandbox: npm test, npm run lint, node --test')
+    }
+    this.commands.push(command)
+    return { approvalId: `approval-${this.commands.length}` }
+  }
+
+  async approval(): Promise<ApprovalState> {
+    if (this.decision !== 'APPROVED') return { status: this.decision, deciderName: this.decision === 'DENIED' ? 'Ben' : null, jobId: null }
+    return { status: 'APPROVED', deciderName: 'Ben', jobId: 'job-1' }
+  }
+
+  async job(): Promise<JobState> {
+    this.jobsStarted++
+    return this.jobResult
   }
 
   setCursor(fileId: string, index: number | null) {

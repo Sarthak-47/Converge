@@ -1,7 +1,7 @@
 import type { UndoRecord } from './edits.js'
 import type { Usage } from './pricing.js'
 import type { TurnEvent, TurnLedger, TurnStatus } from './turn.js'
-import type { FileEntry, PlanStep, SearchHit, StepStatus } from './workspace.js'
+import type { ApprovalState, FileEntry, JobState, PlanStep, SearchHit, StepStatus } from './workspace.js'
 
 /**
  * The runner's side of the API boundary (design §5.3): every call is scoped to one turn, so the API checks
@@ -32,6 +32,23 @@ export class TurnApi implements TurnLedger {
 
   setStepStatus(position: number, status: StepStatus): Promise<PlanStep[]> {
     return this.call('POST', '/plan/status', { position, status })
+  }
+
+  async requestCommand(command: string): Promise<{ approvalId: string }> {
+    const approval = await this.call<{ id: string }>('POST', '/actions', { command })
+    return { approvalId: approval.id }
+  }
+
+  async approval(approvalId: string): Promise<ApprovalState> {
+    const a = await this.call<{ status: ApprovalState['status']; deciderName: string | null; job: { id: string } | null }>(
+      'GET', `/approvals/${encodeURIComponent(approvalId)}`)
+    return { status: a.status, deciderName: a.deciderName, jobId: a.job?.id ?? null }
+  }
+
+  async job(jobId: string): Promise<JobState> {
+    const d = await this.call<{ job: { status: JobState['status']; exitCode: number | null; error: string | null }; output: Array<{ chunk: string }> }>(
+      'GET', `/jobs/${encodeURIComponent(jobId)}`)
+    return { status: d.job.status, exitCode: d.job.exitCode, error: d.job.error, output: d.output.map((c) => c.chunk).join('') }
   }
 
   async ticket(fileId: string): Promise<string> {

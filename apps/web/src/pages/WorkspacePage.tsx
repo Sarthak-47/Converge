@@ -53,6 +53,7 @@ export default function WorkspacePage() {
   const [chat, setChat] = useState<ChatMessage[]>([])
   const [sideTab, setSideTab] = useState<'chat' | 'sessions'>('chat')
   const [agentSignal, setAgentSignal] = useState(0)
+  const [jobSignal, setJobSignal] = useState(0)
   const [openSession, setOpenSession] = useState<string | null>(null)
   const [fileComments, setFileComments] = useState<Comment[]>([])
   const [textTick, setTextTick] = useState(0)
@@ -135,7 +136,13 @@ export default function WorkspacePage() {
   /** Applies another client's change. Content changes arrive through each file's live replica. */
   async function onRemoteEvent(event: WorkspaceEvent) {
     if (event.type === 'FILE_SAVED') return
-    if (event.type.startsWith('AGENT_') || event.type.startsWith('SESSION_') || event.type.startsWith('COMMENT_')) {
+    if (event.type.startsWith('JOB_')) {
+      // Output streams often; only status changes refresh the session view.
+      setJobSignal((n) => n + 1)
+      if (event.type === 'JOB_UPDATED') setAgentSignal((n) => n + 1)
+      return
+    }
+    if (/^(AGENT|SESSION|COMMENT|APPROVAL)_/.test(event.type)) {
       setAgentSignal((n) => n + 1)
       return
     }
@@ -437,6 +444,7 @@ export default function WorkspacePage() {
               currentUser={user}
               role={workspace.role}
               refreshSignal={agentSignal}
+              jobSignal={jobSignal}
               sessionId={openSession}
               onOpenSession={setOpenSession}
               onShowComment={showComment}

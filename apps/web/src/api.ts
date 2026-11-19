@@ -143,6 +143,14 @@ export const api = {
   updateStep: (step: PlanStep, status: StepStatus, release = false) =>
     request<PlanStep>('PATCH', `/steps/${step.id}`, { status, release, rowVersion: step.rowVersion }),
 
+  approvals: (workspaceId: string, sessionId?: string) =>
+    request<Approval[]>('GET', `/workspaces/${workspaceId}/approvals${sessionId ? `?sessionId=${sessionId}` : ''}`),
+  decide: (approval: Approval, approve: boolean) =>
+    request<Approval>('POST', `/approvals/${approval.id}/decide`, { approve, rowVersion: approval.rowVersion }),
+  job: (jobId: string) => request<JobDetail>('GET', `/jobs/${jobId}`),
+  recordOutcome: (jobId: string, outcome: 'SUCCEEDED' | 'FAILED') => request<Job>('POST', `/jobs/${jobId}/outcome`, { outcome }),
+  runCommand: (workspaceId: string, command: string) => request<Approval>('POST', `/workspaces/${workspaceId}/jobs`, { command }),
+
   comments: (workspaceId: string, filter: { fileId?: string; sessionId?: string }) => {
     const query = new URLSearchParams(Object.entries(filter).filter(([, v]) => v) as Array<[string, string]>)
     return request<Comment[]>('GET', `/workspaces/${workspaceId}/comments?${query}`)
@@ -190,11 +198,12 @@ export type AgentKey = { configured: boolean; hint: string | null }
 
 export type AgentEvent = {
   seq: number
-  kind: 'prompt' | 'text' | 'note' | 'tool' | 'steer'
+  kind: 'prompt' | 'text' | 'note' | 'tool' | 'steer' | 'approval'
   text?: string
   name?: string
   summary?: string
   ok?: boolean
+  approvalId?: string
 }
 
 export type AgentTurnStatus = 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED' | 'REFUSED' | 'BUDGET_EXCEEDED'
@@ -283,4 +292,39 @@ export type NewComment = {
   anchor?: Anchor
   quote?: string
   body: string
+}
+
+export type JobStatus = 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELED' | 'OUTCOME_UNKNOWN'
+
+export type Job = {
+  id: string
+  approvalId: string
+  command: string
+  status: JobStatus
+  exitCode: number | null
+  error: string | null
+  outcome: 'SUCCEEDED' | 'FAILED' | null
+  createdAt: string
+  startedAt: string | null
+  endedAt: string | null
+}
+
+export type JobDetail = { job: Job; output: Array<{ seq: number; stream: 'stdout' | 'stderr' | 'system'; chunk: string }> }
+
+/** A card that authorizes one exact action once (design §13.7). */
+export type Approval = {
+  id: string
+  sessionId: string | null
+  turnId: string | null
+  requestedBy: string
+  requesterName: string
+  command: string
+  capabilities: string[]
+  status: 'PENDING' | 'APPROVED' | 'DENIED' | 'EXPIRED'
+  decidedBy: string | null
+  deciderName: string | null
+  rowVersion: number
+  expiresAt: string
+  createdAt: string
+  job: Job | null
 }

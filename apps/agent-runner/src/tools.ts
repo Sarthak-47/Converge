@@ -4,6 +4,11 @@ import { z } from 'zod'
 import { replaceRange, TurnRecorder, type Typing, type UndoRecord } from './edits.js'
 import { TEXT_FIELD, type FileEntry, type PlanStep, type TurnWorkspace } from './workspace.js'
 
+/** How the run_command tool waits for a decision and for the job. */
+export type Waiting = { pollMs: number; signal: AbortSignal; jobTimeoutMs: number }
+
+const OUTPUT_TAIL = 8000
+
 /**
  * The agent's tools (design §13.4). Reads and edits work on the live Yjs documents; nothing touches a disk or
  * runs a command. Every input is validated against its schema before it runs, because inputs stream eagerly
@@ -27,6 +32,7 @@ const schemas = {
   get_plan: z.object({}).strict(),
   propose_plan: z.object({ steps: z.array(z.string().min(1).max(300)).min(1).max(20) }).strict(),
   update_step: z.object({ position: z.number().int().positive(), status: z.enum(['TODO', 'IN_PROGRESS', 'DONE']) }).strict(),
+  run_command: z.object({ command: z.string().min(1).max(500) }).strict(),
 }
 
 export type ToolName = keyof typeof schemas
@@ -79,6 +85,20 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
         replace_all: { type: 'boolean' },
       },
       required: ['path', 'old_string', 'new_string'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'run_command',
+    description:
+      'Run a command in an isolated sandbox with a copy of the workspace files: no network, a time limit. ' +
+      'Only these forms are allowed: "npm test", "npm run <script>", "node --test [test files]". Every run waits ' +
+      'for a teammate to approve the exact command, so use it when the result matters (for example to run the ' +
+      'tests after your edits), and expect that it may be denied. Returns the exit code and the output.',
+    input_schema: {
+      type: 'object',
+      properties: { command: { type: 'string', maxLength: 500 } },
+      required: ['command'],
       additionalProperties: false,
     },
   },
@@ -161,6 +181,7 @@ export class Toolbox {
     private readonly workspace: TurnWorkspace,
     private readonly origin: string,
     private readonly typing: Typing,
+    private readonly waiting: Waiting = { pollMs: 1000, signal: new AbortController().signal, jobTimeoutMs: 15 * 60_000 },
   ) {}
 
   async run(name: string, input: unknown): Promise<ToolOutcome> {
@@ -259,6 +280,8 @@ export class Toolbox {
         const plan = await this.workspace.setStepStatus(position, status)
         return { content: formatPlan(plan), isError: false, summary: `marked step ${position} ${status.toLowerCase().replace('_', ' ')}` }
       }
+      case 'run_command':
+        return this.runCommand((input as z.infer<typeof schemas.run_command>).command)
       case 'create_file': {
         const { path, content } = input as z.infer<typeof schemas.create_file>
         const target = normalize(path)
@@ -270,6 +293,55 @@ export class Toolbox {
         this.workspace.setCursor(file.id, null)
         return { content: `Created ${file.path}.`, isError: false, summary: `created ${file.path}` }
       }
+    }
+  }
+
+  /**
+   * Gated execution (design §13.7). Fails closed: if the card cannot be created or read, the command is not
+   * run and the model is told so. The approval and the job are separate waits so a denial returns at once.
+   */
+  private async runCommand(command: string): Promise<ToolOutcome> {
+    let approvalId: string
+    try {
+      approvalId = (await this.workspace.requestCommand(command)).approvalId
+    } catch (error) {
+      const status = (error as { status?: number }).status
+      if (typeof status === 'number' && status < 500) throw new ToolError((error as Error).message)
+      throw new ToolError('Could not ask for approval, so the command was not run.')
+    }
+    const approval = await this.until(() => this.workspace.approval(approvalId), (a) => a.status !== 'PENDING')
+    if (approval.status !== 'APPROVED' || !approval.jobId) {
+      throw new ToolError(`"${command}" was ${approval.status === 'DENIED' ? `denied by ${approval.deciderName ?? 'a teammate'}` : 'not approved in time'}; it did not run.`)
+    }
+    const deadline = Date.now() + this.waiting.jobTimeoutMs
+    const job = await this.until(() => this.workspace.job(approval.jobId!), (j) => !['QUEUED', 'RUNNING'].includes(j.status) || Date.now() > deadline)
+    const tail = job.output.length > OUTPUT_TAIL ? `… (earlier output omitted)\n${job.output.slice(-OUTPUT_TAIL)}` : job.output
+    const header = job.status === 'OUTCOME_UNKNOWN'
+      ? 'The sandbox stopped while the command ran; its outcome is unknown and a teammate will record it.'
+      : ['QUEUED', 'RUNNING'].includes(job.status)
+        ? 'The command is still running; stop waiting and continue without its result.'
+        : `Exit code ${job.exitCode ?? 'none'}${job.error ? ` (${job.error})` : ''}, approved by ${approval.deciderName ?? 'a teammate'}.`
+    const ok = job.status === 'SUCCEEDED'
+    return {
+      content: `${header}\n${tail}`.trim(),
+      isError: !ok,
+      summary: ok ? `ran ${command} (exit 0)` : `${command}: ${job.status === 'FAILED' ? `exit ${job.exitCode ?? 'none'}` : job.status.toLowerCase().replace('_', ' ')}`,
+    }
+  }
+
+  /** Polls until `done`, honouring cancellation; read failures fail closed after a few attempts. */
+  private async until<T>(read: () => Promise<T>, done: (value: T) => boolean): Promise<T> {
+    let failures = 0
+    for (;;) {
+      if (this.waiting.signal.aborted) throw new ToolError('Cancelled by the sponsor while waiting.')
+      try {
+        const value = await read()
+        failures = 0
+        if (done(value)) return value
+      } catch {
+        if (++failures >= 5) throw new ToolError('Lost contact with the workspace while waiting; the result is unknown.')
+      }
+      await new Promise((resolve) => setTimeout(resolve, this.waiting.pollMs))
     }
   }
 

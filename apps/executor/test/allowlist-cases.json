@@ -1,0 +1,26 @@
+{
+  "_comment": "Shared by the executor's and the API's tests, so both allowlists accept and refuse exactly the same commands.",
+  "allowed": [
+    "npm test",
+    "npm run lint",
+    "npm run test:unit",
+    "node --test",
+    "node --test tests/math.test.js",
+    "node --test a.test.js b.test.js"
+  ],
+  "refused": [
+    "npm test && curl http://example.com",
+    "npm test; rm -rf /",
+    "npm run ../evil",
+    "npm run Lint",
+    "npm install left-pad",
+    "node -e process.exit(1)",
+    "node --test $(whoami)",
+    "node --test `id`",
+    "node --test a|b",
+    "curl http://example.com",
+    "sh -c npm test",
+    "bash",
+    ""
+  ]
+}

@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import type React from 'react'
 import { api, type AgentKey, type AgentTurn, type AgentTurnStatus } from '../api.ts'
 import { dollars, errorMessage } from './agentKit.ts'
 
@@ -18,10 +19,12 @@ type TurnCardProps = {
   busy: boolean
   onStop: (turn: AgentTurn) => void
   onRevert: (turn: AgentTurn) => void
+  /** Renders an approval card where the agent asked for it in the transcript. */
+  renderApproval?: (approvalId: string) => React.ReactNode
 }
 
 /** One agent turn in a lane: its transcript, cost on the sponsor's key, and stop/revert (design §13.2, §13.5). */
-export function TurnCard({ turn, currentUserId, canEdit, busy, onStop, onRevert }: TurnCardProps) {
+export function TurnCard({ turn, currentUserId, canEdit, busy, onStop, onRevert, renderApproval }: TurnCardProps) {
   return (
     <li className="agent-turn" data-status={turn.status} aria-label={`${turn.sponsorName}'s agent turn`}>
       <div className="agent-turn-head">
@@ -33,6 +36,7 @@ export function TurnCard({ turn, currentUserId, canEdit, busy, onStop, onRevert 
         if (e.kind === 'steer') return <p key={e.seq} className="agent-prompt"><span className="muted">{turn.sponsorName} (steering):</span> {e.text}</p>
         if (e.kind === 'tool') return <p key={e.seq} className={`agent-tool ${e.ok ? 'ok' : 'failed'}`}>{e.ok ? '✓' : '✗'} {e.summary}</p>
         if (e.kind === 'note') return <p key={e.seq} className="agent-note muted">{e.text}</p>
+        if (e.kind === 'approval') return <div key={e.seq}>{e.approvalId && renderApproval?.(e.approvalId)}</div>
         return <p key={e.seq} className="agent-text">{e.text}</p>
       })}
       {turn.error && <p className="agent-error" role="status">{turn.error}</p>}

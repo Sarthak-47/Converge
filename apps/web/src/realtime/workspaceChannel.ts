@@ -11,6 +11,11 @@ export type WorkspaceEvent =
   | Envelope<'MEMBER_ADDED' | 'MEMBER_ROLE_CHANGED', { userId: string; role: Role }>
   | Envelope<'MEMBER_REMOVED', { userId: string }>
   | Envelope<'AGENT_TURN_STARTED' | 'AGENT_TURN_EVENT' | 'AGENT_TURN_FINISHED' | 'AGENT_TURN_REVERTED', { turnId: string }>
+  | Envelope<'SESSION_CHANGED', { sessionId: string }>
+  | Envelope<'COMMENT_CHANGED', { commentId: string }>
+  | Envelope<'APPROVAL_CHANGED', { approvalId?: string; turnId?: string }>
+  | Envelope<'JOB_UPDATED', { jobId: string }>
+  | Envelope<'JOB_OUTPUT', { jobId: string; chunks: Array<{ seq: number; stream: string; chunk: string }> }>
 
 type Envelope<T extends string, P> = {
   type: T
