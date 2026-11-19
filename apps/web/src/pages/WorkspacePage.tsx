@@ -1,7 +1,8 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import * as Y from 'yjs'
 import { useNavigate, useParams } from 'react-router'
-import { api, ApiError, type Comment, type FileKind, type FileNode, type Workspace } from '../api.ts'
+import { api, ApiError, type Anchor, type Comment, type FileKind, type FileNode, type Memory, type MemoryKind, type RangeLock, type Workspace } from '../api.ts'
+import { MemoryPanel } from '../components/MemoryPanel.tsx'
 import { useAuth } from '../auth.tsx'
 import { ChatPanel } from '../components/ChatPanel.tsx'
 import { FileTree } from '../components/FileTree.tsx'
@@ -51,7 +52,9 @@ export default function WorkspacePage() {
   const [syncStates, setSyncStates] = useState<Record<string, SyncState>>({})
   const [message, setMessage] = useState<string | null>(null)
   const [chat, setChat] = useState<ChatMessage[]>([])
-  const [sideTab, setSideTab] = useState<'chat' | 'sessions'>('chat')
+  const [sideTab, setSideTab] = useState<'chat' | 'sessions' | 'memory'>('chat')
+  const [fileNotes, setFileNotes] = useState<Memory[]>([])
+  const [fileLocks, setFileLocks] = useState<RangeLock[]>([])
   const [agentSignal, setAgentSignal] = useState(0)
   const [jobSignal, setJobSignal] = useState(0)
   const [openSession, setOpenSession] = useState<string | null>(null)
@@ -142,7 +145,7 @@ export default function WorkspacePage() {
       if (event.type === 'JOB_UPDATED') setAgentSignal((n) => n + 1)
       return
     }
-    if (/^(AGENT|SESSION|COMMENT|APPROVAL)_/.test(event.type)) {
+    if (/^(AGENT|SESSION|COMMENT|APPROVAL|MEMORY|LOCKS)_/.test(event.type)) {
       setAgentSignal((n) => n + 1)
       return
     }
@@ -179,6 +182,8 @@ export default function WorkspacePage() {
   useEffect(() => {
     if (!activeId) return
     api.comments(workspaceId, { fileId: activeId }).then(setFileComments).catch(() => setFileComments([]))
+    api.memories(workspaceId, activeId).then(setFileNotes).catch(() => setFileNotes([]))
+    api.locks(workspaceId, activeId).then(setFileLocks).catch(() => setFileLocks([]))
   }, [workspaceId, activeId, agentSignal])
 
   useEffect(() => {
@@ -216,11 +221,40 @@ export default function WorkspacePage() {
     })
   }, [fileComments, active, activeId, textTick])
 
-  const highlights = useMemo(
-    () => anchored.filter((a) => !a.outdated && a.comment.status === 'OPEN')
+  /** Notes and held ranges on the open file, resolved against its live text. */
+  const pinned = useMemo(() => {
+    void textTick
+    const doc = active?.open.live.doc
+    if (!doc) return { notes: [], locks: [] }
+    const range = (anchor: Anchor) => {
+      const resolve = (position: unknown) => {
+        try {
+          return Y.createAbsolutePositionFromRelativePosition(Y.createRelativePositionFromJSON(position), doc)?.index ?? null
+        } catch {
+          return null
+        }
+      }
+      const start = resolve(anchor.start)
+      const end = resolve(anchor.end)
+      return start === null || end === null || end <= start ? null : { start, end }
+    }
+    return {
+      notes: fileNotes.filter((n) => n.fileId === activeId).map((note) => ({ note, range: range(note.anchor) })),
+      locks: fileLocks.filter((l) => l.fileId === activeId).map((lock) => ({ lock, range: range(lock.anchor) })),
+    }
+  }, [fileNotes, fileLocks, active, activeId, textTick])
+
+  const highlights = useMemo(() => [
+    ...anchored.filter((a) => !a.outdated && a.comment.status === 'OPEN')
       .map((a) => ({ start: a.start, end: a.end, title: `${a.comment.authorName}: ${a.comment.body}` })),
-    [anchored],
-  )
+    ...pinned.notes.flatMap(({ note, range }) => range ? [{
+      ...range, title: `Note (${note.kind.toLowerCase()}${note.status === 'STALE' ? ', stale' : ''}): ${note.body}`,
+      className: note.status === 'STALE' ? 'memory-range stale' : 'memory-range',
+    }] : []),
+    ...pinned.locks.flatMap(({ lock, range }) => range ? [{
+      ...range, title: `Held by ${lock.holderName}: ${lock.reason}`, className: 'held-range',
+    }] : []),
+  ], [anchored, pinned])
 
   useEffect(() => {
     const target = anchored.find((a) => a.comment.id === pendingReveal.current)
@@ -237,34 +271,60 @@ export default function WorkspacePage() {
     openFile(node)
   }
 
-  async function commentOnSelection() {
+  /** The editor selection as an anchor that follows the text through every later edit. */
+  function selectionAnchor(what: string): { fileId: string; anchor: Anchor; quote: string } | null {
     const instance = editorInstance.current
     const live = active?.open.live
-    if (!instance || !live || !activeId) return
+    if (!instance || !live || !activeId) return null
     const selection = instance.getSelection()
     const model = instance.getModel()
     if (!selection || !model || selection.isEmpty()) {
-      setMessage('Select the code you want to comment on first.')
-      return
+      setMessage(`Select the code you want to ${what} first.`)
+      return null
     }
     const start = model.getOffsetAt(selection.getStartPosition())
     const end = model.getOffsetAt(selection.getEndPosition())
-    const body = window.prompt('Comment on the selected code')?.trim()
-    if (!body) return
-    // Relative positions follow the text through every later edit; the end sticks to the character before it.
-    const anchor = {
-      start: Y.relativePositionToJSON(Y.createRelativePositionFromTypeIndex(live.text, start, 0)),
-      end: Y.relativePositionToJSON(Y.createRelativePositionFromTypeIndex(live.text, end, -1)),
+    // The end sticks to the character before it, so text typed right after the range does not join it.
+    return {
+      fileId: activeId,
+      anchor: {
+        start: Y.relativePositionToJSON(Y.createRelativePositionFromTypeIndex(live.text, start, 0)),
+        end: Y.relativePositionToJSON(Y.createRelativePositionFromTypeIndex(live.text, end, -1)),
+      },
+      quote: live.text.toString().slice(start, end),
     }
+  }
+
+  async function onSelection(what: string, ask: string, save: (target: { fileId: string; anchor: Anchor; quote: string }, text: string) => Promise<unknown>) {
+    const target = selectionAnchor(what)
+    if (!target) return
+    const text = window.prompt(ask)?.trim()
+    if (!text) return
     try {
-      await api.addComment(workspaceId, {
-        targetKind: 'FILE_RANGE', sessionId: openSession, fileId: activeId, anchor,
-        quote: live.text.toString().slice(start, end), body,
-      })
+      await save(target, text)
       setAgentSignal((n) => n + 1)
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : 'Could not add the comment')
+      setMessage(e instanceof Error ? e.message : `Could not ${what}`)
     }
+  }
+
+  function commentOnSelection() {
+    void onSelection('comment on', 'Comment on the selected code', (t, body) =>
+      api.addComment(workspaceId, { targetKind: 'FILE_RANGE', sessionId: openSession, fileId: t.fileId, anchor: t.anchor, quote: t.quote, body }))
+  }
+
+  /** "gotcha: …", "decision: …" or "convention: …" sets the note's kind. */
+  function noteOnSelection() {
+    void onSelection('pin a note to', 'Note for teammates and agents (start with "decision:", "gotcha:" or "convention:" to set its kind)', (t, text) => {
+      const match = /^(decision|gotcha|convention)\s*:\s*/i.exec(text)
+      const kind = (match ? match[1]!.toUpperCase() : 'NOTE') as MemoryKind
+      return api.createMemory(workspaceId, { fileId: t.fileId, kind, body: match ? text.slice(match[0].length) : text, anchor: t.anchor, anchoredText: t.quote })
+    })
+  }
+
+  function holdSelection() {
+    void onSelection('hold', 'Why are you holding this code? Agents will leave it alone for two hours.', (t, reason) =>
+      api.holdRange(workspaceId, { fileId: t.fileId, anchor: t.anchor, quote: t.quote, reason }))
   }
 
   async function createCheckpoint() {
@@ -369,12 +429,37 @@ export default function WorkspacePage() {
               <button type="button" className="ghost" onClick={() => void createCheckpoint()}>Checkpoint</button>
             )}
             {canComment && (
-              <button type="button" className="ghost" onClick={() => void commentOnSelection()}>Comment</button>
+              <>
+                <button type="button" className="ghost" onClick={commentOnSelection}>Comment</button>
+                <button type="button" className="ghost" onClick={noteOnSelection}>Note</button>
+              </>
             )}
+            {canEdit && <button type="button" className="ghost" onClick={holdSelection}>Hold</button>}
             <button type="button" className={showHistory ? 'primary' : 'ghost'} aria-pressed={showHistory} onClick={() => setShowHistory((v) => !v)}>
               History
             </button>
           </div>
+        )}
+        {active && (pinned.notes.length > 0 || pinned.locks.length > 0) && !showHistory && (
+          <ul className="file-comments file-notes" aria-label="Notes on this file">
+            {pinned.locks.map(({ lock, range }) => (
+              <li key={lock.id}>
+                <button type="button" className="link small" disabled={!range}
+                  onClick={() => range && setReveal({ ...range, key: `${lock.id}-${Date.now()}` })}>
+                  🔒 Held by {lock.holderName}: {lock.reason}
+                </button>
+              </li>
+            ))}
+            {pinned.notes.map(({ note, range }) => (
+              <li key={note.id} className={note.status === 'STALE' ? 'stale' : ''}>
+                <button type="button" className="link small" disabled={!range}
+                  onClick={() => range && setReveal({ ...range, key: `${note.id}-${Date.now()}` })}>
+                  📌 {note.kind.toLowerCase()}: {note.body}
+                </button>
+                {note.status === 'STALE' && <span className="muted small"> (stale: its code changed; rewrite or retire it)</span>}
+              </li>
+            ))}
+          </ul>
         )}
         {active && anchored.length > 0 && !showHistory && (
           <ul className="file-comments" aria-label="Comments on this file">
@@ -428,8 +513,21 @@ export default function WorkspacePage() {
         <div className="side-tabs" role="tablist">
           <button type="button" role="tab" aria-selected={sideTab === 'chat'} className={sideTab === 'chat' ? 'active' : ''} onClick={() => setSideTab('chat')}>Chat</button>
           <button type="button" role="tab" aria-selected={sideTab === 'sessions'} className={sideTab === 'sessions' ? 'active' : ''} onClick={() => setSideTab('sessions')}>Sessions</button>
+          <button type="button" role="tab" aria-selected={sideTab === 'memory'} className={sideTab === 'memory' ? 'active' : ''} onClick={() => setSideTab('memory')}>Memory</button>
         </div>
-        {sideTab === 'chat' ? (
+        {sideTab === 'memory' && workspace && user && (
+          <MemoryPanel
+            workspaceId={workspaceId}
+            currentUserId={user.id}
+            role={workspace.role}
+            refreshSignal={agentSignal}
+            onShow={(fileId) => {
+              const node = files.find((f) => f.id === fileId)
+              if (node) openFile(node)
+            }}
+          />
+        )}
+        {sideTab === 'memory' ? null : sideTab === 'chat' ? (
           <ChatPanel
             messages={chat}
             currentUserId={user?.id}

@@ -151,6 +151,19 @@ export const api = {
   recordOutcome: (jobId: string, outcome: 'SUCCEEDED' | 'FAILED') => request<Job>('POST', `/jobs/${jobId}/outcome`, { outcome }),
   runCommand: (workspaceId: string, command: string) => request<Approval>('POST', `/workspaces/${workspaceId}/jobs`, { command }),
 
+  memories: (workspaceId: string, fileId?: string) =>
+    request<Memory[]>('GET', `/workspaces/${workspaceId}/memories${fileId ? `?fileId=${fileId}` : ''}`),
+  createMemory: (workspaceId: string, memory: { fileId: string; kind: MemoryKind; body: string; anchor: Anchor; anchoredText: string }) =>
+    request<Memory>('POST', `/workspaces/${workspaceId}/memories`, memory),
+  updateMemory: (memory: Memory, body: string) => request<Memory>('PATCH', `/memories/${memory.id}`, { body, rowVersion: memory.rowVersion }),
+  retireMemory: (memory: Memory) => request<Memory>('PATCH', `/memories/${memory.id}`, { retire: true }),
+  locks: (workspaceId: string, fileId?: string) =>
+    request<RangeLock[]>('GET', `/workspaces/${workspaceId}/locks${fileId ? `?fileId=${fileId}` : ''}`),
+  holdRange: (workspaceId: string, lock: { fileId: string; anchor: Anchor; quote: string; reason: string }) =>
+    request<RangeLock>('POST', `/workspaces/${workspaceId}/locks`, lock),
+  releaseLock: (lockId: string) => request<void>('DELETE', `/locks/${lockId}`),
+  overlaps: (sessionId: string) => request<Overlap[]>('GET', `/sessions/${sessionId}/overlaps`),
+
   comments: (workspaceId: string, filter: { fileId?: string; sessionId?: string }) => {
     const query = new URLSearchParams(Object.entries(filter).filter(([, v]) => v) as Array<[string, string]>)
     return request<Comment[]>('GET', `/workspaces/${workspaceId}/comments?${query}`)
@@ -328,3 +341,39 @@ export type Approval = {
   createdAt: string
   job: Job | null
 }
+
+export type MemoryKind = 'DECISION' | 'GOTCHA' | 'CONVENTION' | 'NOTE'
+
+/** A note pinned to code (design §13.10); STALE when its code was deleted or rewritten. */
+export type Memory = {
+  id: string
+  fileId: string
+  path: string
+  kind: MemoryKind
+  body: string
+  anchor: Anchor
+  anchoredText: string
+  currentText: string | null
+  similarity: number | null
+  status: 'ACTIVE' | 'STALE' | 'RETIRED'
+  createdBy: string
+  authorName: string
+  createdInTurn: string | null
+  rowVersion: number
+  updatedAt: string
+}
+
+/** A range a person holds for a while; agents stay out of it (design §13.11). */
+export type RangeLock = {
+  id: string
+  fileId: string
+  path: string
+  anchor: Anchor
+  quote: string
+  reason: string
+  holderId: string
+  holderName: string
+  expiresAt: string
+}
+
+export type Overlap = { sessionId: string; task: string; driverName: string; status: string; files: string[] }

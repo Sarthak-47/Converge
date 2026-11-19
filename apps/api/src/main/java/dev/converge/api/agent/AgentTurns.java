@@ -23,6 +23,7 @@ import dev.converge.api.agent.AgentRunnerClient.SessionContext;
 import dev.converge.api.agent.AgentRunnerClient.Sponsor;
 import dev.converge.api.agent.AgentRunnerClient.StartTurn;
 import dev.converge.api.common.ApiException;
+import dev.converge.api.memory.TeamContext;
 import dev.converge.api.realtime.WorkspaceEvent;
 import dev.converge.api.workspace.Role;
 import dev.converge.api.workspace.WorkspaceAccess;
@@ -48,6 +49,7 @@ public class AgentTurns {
     private final JdbcClient jdbc;
     private final WorkspaceAccess access;
     private final ProviderKeys keys;
+    private final TeamContext team;
     private final SecretBox box;
     private final AgentRunnerClient runner;
     private final ApplicationEventPublisher events;
@@ -57,13 +59,14 @@ public class AgentTurns {
     private final String effort;
     private final long costCapMicros;
 
-    public AgentTurns(JdbcClient jdbc, WorkspaceAccess access, ProviderKeys keys, SecretBox box,
+    public AgentTurns(JdbcClient jdbc, WorkspaceAccess access, ProviderKeys keys, TeamContext team, SecretBox box,
             AgentRunnerClient runner, ApplicationEventPublisher events, TransactionTemplate tx,
             @Value("${converge.agent.model}") String model, @Value("${converge.agent.effort}") String effort,
             @Value("${converge.agent.cost-cap-micros}") long costCapMicros) {
         this.jdbc = jdbc;
         this.access = access;
         this.keys = keys;
+        this.team = team;
         this.box = box;
         this.runner = runner;
         this.events = events;
@@ -85,6 +88,8 @@ public class AgentTurns {
                 "Add your Anthropic API key before prompting your agent"));
         UUID turnId = UUID.randomUUID();
         List<History> history = history(workspaceId, sessionId, userId);
+        // Memory, overlaps and held ranges; looked up before the transaction because they fail open.
+        TeamContext.Context context = team.forTurn(workspaceId, sessionId);
         try {
             tx.executeWithoutResult(status -> {
                 jdbc.sql("""
@@ -106,6 +111,7 @@ public class AgentTurns {
                     publishSession(workspaceId, userId, sessionId);
                 }
                 append(turnId, workspaceId, userId, Map.of("kind", "prompt", "text", prompt));
+                if (context.stale()) append(turnId, workspaceId, userId, Map.of("kind", "note", "text", context.text()));
                 publish("AGENT_TURN_STARTED", workspaceId, userId, turnId);
             });
         } catch (DuplicateKeyException e) {
@@ -113,7 +119,8 @@ public class AgentTurns {
         }
         try {
             runner.start(new StartTurn(turnId, workspaceId, new Sponsor(userId, displayName), apiKey, model, effort,
-                    prompt, history, costCapMicros, sessionId == null ? null : new SessionContext(sessionId, task)));
+                    prompt, history, costCapMicros, sessionId == null ? null : new SessionContext(sessionId, task),
+                    context.text().isBlank() ? null : context.text()));
         } catch (ApiException e) {
             finish(turnId, "FAILED", "The agent runner is unavailable");
             throw e;

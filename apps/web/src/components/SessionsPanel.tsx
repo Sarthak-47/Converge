@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
-import { api, type AgentTurn, type Approval, type Comment, type PlanStep, type Role, type SessionCard, type SessionDetail } from '../api.ts'
+import { api, type AgentTurn, type Approval, type Comment, type Overlap, type PlanStep, type Role, type SessionCard, type SessionDetail } from '../api.ts'
 import { ApprovalCard } from './ApprovalCard.tsx'
 import { AgentKeyForm, TurnCard } from './TurnCard.tsx'
 import { errorMessage, useAgentKey } from './agentKit.ts'
@@ -107,6 +107,7 @@ export function SessionsPanel(props: Props) {
 function SessionView({ workspaceId, currentUser, role, refreshSignal, jobSignal, sessionId, onOpenSession, onShowComment }: Props & { sessionId: string }) {
   const [detail, setDetail] = useState<SessionDetail | null>(null)
   const [approvals, setApprovals] = useState<Approval[]>([])
+  const [overlaps, setOverlaps] = useState<Overlap[]>([])
   const [comments, setComments] = useState<Comment[]>([])
   const [draft, setDraft] = useState('')
   const [newStep, setNewStep] = useState('')
@@ -122,6 +123,7 @@ function SessionView({ workspaceId, currentUser, role, refreshSignal, jobSignal,
     api.session(sessionId).then(setDetail).catch((e) => setError(errorMessage(e, 'Could not load the session')))
     api.comments(workspaceId, { sessionId }).then(setComments).catch(() => undefined)
     api.approvals(workspaceId, sessionId).then(setApprovals).catch(() => undefined)
+    api.overlaps(sessionId).then(setOverlaps).catch(() => setOverlaps([]))
   }, [workspaceId, sessionId])
 
   useEffect(() => {
@@ -232,6 +234,16 @@ function SessionView({ workspaceId, currentUser, role, refreshSignal, jobSignal,
         {me && !isDriver && <button type="button" className="ghost" disabled={busy} onClick={() => void run(() => api.leaveSession(sessionId), 'Could not leave')}>Leave</button>}
       </div>
 
+      {overlaps.length > 0 && (
+        <div className="overlap-warning" role="status">
+          {overlaps.map((o) => (
+            <p key={o.sessionId} className="small">
+              Overlapping: "{o.task}" (driven by {o.driverName}) is also working on {o.files.join(', ')}.{' '}
+              <button type="button" className="link small" onClick={() => onOpenSession(o.sessionId)}>Open it</button>
+            </p>
+          ))}
+        </div>
+      )}
       <div className="session-scroll" ref={lanes}>
         <h3 className="session-section">Plan</h3>
         <ol className="plan-steps">

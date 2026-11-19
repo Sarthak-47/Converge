@@ -23,6 +23,7 @@ const TurnStart = z.object({
   history: z.array(z.object({ prompt: z.string(), reply: z.string() })).max(20),
   costCapMicros: z.number().int().positive(),
   session: z.object({ id: z.string().uuid(), task: z.string().min(1).max(2000) }).nullable().optional(),
+  context: z.string().max(40_000).nullable().optional(),
 })
 
 const Steer = z.object({ text: z.string().min(1).max(4000) })

@@ -1191,3 +1191,76 @@ button.link {
 .job-output .out-system {
   color: #93a1af;
 }
+
+/* Workspace memory, held ranges and overlaps (design §13.10, §13.11) */
+.monaco-editor .memory-range {
+  border-bottom: 2px dotted var(--accent);
+}
+
+.monaco-editor .memory-range.stale {
+  border-bottom-color: var(--down-text);
+}
+
+.monaco-editor .held-range {
+  background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--muted) 18%, transparent) 0 6px, transparent 6px 12px);
+}
+
+.file-notes li.stale button {
+  color: var(--down-text);
+}
+
+.overlap-warning {
+  margin: 6px 8px 0;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--warn-bg);
+  color: var(--warn-text);
+}
+
+.overlap-warning p {
+  margin: 2px 0;
+}
+
+.memory-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.memory-item {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.memory-item p {
+  margin: 2px 0;
+  overflow-wrap: anywhere;
+}
+
+.memory-item.stale {
+  border-left: 3px solid var(--down-text);
+  padding-left: 6px;
+}
+
+.memory-kind {
+  font-size: 0.75rem;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--muted);
+}
+
+.memory-kind.kind-gotcha {
+  background: var(--warn-bg);
+  color: var(--warn-text);
+}
+
+.memory-kind.kind-decision {
+  background: var(--active);
+  color: var(--accent);
+}
+
+.memory-stale {
+  color: var(--down-text);
+  font-weight: 600;
+}

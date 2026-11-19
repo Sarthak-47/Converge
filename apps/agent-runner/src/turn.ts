@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { Typing, UndoRecord } from './edits.js'
 import { costMicros, type Usage } from './pricing.js'
-import { PLAN_TOOLS, TOOLS, Toolbox } from './tools.js'
+import { MEMORY_TOOLS, PLAN_TOOLS, TOOLS, Toolbox } from './tools.js'
 import type { TurnWorkspace } from './workspace.js'
 
 export type TurnRequest = {
@@ -17,6 +17,8 @@ export type TurnRequest = {
   costCapMicros: number
   /** The session this turn works in, if any; its plan is available through the plan tools. */
   session?: { id: string; task: string } | null
+  /** Team context from the API: relevant notes, overlapping sessions and held ranges (design §13.6). */
+  context?: string | null
 }
 
 export type TurnStatus = 'SUCCEEDED' | 'FAILED' | 'CANCELLED' | 'REFUSED' | 'BUDGET_EXCEEDED'
@@ -91,8 +93,10 @@ export async function runTurn(request: TurnRequest, options: TurnOptions): Promi
   const session = request.session
     ? `You are working in a shared session. Session task: ${request.session.task}\nUse get_plan to see the plan and who owns each step, propose_plan for steps you will do, and update_step as you start and finish them.\n\n`
     : ''
-  messages.push({ role: 'user', content: `${session}${request.sponsor.name} asks:\n\n${request.prompt}` })
-  const tools = request.session ? [...TOOLS, ...PLAN_TOOLS] : TOOLS
+  // Team context goes in the first message, not the system prompt, so the cached prefix stays stable.
+  const team = request.context ? `${request.context}\n\n` : ''
+  messages.push({ role: 'user', content: `${session}${team}${request.sponsor.name} asks:\n\n${request.prompt}` })
+  const tools = request.session ? [...TOOLS, ...MEMORY_TOOLS, ...PLAN_TOOLS] : [...TOOLS, ...MEMORY_TOOLS]
   const guidance = () => (options.takeGuidance?.() ?? []).map((text) => ({
     type: 'text' as const,
     text: `Guidance from ${request.sponsor.name} while you work: ${text}`,

@@ -33,6 +33,20 @@ const schemas = {
   propose_plan: z.object({ steps: z.array(z.string().min(1).max(300)).min(1).max(20) }).strict(),
   update_step: z.object({ position: z.number().int().positive(), status: z.enum(['TODO', 'IN_PROGRESS', 'DONE']) }).strict(),
   run_command: z.object({ command: z.string().min(1).max(500) }).strict(),
+  read_memory: z.object({ path: z.string().min(1).optional() }).strict(),
+  write_memory: z.object({
+    path: z.string().min(1),
+    anchor_text: z.string().min(1).max(4000),
+    note: z.string().min(1).max(2000),
+    kind: z.enum(['DECISION', 'GOTCHA', 'CONVENTION', 'NOTE']),
+  }).strict(),
+  update_memory: z.object({
+    id: z.string().min(1),
+    note: z.string().min(1).max(2000).optional(),
+    anchor_text: z.string().min(1).max(4000).optional(),
+    path: z.string().min(1).optional(),
+  }).strict(),
+  retire_memory: z.object({ id: z.string().min(1) }).strict(),
 }
 
 export type ToolName = keyof typeof schemas
@@ -112,6 +126,45 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
       required: ['path', 'content'],
       additionalProperties: false,
     },
+  },
+]
+
+/** Workspace memory (design §13.10): notes pinned to code that every agent and person can read. */
+export const MEMORY_TOOLS: Anthropic.Beta.BetaTool[] = [
+  {
+    name: 'read_memory',
+    description: 'Read notes teammates and agents pinned to code: decisions, gotchas and conventions. Give a path for one file, or omit it for the whole workspace. STALE notes no longer match their code.',
+    input_schema: { type: 'object', properties: { path: { type: 'string' } }, additionalProperties: false },
+  },
+  {
+    name: 'write_memory',
+    description: 'Pin a short note to code so future people and agents know it: why something is done this way, a gotcha, or a convention. anchor_text must be an exact, unique snippet of the current file (one or a few lines). Write notes only for things that are not obvious from the code.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string' },
+        anchor_text: { type: 'string', maxLength: 4000 },
+        note: { type: 'string', maxLength: 2000 },
+        kind: { type: 'string', enum: ['DECISION', 'GOTCHA', 'CONVENTION', 'NOTE'] },
+      },
+      required: ['path', 'anchor_text', 'note', 'kind'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'update_memory',
+    description: 'Rewrite a note, typically a STALE one whose code changed: new text, and optionally a new anchor_text (exact, unique snippet in path) to re-pin it.',
+    input_schema: {
+      type: 'object',
+      properties: { id: { type: 'string' }, note: { type: 'string' }, anchor_text: { type: 'string' }, path: { type: 'string' } },
+      required: ['id'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'retire_memory',
+    description: 'Retire a note that is no longer true. It stays in history but is no longer shown as current.',
+    input_schema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'], additionalProperties: false },
   },
 ]
 
@@ -237,7 +290,7 @@ export class Toolbox {
         const to = Math.min(lines.length, end_line ?? from + MAX_READ_LINES, from + MAX_READ_LINES)
         const body = lines.slice(from, to).map((line, i) => `${String(from + i + 1).padStart(6)}\t${line}`).join('\n')
         const more = to < lines.length ? `\n… ${lines.length - to} more lines; use start_line=${to + 1}` : ''
-        return { content: clip(body + more), isError: false, summary: `read ${file.path}` }
+        return { content: clip((await this.annotations(file)) + body + more), isError: false, summary: `read ${file.path}` }
       }
       case 'search': {
         const { query } = input as z.infer<typeof schemas.search>
@@ -254,6 +307,13 @@ export class Toolbox {
         const found = occurrences(current, old_string)
         if (found.length === 0) throw new ToolError(`old_string was not found in ${file.path}. Read the file again; a teammate may have changed it.`)
         if (found.length > 1 && !replace_all) throw new ToolError(`old_string occurs ${found.length} times in ${file.path}; add surrounding lines or set replace_all.`)
+        const held = await this.heldIn(file, text)
+        for (const at of found) {
+          const clash = held.find((h) => at < h.end && at + old_string.length > h.start)
+          if (clash) {
+            throw new ToolError(`Lines ${clash.lines} of ${file.path} are held by ${clash.holderName} (${clash.reason}). Leave that code alone or ask them in your reply.`)
+          }
+        }
         this.spend((old_string.length + new_string.length) * found.length)
         // Each match is anchored by a relative position now, so typing that lands between replacements
         // shifts them correctly; a match a teammate has meanwhile changed is skipped, not clobbered.
@@ -279,6 +339,36 @@ export class Toolbox {
         const { position, status } = input as z.infer<typeof schemas.update_step>
         const plan = await this.workspace.setStepStatus(position, status)
         return { content: formatPlan(plan), isError: false, summary: `marked step ${position} ${status.toLowerCase().replace('_', ' ')}` }
+      }
+      case 'read_memory': {
+        const { path } = input as z.infer<typeof schemas.read_memory>
+        const fileId = path ? (await this.file(path)).id : undefined
+        const notes = await this.workspace.memories(fileId)
+        const body = notes.map((n) => `[${n.id}] ${n.path} (${n.kind.toLowerCase()}, ${n.status.toLowerCase()}): ${n.body}\n    about: ${JSON.stringify(n.anchoredText.slice(0, 200))}${n.status === 'STALE' ? `\n    now: ${JSON.stringify((n.currentText ?? '(deleted)').slice(0, 200))}` : ''}`).join('\n')
+        return { content: clip(body || 'No notes yet.'), isError: false, summary: `read memory${path ? ` for ${normalize(path)}` : ''}` }
+      }
+      case 'write_memory': {
+        const { path, anchor_text, note, kind } = input as z.infer<typeof schemas.write_memory>
+        const file = await this.file(path)
+        const anchor = await this.anchorFor(file, anchor_text)
+        const saved = await this.workspace.writeMemory({ fileId: file.id, kind, body: note, anchor, anchoredText: anchor_text })
+        return { content: `Pinned note ${saved.id} to ${file.path}.`, isError: false, summary: `pinned a note to ${file.path}` }
+      }
+      case 'update_memory': {
+        const { id, note, anchor_text, path } = input as z.infer<typeof schemas.update_memory>
+        let anchor
+        if (anchor_text) {
+          const existing = (await this.workspace.memories()).find((n) => n.id === id)
+          const file = await this.file(path ?? existing?.path ?? '')
+          anchor = await this.anchorFor(file, anchor_text)
+        }
+        await this.workspace.updateMemory(id, { body: note, anchor, anchoredText: anchor ? anchor_text : undefined })
+        return { content: `Updated note ${id}.`, isError: false, summary: 'updated a note' }
+      }
+      case 'retire_memory': {
+        const { id } = input as z.infer<typeof schemas.retire_memory>
+        await this.workspace.updateMemory(id, { retire: true })
+        return { content: `Retired note ${id}.`, isError: false, summary: 'retired a note' }
       }
       case 'run_command':
         return this.runCommand((input as z.infer<typeof schemas.run_command>).command)
@@ -343,6 +433,51 @@ export class Toolbox {
       }
       await new Promise((resolve) => setTimeout(resolve, this.waiting.pollMs))
     }
+  }
+
+  /** Pins a note to an exact, unique snippet of the file, as the browser does: Yjs relative positions. */
+  private async anchorFor(file: FileEntry, snippet: string) {
+    const text = await this.text(file.id)
+    const found = occurrences(text.toString(), snippet)
+    if (found.length !== 1) {
+      throw new ToolError(found.length === 0 ? `anchor_text was not found in ${file.path}.` : `anchor_text occurs ${found.length} times in ${file.path}; make it unique.`)
+    }
+    const at = found[0]!
+    return {
+      start: Y.relativePositionToJSON(Y.createRelativePositionFromTypeIndex(text, at, 0)),
+      end: Y.relativePositionToJSON(Y.createRelativePositionFromTypeIndex(text, at + snippet.length, -1)),
+    }
+  }
+
+  /** Held ranges in a file as offsets into its current text. Advisory context: a failed lookup is skipped. */
+  private async heldIn(file: FileEntry, text: Y.Text) {
+    const ranges = await this.workspace.heldRanges(file.id).catch(() => [])
+    const doc = text.doc!
+    const resolve = (p: unknown) => {
+      try {
+        return Y.createAbsolutePositionFromRelativePosition(Y.createRelativePositionFromJSON(p), doc)?.index ?? null
+      } catch {
+        return null
+      }
+    }
+    const lineOf = (offset: number) => text.toString().slice(0, offset).split('\n').length
+    return ranges.flatMap((r) => {
+      const start = resolve(r.anchor.start)
+      const end = resolve(r.anchor.end)
+      if (start === null || end === null || end <= start) return []
+      return [{ start, end, holderName: r.holderName, reason: r.reason, lines: `${lineOf(start)}–${lineOf(end)}` }]
+    })
+  }
+
+  /** What read_file shows above the text: held ranges and notes on this file. Fails open. */
+  private async annotations(file: FileEntry): Promise<string> {
+    const text = await this.text(file.id)
+    const held = await this.heldIn(file, text)
+    const notes = await this.workspace.memories(file.id).catch(() => [])
+    const lines: string[] = []
+    for (const h of held) lines.push(`Held by ${h.holderName}, do not edit: lines ${h.lines} (${h.reason})`)
+    for (const n of notes) lines.push(`Note [${n.id}] (${n.kind.toLowerCase()}${n.status === 'STALE' ? ', STALE: rewrite or retire it if you work here' : ''}): ${n.body}`)
+    return lines.length ? `${lines.join('\n')}\n\n` : ''
   }
 
   private cursor(fileId: string): Typing {

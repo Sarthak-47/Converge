@@ -2,7 +2,10 @@ import { HocuspocusProvider, HocuspocusProviderWebsocket } from '@hocuspocus/pro
 import WebSocket from 'ws'
 import * as Y from 'yjs'
 import type { TurnApi } from './apiClient.js'
-import { TEXT_FIELD, type ApprovalState, type FileEntry, type JobState, type PlanStep, type SearchHit, type StepStatus, type TurnWorkspace } from './workspace.js'
+import {
+  TEXT_FIELD, type Anchor, type ApprovalState, type FileEntry, type HeldRange, type JobState, type MemoryKind, type MemoryNote,
+  type PlanStep, type SearchHit, type StepStatus, type TurnWorkspace,
+} from './workspace.js'
 
 /** A colour that is valid for the editor's awareness check and distinct from people's palette. */
 const AGENT_COLOR = 'hsl(280 70% 50%)'
@@ -98,6 +101,22 @@ export class CollabWorkspace implements TurnWorkspace {
 
   job(jobId: string): Promise<JobState> {
     return this.api.job(jobId)
+  }
+
+  memories(fileId?: string): Promise<MemoryNote[]> {
+    return this.api.memories(fileId)
+  }
+
+  writeMemory(note: { fileId: string; kind: MemoryKind; body: string; anchor: Anchor; anchoredText: string }): Promise<MemoryNote> {
+    return this.api.writeMemory(note)
+  }
+
+  updateMemory(id: string, change: { body?: string; anchor?: Anchor; anchoredText?: string; retire?: boolean }): Promise<MemoryNote> {
+    return this.api.updateMemory(id, change)
+  }
+
+  heldRanges(fileId: string): Promise<HeldRange[]> {
+    return this.api.heldRanges(fileId)
   }
 
   setCursor(fileId: string, index: number | null) {

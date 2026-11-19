@@ -130,6 +130,11 @@ public class AgentInternalController {
         int inWorkspace = jdbc.sql("select count(*) from files where id = ? and workspace_id = ?")
                 .params(body.fileId(), row.workspaceId()).query(Integer.class).single();
         if (inWorkspace == 0) throw ApiException.notFound("File");
+        if ("RUNNING".equals(row.status())) {
+            // An agent opening a file counts as touching it, for overlap warnings (design §13.11).
+            jdbc.sql("insert into agent_turn_touches (turn_id, file_id) values (?, ?) on conflict (turn_id, file_id) do update set touched_at = now()")
+                    .params(turnId, body.fileId()).update();
+        }
         return tickets.issue(body.fileId(), user);
     }
 

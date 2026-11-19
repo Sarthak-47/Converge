@@ -5,7 +5,11 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
-/** Forwards committed {@link WorkspaceEvent}s to subscribers of the workspace's events topic. */
+/**
+ * Forwards committed {@link WorkspaceEvent}s to subscribers of the workspace's events topic. Events raised
+ * outside a transaction (scheduled jobs, listeners that run after another commit, single-statement updates) are
+ * sent at once; without the fallback they would be silently dropped.
+ */
 @Component
 public class WorkspaceEventPublisher {
 
@@ -15,7 +19,7 @@ public class WorkspaceEventPublisher {
         this.messaging = messaging;
     }
 
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     void afterCommit(WorkspaceEvent event) {
         messaging.convertAndSend(event.topic(), event);
     }

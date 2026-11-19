@@ -2,7 +2,9 @@ import * as Y from 'yjs'
 import type { UndoRecord } from '../src/edits.js'
 import type { TurnEvent, TurnLedger, TurnStatus } from '../src/turn.js'
 import { ApiCallError } from '../src/apiClient.js'
-import type { ApprovalState, FileEntry, JobState, PlanStep, SearchHit, StepStatus, TurnWorkspace } from '../src/workspace.js'
+import type {
+  Anchor, ApprovalState, FileEntry, HeldRange, JobState, MemoryKind, MemoryNote, PlanStep, SearchHit, StepStatus, TurnWorkspace,
+} from '../src/workspace.js'
 import { Hub } from './hub.js'
 
 /** An in-memory workspace: each file is a Hub, so a test can also join as a person and type. */
@@ -16,6 +18,8 @@ export class MemoryWorkspace implements TurnWorkspace {
   decision: ApprovalState['status'] = 'APPROVED'
   jobResult: JobState = { status: 'SUCCEEDED', exitCode: 0, error: null, output: 'ok 1 adds\n# pass 1\n' }
   apiDown = false
+  readonly notes: MemoryNote[] = []
+  readonly held = new Map<string, HeldRange[]>()
   jobsStarted = 0
   private disconnects: Array<() => void> = []
   closed = false
@@ -85,6 +89,31 @@ export class MemoryWorkspace implements TurnWorkspace {
     }
     this.commands.push(command)
     return { approvalId: `approval-${this.commands.length}` }
+  }
+
+  async memories(fileId?: string) {
+    return this.notes.filter((n) => !fileId || n.fileId === fileId)
+  }
+
+  async writeMemory(note: { fileId: string; kind: MemoryKind; body: string; anchor: Anchor; anchoredText: string }) {
+    const saved: MemoryNote = {
+      id: `note-${this.notes.length + 1}`, path: this.files.get(note.fileId)!.entry.path, status: 'ACTIVE', currentText: note.anchoredText, ...note,
+    }
+    this.notes.push(saved)
+    return saved
+  }
+
+  async updateMemory(id: string, change: { body?: string; anchor?: Anchor; anchoredText?: string; retire?: boolean }) {
+    const note = this.notes.find((n) => n.id === id)
+    if (!note) throw new ApiCallError(404, 'Note not found')
+    if (change.retire) note.status = 'RETIRED'
+    if (change.body) note.body = change.body
+    if (change.anchor && change.anchoredText) Object.assign(note, { anchor: change.anchor, anchoredText: change.anchoredText, status: 'ACTIVE' })
+    return note
+  }
+
+  async heldRanges(fileId: string) {
+    return this.held.get(fileId) ?? []
   }
 
   async approval(): Promise<ApprovalState> {

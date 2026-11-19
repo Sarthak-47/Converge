@@ -5,6 +5,7 @@ import { authenticate, checkOrigin, type ConnectionContext } from './auth.js'
 import { config } from './config.js'
 import { checkHealth } from './health.js'
 import { handleInternal } from './internal.js'
+import { checkMemories, type MemoryCheck } from './memory.js'
 import { loadDocument, storeDocument } from './persistence.js'
 
 const db = new pg.Pool({ connectionString: config.databaseUrl, max: 10 })
@@ -13,6 +14,17 @@ redis.on('error', (error) => log('ERROR', 'REDIS_ERROR', { message: error.messag
 
 function log(level: 'INFO' | 'WARN' | 'ERROR', event: string, fields: Record<string, unknown> = {}) {
   console.log(JSON.stringify({ timestamp: new Date().toISOString(), level, service: 'collab', event, ...fields }))
+}
+
+async function reportMemoryChecks(checks: MemoryCheck[]) {
+  const response = await fetch(`${config.apiUrl}/internal/memories/checked`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Internal-Token': config.internalToken },
+    body: JSON.stringify({ checks }),
+    signal: AbortSignal.timeout(5000),
+  })
+  if (!response.ok) throw new Error(`Reporting memory checks failed with ${response.status}`)
+  log('INFO', 'MEMORIES_CHECKED', { changed: checks.length, stale: checks.filter((c) => c.status === 'STALE').length })
 }
 
 const server = new Server<ConnectionContext>({
@@ -47,6 +59,10 @@ const server = new Server<ConnectionContext>({
     const started = performance.now()
     await storeDocument(db, documentName, document)
     log('INFO', 'DOCUMENT_STORED', { fileId: documentName, durationMs: Math.round(performance.now() - started) })
+    // Notes pinned to this file are re-checked against what was just stored (design §13.10). Context, not
+    // authority: a failure is logged and never blocks storing.
+    checkMemories(db, documentName, document, reportMemoryChecks).catch((error: Error) =>
+      log('WARN', 'MEMORY_CHECK_FAILED', { fileId: documentName, message: error.message }))
   },
 
   async onRequest({ request, response, instance }) {

@@ -52,7 +52,7 @@ public class SessionController {
     public record NewSteps(@NotEmpty @Size(max = 50) List<@NotBlank @Size(max = 300) String> titles) {
     }
 
-    public record StepUpdate(@NotNull Plans.Status status, boolean release, int rowVersion) {
+    public record StepUpdate(@NotNull Plans.Status status, Boolean release, int rowVersion) {
     }
 
     public record CommentBody(Comments.Target targetKind, UUID sessionId, UUID fileId, UUID turnId, UUID stepId,
@@ -127,7 +127,7 @@ public class SessionController {
     @PatchMapping("/api/v1/steps/{stepId}")
     Plans.Step updateStep(@AuthenticationPrincipal AppUser user, @PathVariable UUID stepId,
             @Valid @RequestBody StepUpdate body) {
-        return plans.update(stepId, body.status(), body.release(), body.rowVersion(), user.id());
+        return plans.update(stepId, body.status(), Boolean.TRUE.equals(body.release()), body.rowVersion(), user.id());
     }
 
     @DeleteMapping("/api/v1/steps/{stepId}")

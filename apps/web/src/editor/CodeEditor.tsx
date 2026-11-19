@@ -4,7 +4,7 @@ import type { CollabDocument, Peer } from './collabDocument.ts'
 import { monaco } from './monaco.ts'
 
 /** A highlighted range, as offsets into the current text. */
-export type Highlight = { start: number; end: number; title: string }
+export type Highlight = { start: number; end: number; title: string; className?: string }
 
 type Props = {
   model: monaco.editor.ITextModel
@@ -121,13 +121,13 @@ export default function CodeEditor({ model, live, readOnly, highlights = [], rev
   useEffect(() => {
     const instance = editor.current
     if (!instance) return
-    const ranges = highlights.map(({ start, end, title }) => {
+    const ranges = highlights.map(({ start, end, title, className }) => {
       const from = model.getPositionAt(start)
       const to = model.getPositionAt(end)
       return {
         range: new monaco.Range(from.lineNumber, from.column, to.lineNumber, to.column),
         // Comment text is user content: escaped so Monaco shows it as plain text, never markup or links.
-        options: { inlineClassName: 'comment-range', hoverMessage: { value: plainMarkdown(title), isTrusted: false, supportHtml: false } },
+        options: { inlineClassName: className ?? 'comment-range', hoverMessage: { value: plainMarkdown(title), isTrusted: false, supportHtml: false } },
       }
     })
     decorations.current?.clear()

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import * as Y from 'yjs'
 import { revertTurn } from '../src/edits.js'
+import * as YTypes from 'yjs'
 import { FakeModel } from '../src/testing/fakeModel.js'
 import { runTurn, type TurnRequest } from '../src/turn.js'
 import { MemoryLedger, MemoryWorkspace } from './memory.js'
@@ -74,7 +75,7 @@ describe('an agent turn', () => {
       model: 'claude-opus-5-5', stream: true, fallbacks: 'default',
       thinking: { type: 'adaptive' }, output_config: { effort: 'high' },
     })
-    expect((first.body.tools as Array<{ name: string }>).map((t) => t.name)).toEqual(['list_files', 'read_file', 'search', 'edit_file', 'run_command', 'create_file'])
+    expect((first.body.tools as Array<{ name: string }>).map((t) => t.name)).toEqual(['list_files', 'read_file', 'search', 'edit_file', 'run_command', 'create_file', 'read_memory', 'write_memory', 'update_memory', 'retire_memory'])
     // The tool result for the read went back with line numbers.
     const second = model.requests[1]!.body.messages as Array<{ role: string; content: unknown }>
     expect(JSON.stringify(second.at(-1))).toContain('     1\\texport function signup')
@@ -294,6 +295,77 @@ describe('an agent turn', () => {
       const { ledger } = await run(workspace, tool('run_command', { command: 'npm test' }))
       expect(ledger.events.find((e) => e.kind === 'tool')).toMatchObject({ ok: false, summary: 'npm test: outcome unknown' })
       expect(JSON.stringify(model.requests[1]!.body.messages)).toContain('its outcome is unknown')
+    })
+  })
+
+  describe('workspace memory and held ranges (design §13.10, §13.11)', () => {
+    it('pins a note to an exact snippet with anchors that follow the code', async () => {
+      const workspace = new MemoryWorkspace()
+      const fileId = workspace.add('retry.ts', 'export const retryLimit = 3\nexport const other = 1\n')
+      const { ledger } = await run(workspace, tool('write_memory', {
+        path: 'retry.ts', anchor_text: 'export const retryLimit = 3', note: 'Three retries: the upstream rate limit resets after 3 calls.', kind: 'GOTCHA',
+      }))
+      expect(ledger.events.find((e) => e.kind === 'tool')).toMatchObject({ ok: true, summary: 'pinned a note to retry.ts' })
+      const [note] = workspace.notes
+      expect(note).toMatchObject({ fileId, kind: 'GOTCHA', anchoredText: 'export const retryLimit = 3' })
+
+      // Someone types above it: the anchors still span the same code.
+      const hub = workspace.hub('retry.ts')
+      hub.server.getText('content').insert(0, '// header\n')
+      const resolve = (p: unknown) => YTypes.createAbsolutePositionFromRelativePosition(YTypes.createRelativePositionFromJSON(p), hub.server)!.index
+      expect(hub.text().slice(resolve(note!.anchor.start), resolve(note!.anchor.end))).toBe('export const retryLimit = 3')
+    })
+
+    it('refuses an ambiguous anchor and lets agents rewrite or retire stale notes', async () => {
+      const workspace = new MemoryWorkspace()
+      const fileId = workspace.add('a.ts', 'x = 1\nx = 1\ny = 2\n')
+      workspace.notes.push({ id: 'note-old', fileId, path: 'a.ts', kind: 'NOTE', body: 'old', status: 'STALE', anchor: { start: null, end: null }, anchoredText: 'z = 3', currentText: null })
+      const { ledger } = await run(workspace, [
+        tool('write_memory', { path: 'a.ts', anchor_text: 'x = 1', note: 'n', kind: 'NOTE' }),
+        tool('read_memory', { path: 'a.ts' }),
+        tool('update_memory', { id: 'note-old', note: 'y is two now', anchor_text: 'y = 2', path: 'a.ts' }),
+        tool('retire_memory', { id: 'note-old' }),
+      ].join('\n'))
+      expect(ledger.events.filter((e) => e.kind === 'tool').map((e) => e.kind === 'tool' && e.ok)).toEqual([false, true, true, true])
+      expect(JSON.stringify(model.requests[2]!.body.messages)).toContain('now: \\"(deleted)\\"')
+      expect(workspace.notes[0]).toMatchObject({ body: 'y is two now', anchoredText: 'y = 2', status: 'RETIRED' })
+    })
+
+    it('does not edit a range a person is holding, and says who holds it', async () => {
+      const workspace = new MemoryWorkspace()
+      const fileId = workspace.add('pay.ts', 'function charge() {\n  return gateway.charge()\n}\nconst free = true\n')
+      const doc = new YTypes.Doc()
+      YTypes.applyUpdate(doc, YTypes.encodeStateAsUpdate(workspace.hub('pay.ts').server))
+      const text = doc.getText('content')
+      const start = text.toString().indexOf('  return gateway')
+      const end = start + '  return gateway.charge()'.length
+      workspace.held.set(fileId, [{
+        holderName: 'Ben', reason: 'migrating the gateway',
+        anchor: {
+          start: YTypes.relativePositionToJSON(YTypes.createRelativePositionFromTypeIndex(text, start, 0)),
+          end: YTypes.relativePositionToJSON(YTypes.createRelativePositionFromTypeIndex(text, end, -1)),
+        },
+      }])
+      const { ledger } = await run(workspace, [
+        tool('read_file', { path: 'pay.ts' }),
+        tool('edit_file', { path: 'pay.ts', old_string: 'gateway.charge()', new_string: 'newGateway.charge()' }),
+        tool('edit_file', { path: 'pay.ts', old_string: 'const free = true', new_string: 'const free = false' }),
+      ].join('\n'))
+      expect(JSON.stringify(model.requests[1]!.body.messages)).toContain('Held by Ben, do not edit: lines 2–2 (migrating the gateway)')
+      expect(ledger.events.filter((e) => e.kind === 'tool').map((e) => e.kind === 'tool' && e.summary)).toEqual([
+        'read pay.ts',
+        'edit_file: Lines 2–2 of pay.ts are held by Ben (migrating the gateway). Leave that code alone or ask them in your reply.',
+        'edited pay.ts',
+      ])
+      expect(workspace.hub('pay.ts').text()).toContain('gateway.charge()')
+      expect(workspace.hub('pay.ts').text()).toContain('const free = false')
+    })
+
+    it('puts the team context in the first message, not the system prompt', async () => {
+      await run(new MemoryWorkspace(), 'hello', { context: 'Workspace memory: - [n1] a.ts (gotcha, stale): watch out' })
+      const first = model.requests[0]!.body
+      expect(JSON.stringify(first.messages)).toContain('Workspace memory: - [n1] a.ts (gotcha, stale): watch out')
+      expect(JSON.stringify(first.system)).not.toContain('Workspace memory')
     })
   })
 })

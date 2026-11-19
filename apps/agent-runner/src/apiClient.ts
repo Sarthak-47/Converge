@@ -1,7 +1,7 @@
 import type { UndoRecord } from './edits.js'
 import type { Usage } from './pricing.js'
 import type { TurnEvent, TurnLedger, TurnStatus } from './turn.js'
-import type { ApprovalState, FileEntry, JobState, PlanStep, SearchHit, StepStatus } from './workspace.js'
+import type { Anchor, ApprovalState, FileEntry, HeldRange, JobState, MemoryKind, MemoryNote, PlanStep, SearchHit, StepStatus } from './workspace.js'
 
 /**
  * The runner's side of the API boundary (design §5.3): every call is scoped to one turn, so the API checks
@@ -49,6 +49,22 @@ export class TurnApi implements TurnLedger {
     const d = await this.call<{ job: { status: JobState['status']; exitCode: number | null; error: string | null }; output: Array<{ chunk: string }> }>(
       'GET', `/jobs/${encodeURIComponent(jobId)}`)
     return { status: d.job.status, exitCode: d.job.exitCode, error: d.job.error, output: d.output.map((c) => c.chunk).join('') }
+  }
+
+  memories(fileId?: string): Promise<MemoryNote[]> {
+    return this.call('GET', `/memory${fileId ? `?fileId=${encodeURIComponent(fileId)}` : ''}`)
+  }
+
+  writeMemory(note: { fileId: string; kind: MemoryKind; body: string; anchor: Anchor; anchoredText: string }): Promise<MemoryNote> {
+    return this.call('POST', '/memory', note)
+  }
+
+  updateMemory(id: string, change: { body?: string; anchor?: Anchor; anchoredText?: string; retire?: boolean }): Promise<MemoryNote> {
+    return this.call('POST', `/memory/${encodeURIComponent(id)}`, { retire: false, ...change })
+  }
+
+  heldRanges(fileId: string): Promise<HeldRange[]> {
+    return this.call('GET', `/files/${encodeURIComponent(fileId)}/locks`)
   }
 
   async ticket(fileId: string): Promise<string> {

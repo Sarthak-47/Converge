@@ -7,6 +7,21 @@ export type FileEntry = { id: string; path: string; kind: 'FILE' | 'FOLDER' }
 export type SearchHit = { path: string; line: number; text: string }
 export type StepStatus = 'TODO' | 'IN_PROGRESS' | 'DONE'
 export type PlanStep = { position: number; title: string; ownerName: string | null; status: StepStatus }
+/** Yjs relative positions as JSON, as the browser and API store them. */
+export type Anchor = { start: unknown; end: unknown }
+export type MemoryKind = 'DECISION' | 'GOTCHA' | 'CONVENTION' | 'NOTE'
+export type MemoryNote = {
+  id: string
+  fileId: string
+  path: string
+  kind: MemoryKind
+  body: string
+  status: 'ACTIVE' | 'STALE' | 'RETIRED'
+  anchor: Anchor
+  anchoredText: string
+  currentText: string | null
+}
+export type HeldRange = { holderName: string; reason: string; anchor: Anchor }
 export type ApprovalState = { status: 'PENDING' | 'APPROVED' | 'DENIED' | 'EXPIRED'; deciderName: string | null; jobId: string | null }
 export type JobState = {
   status: 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELED' | 'OUTCOME_UNKNOWN'
@@ -42,6 +57,12 @@ export interface TurnWorkspace {
   requestCommand(command: string): Promise<{ approvalId: string }>
   approval(approvalId: string): Promise<ApprovalState>
   job(jobId: string): Promise<JobState>
+  /** Notes pinned to code (design §13.10), for one file or the whole workspace. */
+  memories(fileId?: string): Promise<MemoryNote[]>
+  writeMemory(note: { fileId: string; kind: MemoryKind; body: string; anchor: Anchor; anchoredText: string }): Promise<MemoryNote>
+  updateMemory(id: string, change: { body?: string; anchor?: Anchor; anchoredText?: string; retire?: boolean }): Promise<MemoryNote>
+  /** Ranges people are holding in a file (design §13.11); advisory. */
+  heldRanges(fileId: string): Promise<HeldRange[]>
   /** Shows the agent's cursor in a file (`null` hides it). */
   setCursor(fileId: string, index: number | null): void
   /** Waits until every local change has reached the server. */
