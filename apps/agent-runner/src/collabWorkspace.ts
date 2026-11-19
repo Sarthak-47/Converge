@@ -2,7 +2,7 @@ import { HocuspocusProvider, HocuspocusProviderWebsocket } from '@hocuspocus/pro
 import WebSocket from 'ws'
 import * as Y from 'yjs'
 import type { TurnApi } from './apiClient.js'
-import { TEXT_FIELD, type FileEntry, type SearchHit, type TurnWorkspace } from './workspace.js'
+import { TEXT_FIELD, type FileEntry, type PlanStep, type SearchHit, type StepStatus, type TurnWorkspace } from './workspace.js'
 
 /** A colour that is valid for the editor's awareness check and distinct from people's palette. */
 const AGENT_COLOR = 'hsl(280 70% 50%)'
@@ -74,6 +74,18 @@ export class CollabWorkspace implements TurnWorkspace {
 
   search(query: string): Promise<SearchHit[]> {
     return this.api.search(query)
+  }
+
+  plan(): Promise<PlanStep[]> {
+    return this.api.plan()
+  }
+
+  proposePlan(titles: string[]): Promise<PlanStep[]> {
+    return this.api.proposePlan(titles)
+  }
+
+  setStepStatus(position: number, status: StepStatus): Promise<PlanStep[]> {
+    return this.api.setStepStatus(position, status)
   }
 
   setCursor(fileId: string, index: number | null) {

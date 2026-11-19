@@ -30,6 +30,7 @@ import dev.converge.api.file.FileService;
 import dev.converge.api.file.FileService.FileNode;
 import dev.converge.api.file.FileService.Kind;
 import dev.converge.api.realtime.TicketService;
+import dev.converge.api.session.Plans;
 
 /**
  * The runner's view of the workspace (design §5.3, §13.4). Every call names a turn; the API checks the turn is
@@ -59,7 +60,13 @@ public class AgentInternalController {
     public record RevertState(@NotBlank String state, @NotNull Map<String, Object> undo) {
     }
 
-    public record Finish(@NotBlank String status, @Size(max = 2000) String error) {
+    public record Finish(@NotBlank String status, @Size(max = 2000) String error, @Size(max = 40) String code) {
+    }
+
+    public record ProposePlan(@jakarta.validation.constraints.NotEmpty @Size(max = 20) List<@NotBlank @Size(max = 300) String> steps) {
+    }
+
+    public record StepStatus(int position, @NotNull Plans.Status status) {
     }
 
     private static final java.util.Set<String> FINAL = java.util.Set.of(
@@ -67,12 +74,15 @@ public class AgentInternalController {
     private static final java.util.Set<String> EVENT_KINDS = java.util.Set.of("text", "note", "tool");
 
     private final AgentTurns turns;
+    private final Plans plans;
     private final FileService files;
     private final TicketService tickets;
     private final JdbcClient jdbc;
 
-    public AgentInternalController(AgentTurns turns, FileService files, TicketService tickets, JdbcClient jdbc) {
+    public AgentInternalController(AgentTurns turns, Plans plans, FileService files, TicketService tickets,
+            JdbcClient jdbc) {
         this.turns = turns;
+        this.plans = plans;
         this.files = files;
         this.tickets = tickets;
         this.jdbc = jdbc;
@@ -181,10 +191,34 @@ public class AgentInternalController {
         return ResponseEntity.noContent().build();
     }
 
+    /** The session's plan, for the agent's plan tools (design §13.4). */
+    @GetMapping("/plan")
+    List<Plans.Step> plan(@PathVariable UUID turnId) {
+        return plans.steps(sessionOf(turns.running(turnId)));
+    }
+
+    /** Adds steps owned by the sponsor: an agent proposes, its member owns the work. */
+    @PostMapping("/plan")
+    List<Plans.Step> propose(@PathVariable UUID turnId, @Valid @RequestBody ProposePlan body) {
+        TurnRow row = turns.running(turnId);
+        return plans.add(sessionOf(row), body.steps(), row.sponsorId(), row.sponsorId());
+    }
+
+    @PostMapping("/plan/status")
+    List<Plans.Step> stepStatus(@PathVariable UUID turnId, @Valid @RequestBody StepStatus body) {
+        TurnRow row = turns.running(turnId);
+        return plans.updateByPosition(sessionOf(row), body.position(), body.status(), row.sponsorId());
+    }
+
+    private static UUID sessionOf(TurnRow row) {
+        if (row.sessionId() == null) throw ApiException.badRequest("This turn is not part of a session, so it has no plan");
+        return row.sessionId();
+    }
+
     @PostMapping("/finish")
     ResponseEntity<Void> finish(@PathVariable UUID turnId, @Valid @RequestBody Finish body) {
         if (!FINAL.contains(body.status())) throw ApiException.badRequest("Unknown status");
-        turns.finish(turnId, body.status(), body.error());
+        turns.finish(turnId, body.status(), body.error(), body.code());
         return ResponseEntity.noContent().build();
     }
 }

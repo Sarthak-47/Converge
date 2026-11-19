@@ -1,12 +1,13 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import * as Y from 'yjs'
 import { useNavigate, useParams } from 'react-router'
-import { api, ApiError, type FileKind, type FileNode, type Workspace } from '../api.ts'
+import { api, ApiError, type Comment, type FileKind, type FileNode, type Workspace } from '../api.ts'
 import { useAuth } from '../auth.tsx'
-import { AgentPanel } from '../components/AgentPanel.tsx'
 import { ChatPanel } from '../components/ChatPanel.tsx'
 import { FileTree } from '../components/FileTree.tsx'
 import { MembersDialog } from '../components/MembersDialog.tsx'
 import { PresenceAvatars } from '../components/PresenceAvatars.tsx'
+import { SessionsPanel } from '../components/SessionsPanel.tsx'
 import { SyncControl } from '../components/SyncControl.tsx'
 import { TopBar } from '../components/TopBar.tsx'
 import { CollabDocument, type Peer, type SyncState } from '../editor/collabDocument.ts'
@@ -50,10 +51,17 @@ export default function WorkspacePage() {
   const [syncStates, setSyncStates] = useState<Record<string, SyncState>>({})
   const [message, setMessage] = useState<string | null>(null)
   const [chat, setChat] = useState<ChatMessage[]>([])
-  const [sideTab, setSideTab] = useState<'chat' | 'agents'>('chat')
+  const [sideTab, setSideTab] = useState<'chat' | 'sessions'>('chat')
   const [agentSignal, setAgentSignal] = useState(0)
+  const [openSession, setOpenSession] = useState<string | null>(null)
+  const [fileComments, setFileComments] = useState<Comment[]>([])
+  const [textTick, setTextTick] = useState(0)
+  const [reveal, setReveal] = useState<{ start: number; end: number; key: string } | null>(null)
+  const pendingReveal = useRef<string | null>(null)
+  const editorInstance = useRef<monaco.editor.IStandaloneCodeEditor | null>(null)
 
   const canEdit = workspace?.role === 'OWNER' || workspace?.role === 'EDITOR'
+  const canComment = canEdit || workspace?.role === 'COMMENTER'
   const activeId = active?.id ?? null
   const activeFile = files.find((f) => f.id === activeId) ?? null
 
@@ -127,7 +135,7 @@ export default function WorkspacePage() {
   /** Applies another client's change. Content changes arrive through each file's live replica. */
   async function onRemoteEvent(event: WorkspaceEvent) {
     if (event.type === 'FILE_SAVED') return
-    if (event.type.startsWith('AGENT_')) {
+    if (event.type.startsWith('AGENT_') || event.type.startsWith('SESSION_') || event.type.startsWith('COMMENT_')) {
       setAgentSignal((n) => n + 1)
       return
     }
@@ -159,6 +167,98 @@ export default function WorkspacePage() {
       void refreshAccess()
     },
   })
+
+  // Comments anchored to the open file (design §13.9): loaded per file, re-resolved as the text changes.
+  useEffect(() => {
+    if (!activeId) return
+    api.comments(workspaceId, { fileId: activeId }).then(setFileComments).catch(() => setFileComments([]))
+  }, [workspaceId, activeId, agentSignal])
+
+  useEffect(() => {
+    const text = active?.open.live.text
+    if (!text) return
+    let frame = 0
+    const changed = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => setTextTick((n) => n + 1))
+    }
+    text.observe(changed)
+    return () => {
+      cancelAnimationFrame(frame)
+      text.unobserve(changed)
+    }
+  }, [active])
+
+  const anchored = useMemo(() => {
+    void textTick
+    const doc = active?.open.live.doc
+    if (!doc) return []
+    return fileComments.filter((comment) => comment.fileId === activeId).map((comment) => {
+      const resolve = (position: unknown) => {
+        try {
+          return Y.createAbsolutePositionFromRelativePosition(Y.createRelativePositionFromJSON(position), doc)?.index ?? null
+        } catch {
+          return null
+        }
+      }
+      const start = comment.anchor ? resolve(comment.anchor.start) : null
+      const end = comment.anchor ? resolve(comment.anchor.end) : null
+      // The anchored text was deleted: the comment stays, labelled outdated (design §13.9).
+      const outdated = start === null || end === null || end <= start
+      return { comment, start: start ?? 0, end: end ?? 0, outdated }
+    })
+  }, [fileComments, active, activeId, textTick])
+
+  const highlights = useMemo(
+    () => anchored.filter((a) => !a.outdated && a.comment.status === 'OPEN')
+      .map((a) => ({ start: a.start, end: a.end, title: `${a.comment.authorName}: ${a.comment.body}` })),
+    [anchored],
+  )
+
+  useEffect(() => {
+    const target = anchored.find((a) => a.comment.id === pendingReveal.current)
+    if (target && !target.outdated) {
+      pendingReveal.current = null
+      setReveal({ start: target.start, end: target.end, key: target.comment.id })
+    }
+  }, [anchored])
+
+  function showComment(comment: Comment) {
+    const node = files.find((f) => f.id === comment.fileId)
+    if (!node) return
+    pendingReveal.current = comment.id
+    openFile(node)
+  }
+
+  async function commentOnSelection() {
+    const instance = editorInstance.current
+    const live = active?.open.live
+    if (!instance || !live || !activeId) return
+    const selection = instance.getSelection()
+    const model = instance.getModel()
+    if (!selection || !model || selection.isEmpty()) {
+      setMessage('Select the code you want to comment on first.')
+      return
+    }
+    const start = model.getOffsetAt(selection.getStartPosition())
+    const end = model.getOffsetAt(selection.getEndPosition())
+    const body = window.prompt('Comment on the selected code')?.trim()
+    if (!body) return
+    // Relative positions follow the text through every later edit; the end sticks to the character before it.
+    const anchor = {
+      start: Y.relativePositionToJSON(Y.createRelativePositionFromTypeIndex(live.text, start, 0)),
+      end: Y.relativePositionToJSON(Y.createRelativePositionFromTypeIndex(live.text, end, -1)),
+    }
+    try {
+      await api.addComment(workspaceId, {
+        targetKind: 'FILE_RANGE', sessionId: openSession, fileId: activeId, anchor,
+        quote: live.text.toString().slice(start, end), body,
+      })
+      setAgentSignal((n) => n + 1)
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : 'Could not add the comment')
+    }
+  }
 
   async function createCheckpoint() {
     if (!activeId) return
@@ -261,10 +361,27 @@ export default function WorkspacePage() {
             {canEdit && (
               <button type="button" className="ghost" onClick={() => void createCheckpoint()}>Checkpoint</button>
             )}
+            {canComment && (
+              <button type="button" className="ghost" onClick={() => void commentOnSelection()}>Comment</button>
+            )}
             <button type="button" className={showHistory ? 'primary' : 'ghost'} aria-pressed={showHistory} onClick={() => setShowHistory((v) => !v)}>
               History
             </button>
           </div>
+        )}
+        {active && anchored.length > 0 && !showHistory && (
+          <ul className="file-comments" aria-label="Comments on this file">
+            {anchored.map(({ comment, start, end, outdated }) => (
+              <li key={comment.id} className={comment.status === 'RESOLVED' ? 'resolved' : ''}>
+                <button type="button" className="link small" disabled={outdated}
+                  onClick={() => setReveal({ start, end, key: `${comment.id}-${Date.now()}` })}>
+                  💬 {comment.authorName}: {comment.body}
+                </button>
+                {outdated && <span className="muted small"> (outdated: the code it pointed at was removed)</span>}
+                {comment.status === 'RESOLVED' && <span className="muted small"> (resolved)</span>}
+              </li>
+            ))}
+          </ul>
         )}
         {active && showHistory && (
           <Suspense fallback={<div className="center muted">Loading history…</div>}>
@@ -288,6 +405,11 @@ export default function WorkspacePage() {
                 model={active.open.model}
                 live={active.open.live}
                 readOnly={!canEdit || activeState === 'denied' || activeState === 'deleted'}
+                highlights={highlights}
+                reveal={reveal}
+                onEditor={(instance) => {
+                  editorInstance.current = instance
+                }}
               />
             </Suspense>
           </div>
@@ -298,7 +420,7 @@ export default function WorkspacePage() {
       <div className="side-panel">
         <div className="side-tabs" role="tablist">
           <button type="button" role="tab" aria-selected={sideTab === 'chat'} className={sideTab === 'chat' ? 'active' : ''} onClick={() => setSideTab('chat')}>Chat</button>
-          <button type="button" role="tab" aria-selected={sideTab === 'agents'} className={sideTab === 'agents' ? 'active' : ''} onClick={() => setSideTab('agents')}>Agents</button>
+          <button type="button" role="tab" aria-selected={sideTab === 'sessions'} className={sideTab === 'sessions' ? 'active' : ''} onClick={() => setSideTab('sessions')}>Sessions</button>
         </div>
         {sideTab === 'chat' ? (
           <ChatPanel
@@ -309,7 +431,17 @@ export default function WorkspacePage() {
             onSend={channel.sendChat}
           />
         ) : (
-          user && <AgentPanel workspaceId={workspaceId} currentUser={user} canEdit={canEdit} refreshSignal={agentSignal} />
+          user && workspace && (
+            <SessionsPanel
+              workspaceId={workspaceId}
+              currentUser={user}
+              role={workspace.role}
+              refreshSignal={agentSignal}
+              sessionId={openSession}
+              onOpenSession={setOpenSession}
+              onShowComment={showComment}
+            />
+          )
         )}
       </div>
       <footer className="statusbar">

@@ -29,7 +29,10 @@ public class AgentRunnerClient {
     }
 
     public record StartTurn(UUID turnId, UUID workspaceId, Sponsor sponsor, String apiKey, String model, String effort,
-            String prompt, List<History> history, long costCapMicros) {
+            String prompt, List<History> history, long costCapMicros, SessionContext session) {
+    }
+
+    public record SessionContext(UUID id, String task) {
     }
 
     public record RevertFile(UUID fileId, String state, Object undo) {
@@ -68,6 +71,19 @@ public class AgentRunnerClient {
             client.post().uri("/internal/turns/{id}/cancel", turnId).retrieve().toBodilessEntity();
             return true;
         } catch (HttpClientErrorException.NotFound e) {
+            return false;
+        } catch (RestClientException e) {
+            throw unavailable();
+        }
+    }
+
+    /** Queues guidance for a running turn; false when the runner does not have it. */
+    public boolean steer(UUID turnId, String text) {
+        try {
+            client.post().uri("/internal/turns/{id}/steer", turnId).contentType(MediaType.APPLICATION_JSON)
+                    .body(Map.of("text", text)).retrieve().toBodilessEntity();
+            return true;
+        } catch (HttpClientErrorException.NotFound | HttpClientErrorException.Conflict e) {
             return false;
         } catch (RestClientException e) {
             throw unavailable();

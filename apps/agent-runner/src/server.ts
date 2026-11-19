@@ -22,7 +22,10 @@ const TurnStart = z.object({
   prompt: z.string().min(1).max(20_000),
   history: z.array(z.object({ prompt: z.string(), reply: z.string() })).max(20),
   costCapMicros: z.number().int().positive(),
+  session: z.object({ id: z.string().uuid(), task: z.string().min(1).max(2000) }).nullable().optional(),
 })
+
+const Steer = z.object({ text: z.string().min(1).max(4000) })
 
 const Range = z.array(z.tuple([z.number().int().nonnegative(), z.number().int().positive()]))
 const RevertRequest = z.object({
@@ -34,8 +37,9 @@ const RevertRequest = z.object({
   })).max(500),
 })
 
-/** Turns in progress on this runner, by turn ID, so the sponsor can cancel them. */
+/** Turns in progress on this runner, by turn ID, so the sponsor can cancel or steer them. */
 const running = new Map<string, AbortController>()
+const guidance = new Map<string, string[]>()
 
 function authorized(request: IncomingMessage): boolean {
   const presented = Buffer.from(String(request.headers['x-internal-token'] ?? ''))
@@ -75,13 +79,21 @@ function startTurn(input: z.infer<typeof TurnStart>) {
     typing: { chunk: config.typingChunk, delayMs: config.typingDelayMs },
     baseURL: config.anthropicBaseUrl,
     fallbacks: config.fallbacks,
+    takeGuidance: () => {
+      const queued = guidance.get(input.turnId) ?? []
+      guidance.set(input.turnId, [])
+      return queued
+    },
   })
     .then((status) => log('INFO', 'TURN_ENDED', { turnId: input.turnId, status }))
     .catch((error: Error) => {
       log('ERROR', 'TURN_REPORT_FAILED', { turnId: input.turnId, message: error.message })
       return api.finish('FAILED', 'The agent runner could not complete the turn.').catch(() => undefined)
     })
-    .finally(() => running.delete(input.turnId))
+    .finally(() => {
+      running.delete(input.turnId)
+      guidance.delete(input.turnId)
+    })
 }
 
 /**
@@ -129,6 +141,14 @@ const server = createServer((request, response) => {
       if (!controller) return reply(response, 404, { message: 'Turn is not running here' })
       controller.abort()
       return reply(response, 202, { cancelling: true })
+    }
+    const steer = /^\/internal\/turns\/([0-9a-f-]{36})\/steer$/i.exec(url.pathname)
+    if (request.method === 'POST' && steer) {
+      const parsed = Steer.safeParse(await readJson(request))
+      if (!parsed.success) return reply(response, 400, { message: 'Invalid guidance' })
+      if (!running.has(steer[1]!)) return reply(response, 404, { message: 'Turn is not running here' })
+      guidance.set(steer[1]!, [...(guidance.get(steer[1]!) ?? []), parsed.data.text])
+      return reply(response, 202, { queued: true })
     }
     const revertMatch = /^\/internal\/turns\/([0-9a-f-]{36})\/revert$/i.exec(url.pathname)
     if (request.method === 'POST' && revertMatch) {

@@ -41,7 +41,9 @@ test("a teammate's agent edits alongside a person, and reverting its turn keeps 
   await openFile(ben.page, 'app.ts')
 
   // Asha adds her own key; only a hint is ever shown back.
-  await page.getByRole('tab', { name: 'Agents' }).click()
+  await page.getByRole('tab', { name: 'Sessions' }).click()
+  await page.getByLabel('New session: what should get done?').fill('Add a constant')
+  await page.getByRole('button', { name: 'Start session' }).click()
   await page.getByLabel('Your Anthropic API key').fill(TEST_KEY)
   await page.getByRole('button', { name: 'Save key' }).click()
   await expect(page.locator('.agent-composer')).toContainText("Uses Asha's API key (…0001)")
@@ -70,7 +72,8 @@ test("a teammate's agent edits alongside a person, and reverting its turn keeps 
   expect(await editorText(page)).toBe(await editorText(ben.page))
 
   // Ben reverts Asha's agent turn from his own lane view: the agent's line goes, his typing stays.
-  await ben.page.getByRole('tab', { name: 'Agents' }).click()
+  await ben.page.getByRole('tab', { name: 'Sessions' }).click()
+  await ben.page.getByRole('button', { name: /Add a constant/ }).click()
   const bensView = ben.page.locator('.agent-turn').last()
   await expect(bensView).toContainText("Asha's agent")
   await bensView.getByRole('button', { name: 'Revert this turn' }).click()

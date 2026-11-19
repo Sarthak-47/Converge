@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { Typing, UndoRecord } from './edits.js'
 import { costMicros, type Usage } from './pricing.js'
-import { TOOLS, Toolbox } from './tools.js'
+import { PLAN_TOOLS, TOOLS, Toolbox } from './tools.js'
 import type { TurnWorkspace } from './workspace.js'
 
 export type TurnRequest = {
@@ -15,6 +15,8 @@ export type TurnRequest = {
   /** Earlier exchanges in this lane, oldest first. */
   history: Array<{ prompt: string; reply: string }>
   costCapMicros: number
+  /** The session this turn works in, if any; its plan is available through the plan tools. */
+  session?: { id: string; task: string } | null
 }
 
 export type TurnStatus = 'SUCCEEDED' | 'FAILED' | 'CANCELLED' | 'REFUSED' | 'BUDGET_EXCEEDED'
@@ -30,7 +32,8 @@ export interface TurnLedger {
   /** Records one response's usage; returns the turn's running total. */
   usage(usage: Usage & { model: string; costMicros: number }): Promise<{ costMicros: number }>
   saveRevertState(fileId: string, state: Uint8Array, undo: UndoRecord): Promise<void>
-  finish(status: TurnStatus, error?: string): Promise<void>
+  /** `code` explains failures the API acts on, e.g. KEY_REJECTED puts the session up for takeover. */
+  finish(status: TurnStatus, error?: string, code?: string): Promise<void>
 }
 
 export type TurnOptions = {
@@ -40,6 +43,8 @@ export type TurnOptions = {
   typing: Typing
   baseURL?: string
   fallbacks: boolean
+  /** Returns (and clears) guidance the sponsor sent while the turn runs (design §13.8, steer). */
+  takeGuidance?: () => string[]
 }
 
 const MAX_RESPONSES = 50
@@ -76,10 +81,19 @@ export async function runTurn(request: TurnRequest, options: TurnOptions): Promi
   for (const past of request.history) {
     messages.push({ role: 'user', content: past.prompt }, { role: 'assistant', content: past.reply || '(no reply)' })
   }
-  messages.push({ role: 'user', content: `${request.sponsor.name} asks:\n\n${request.prompt}` })
+  const session = request.session
+    ? `You are working in a shared session. Session task: ${request.session.task}\nUse get_plan to see the plan and who owns each step, propose_plan for steps you will do, and update_step as you start and finish them.\n\n`
+    : ''
+  messages.push({ role: 'user', content: `${session}${request.sponsor.name} asks:\n\n${request.prompt}` })
+  const tools = request.session ? [...TOOLS, ...PLAN_TOOLS] : TOOLS
+  const guidance = () => (options.takeGuidance?.() ?? []).map((text) => ({
+    type: 'text' as const,
+    text: `Guidance from ${request.sponsor.name} while you work: ${text}`,
+  }))
 
   let status: TurnStatus = 'FAILED'
   let error: string | undefined
+  let code: string | undefined
   let jsonRetries = 0
   try {
     for (let response = 0; ; response++) {
@@ -97,7 +111,7 @@ export async function runTurn(request: TurnRequest, options: TurnOptions): Promi
           model: request.model,
           max_tokens: MAX_TOKENS,
           system: SYSTEM,
-          tools: TOOLS,
+          tools,
           messages,
           thinking: { type: 'adaptive', display: 'updates' },
           output_config: { effort: request.effort, task_budget: { type: 'tokens', total: TASK_BUDGET_TOKENS } },
@@ -151,6 +165,14 @@ export async function runTurn(request: TurnRequest, options: TurnOptions): Promi
         continue
       }
       const calls = message.content.filter((b): b is Anthropic.Beta.BetaToolUseBlock => b.type === 'tool_use')
+      if (calls.length === 0 && message.stop_reason !== 'max_tokens') {
+        // Guidance that arrived while the model was finishing keeps the turn going instead of being lost.
+        const late = guidance()
+        if (late.length > 0) {
+          messages.push({ role: 'assistant', content: message.content }, { role: 'user', content: late })
+          continue
+        }
+      }
       if (calls.length === 0) {
         status = 'SUCCEEDED'
         if (message.stop_reason === 'max_tokens') error = 'The reply was cut off at the output limit.'
@@ -174,8 +196,9 @@ export async function runTurn(request: TurnRequest, options: TurnOptions): Promi
         await ledger.event({ kind: 'tool', name: call.name, summary: outcome.summary, ok: !outcome.isError })
         results.push({ type: 'tool_result', tool_use_id: call.id, is_error: outcome.isError || undefined, content: outcome.content })
       }
-      // Every result goes back in one user message, as the API expects for parallel calls.
-      messages.push({ role: 'user', content: results })
+      // Every result goes back in one user message, as the API expects for parallel calls; guidance from
+      // the sponsor rides along after the results.
+      messages.push({ role: 'user', content: [...results, ...guidance()] })
     }
   } catch (failure) {
     if (signal.aborted || failure instanceof Anthropic.APIUserAbortError) {
@@ -183,6 +206,7 @@ export async function runTurn(request: TurnRequest, options: TurnOptions): Promi
     } else {
       status = 'FAILED'
       error = describe(failure)
+      if (failure instanceof Anthropic.AuthenticationError || failure instanceof Anthropic.PermissionDeniedError) code = 'KEY_REJECTED'
       if (!(failure instanceof Anthropic.APIError)) console.error(JSON.stringify({ level: 'ERROR', event: 'TURN_CRASHED', turnId: request.turnId, message: (failure as Error).message }))
     }
   }
@@ -195,6 +219,6 @@ export async function runTurn(request: TurnRequest, options: TurnOptions): Promi
     toolbox.dispose()
     await workspace.close()
   }
-  await ledger.finish(status, error)
+  await ledger.finish(status, error, code)
   return status
 }

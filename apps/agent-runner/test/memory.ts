@@ -1,13 +1,16 @@
 import * as Y from 'yjs'
 import type { UndoRecord } from '../src/edits.js'
 import type { TurnEvent, TurnLedger, TurnStatus } from '../src/turn.js'
-import type { FileEntry, SearchHit, TurnWorkspace } from '../src/workspace.js'
+import { ApiCallError } from '../src/apiClient.js'
+import type { FileEntry, PlanStep, SearchHit, StepStatus, TurnWorkspace } from '../src/workspace.js'
 import { Hub } from './hub.js'
 
 /** An in-memory workspace: each file is a Hub, so a test can also join as a person and type. */
 export class MemoryWorkspace implements TurnWorkspace {
   readonly files = new Map<string, { entry: FileEntry; hub: Hub }>()
   readonly cursors: Array<[string, number | null]> = []
+  /** The session plan; the sponsor is "Asha". */
+  readonly steps: PlanStep[] = []
   private disconnects: Array<() => void> = []
   closed = false
   private ids = 0
@@ -52,6 +55,23 @@ export class MemoryWorkspace implements TurnWorkspace {
     return hits
   }
 
+  async plan() {
+    return this.steps
+  }
+
+  async proposePlan(titles: string[]) {
+    for (const title of titles) this.steps.push({ position: this.steps.length + 1, title, ownerName: 'Asha', status: 'TODO' })
+    return this.steps
+  }
+
+  async setStepStatus(position: number, status: StepStatus) {
+    const step = this.steps.find((s) => s.position === position)
+    if (!step) throw new ApiCallError(404, `Step ${position} not found`)
+    if (step.ownerName !== 'Asha') throw new ApiCallError(403, `Step ${position} belongs to ${step.ownerName}`)
+    step.status = status
+    return this.steps
+  }
+
   setCursor(fileId: string, index: number | null) {
     this.cursors.push([fileId, index])
   }
@@ -71,7 +91,7 @@ export class MemoryLedger implements TurnLedger {
   readonly events: TurnEvent[] = []
   readonly revertStates = new Map<string, { state: Uint8Array; undo: UndoRecord }>()
   costMicros = 0
-  finished: { status: TurnStatus; error?: string } | null = null
+  finished: { status: TurnStatus; error?: string; code?: string } | null = null
 
   async event(event: TurnEvent) {
     this.events.push(event)
@@ -86,7 +106,7 @@ export class MemoryLedger implements TurnLedger {
     this.revertStates.set(fileId, { state, undo })
   }
 
-  async finish(status: TurnStatus, error?: string) {
-    this.finished = { status, error }
+  async finish(status: TurnStatus, error?: string, code?: string) {
+    this.finished = code ? { status, error, code } : { status, error }
   }
 }

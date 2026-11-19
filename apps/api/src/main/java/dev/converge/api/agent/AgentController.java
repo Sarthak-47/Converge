@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import dev.converge.api.agent.AgentTurns.Turn;
@@ -24,7 +25,10 @@ import dev.converge.api.auth.AppUser;
 @RequestMapping("/api/v1/workspaces/{workspaceId}/agent/turns")
 public class AgentController {
 
-    public record Prompt(@NotBlank @Size(max = 20_000) String prompt) {
+    public record Prompt(@NotBlank @Size(max = 20_000) String prompt, UUID sessionId) {
+    }
+
+    public record Steer(@NotBlank @Size(max = 4000) String text) {
     }
 
     private final AgentTurns turns;
@@ -34,20 +38,27 @@ public class AgentController {
     }
 
     @GetMapping
-    List<Turn> list(@AuthenticationPrincipal AppUser user, @PathVariable UUID workspaceId) {
-        return turns.list(workspaceId, user.id());
+    List<Turn> list(@AuthenticationPrincipal AppUser user, @PathVariable UUID workspaceId,
+            @RequestParam(required = false) UUID sessionId) {
+        return turns.list(workspaceId, sessionId, user.id());
     }
 
     @PostMapping
     ResponseEntity<Turn> start(@AuthenticationPrincipal AppUser user, @PathVariable UUID workspaceId,
             @Valid @RequestBody Prompt body) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(turns.start(workspaceId, user.id(), user.displayName(), body.prompt().strip()));
+                .body(turns.start(workspaceId, body.sessionId(), user.id(), user.displayName(), body.prompt().strip()));
     }
 
     @PostMapping("/{turnId}/cancel")
     Turn cancel(@AuthenticationPrincipal AppUser user, @PathVariable UUID workspaceId, @PathVariable UUID turnId) {
         return turns.cancel(workspaceId, turnId, user.id());
+    }
+
+    @PostMapping("/{turnId}/steer")
+    Turn steer(@AuthenticationPrincipal AppUser user, @PathVariable UUID workspaceId, @PathVariable UUID turnId,
+            @Valid @RequestBody Steer body) {
+        return turns.steer(workspaceId, turnId, user.id(), body.text().strip());
     }
 
     @PostMapping("/{turnId}/revert")

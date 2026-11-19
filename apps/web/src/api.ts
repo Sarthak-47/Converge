@@ -123,8 +123,37 @@ export const api = {
   setAgentKey: (apiKey: string) => request<AgentKey>('PUT', '/me/provider-keys/anthropic', { apiKey }),
   removeAgentKey: () => request<void>('DELETE', '/me/provider-keys/anthropic'),
   agentTurns: (workspaceId: string) => request<AgentTurn[]>('GET', `/workspaces/${workspaceId}/agent/turns`),
-  promptAgent: (workspaceId: string, prompt: string) =>
-    request<AgentTurn>('POST', `/workspaces/${workspaceId}/agent/turns`, { prompt }),
+  promptAgent: (workspaceId: string, prompt: string, sessionId?: string) =>
+    request<AgentTurn>('POST', `/workspaces/${workspaceId}/agent/turns`, { prompt, sessionId }),
+  steerTurn: (workspaceId: string, turnId: string, text: string) =>
+    request<AgentTurn>('POST', `/workspaces/${workspaceId}/agent/turns/${turnId}/steer`, { text }),
+
+  sessions: (workspaceId: string) => request<SessionCard[]>('GET', `/workspaces/${workspaceId}/sessions`),
+  createSession: (workspaceId: string, task: string) => request<SessionCard>('POST', `/workspaces/${workspaceId}/sessions`, { task }),
+  session: (sessionId: string) => request<SessionDetail>('GET', `/sessions/${sessionId}`),
+  joinSession: (sessionId: string, mode: 'LANE' | 'WATCH') => request<SessionCard>('POST', `/sessions/${sessionId}/join`, { mode }),
+  leaveSession: (sessionId: string) => request<SessionCard>('POST', `/sessions/${sessionId}/leave`),
+  takeOver: (sessionId: string, rowVersion: number, guidance?: string) =>
+    request<AgentTurn>('POST', `/sessions/${sessionId}/takeover`, { rowVersion, guidance }),
+  handOff: (sessionId: string, toUserId: string, rowVersion: number) =>
+    request<SessionCard>('POST', `/sessions/${sessionId}/handoff`, { toUserId, rowVersion }),
+  finishSession: (sessionId: string, rowVersion: number) => request<SessionCard>('POST', `/sessions/${sessionId}/finish`, { rowVersion }),
+  addSteps: (sessionId: string, titles: string[]) => request<PlanStep[]>('POST', `/sessions/${sessionId}/steps`, { titles }),
+  takeStep: (step: PlanStep) => request<PlanStep>('POST', `/steps/${step.id}/take`, { rowVersion: step.rowVersion }),
+  updateStep: (step: PlanStep, status: StepStatus, release = false) =>
+    request<PlanStep>('PATCH', `/steps/${step.id}`, { status, release, rowVersion: step.rowVersion }),
+
+  comments: (workspaceId: string, filter: { fileId?: string; sessionId?: string }) => {
+    const query = new URLSearchParams(Object.entries(filter).filter(([, v]) => v) as Array<[string, string]>)
+    return request<Comment[]>('GET', `/workspaces/${workspaceId}/comments?${query}`)
+  },
+  addComment: (workspaceId: string, comment: NewComment) => request<Comment>('POST', `/workspaces/${workspaceId}/comments`, comment),
+  resolveComment: (workspaceId: string, commentId: string, resolved: boolean) =>
+    request<Comment>('POST', `/workspaces/${workspaceId}/comments/${commentId}/resolve`, { resolved }),
+  commentToStep: (workspaceId: string, commentId: string) =>
+    request<Comment>('POST', `/workspaces/${workspaceId}/comments/${commentId}/to-step`),
+  commentToPrompt: (workspaceId: string, commentId: string) =>
+    request<AgentTurn>('POST', `/workspaces/${workspaceId}/comments/${commentId}/to-prompt`),
   cancelTurn: (workspaceId: string, turnId: string) =>
     request<AgentTurn>('POST', `/workspaces/${workspaceId}/agent/turns/${turnId}/cancel`),
   revertTurn: (workspaceId: string, turnId: string) =>
@@ -161,7 +190,7 @@ export type AgentKey = { configured: boolean; hint: string | null }
 
 export type AgentEvent = {
   seq: number
-  kind: 'prompt' | 'text' | 'note' | 'tool'
+  kind: 'prompt' | 'text' | 'note' | 'tool' | 'steer'
   text?: string
   name?: string
   summary?: string
@@ -173,6 +202,7 @@ export type AgentTurnStatus = 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED' |
 /** One agent turn: exactly one sponsor, who pays for it with their own key (design §13.5). */
 export type AgentTurn = {
   id: string
+  sessionId: string | null
   laneUserId: string
   sponsorId: string
   sponsorName: string
@@ -186,4 +216,71 @@ export type AgentTurn = {
   revertStatus: 'REVERTING' | 'REVERTED' | null
   revertible: boolean
   events: AgentEvent[]
+}
+
+export type StepStatus = 'TODO' | 'IN_PROGRESS' | 'DONE'
+
+/** A plan step: always owned by a person (or free to take), never by an agent (design §13.9). */
+export type PlanStep = {
+  id: string
+  position: number
+  title: string
+  ownerId: string | null
+  ownerName: string | null
+  status: StepStatus
+  rowVersion: number
+}
+
+export type SessionStatus = 'ACTIVE' | 'AWAITING_TAKEOVER' | 'DONE'
+
+export type SessionCard = {
+  id: string
+  task: string
+  status: SessionStatus
+  driverId: string
+  driverName: string
+  rowVersion: number
+  participants: Array<{ userId: string; displayName: string; mode: 'LANE' | 'WATCH' }>
+  stepsDone: number
+  stepsTotal: number
+  files: string[]
+  runningTurns: number
+  createdAt: string
+  endedAt: string | null
+}
+
+export type SessionDetail = { session: SessionCard; plan: PlanStep[]; turns: AgentTurn[] }
+
+/** A Yjs relative position as JSON; the server stores it as-is. */
+export type Anchor = { start: unknown; end: unknown }
+
+export type CommentTarget = 'FILE_RANGE' | 'TURN' | 'PLAN_STEP'
+
+export type Comment = {
+  id: string
+  sessionId: string | null
+  targetKind: CommentTarget
+  fileId: string | null
+  turnId: string | null
+  stepId: string | null
+  anchor: Anchor | null
+  quote: string | null
+  body: string
+  status: 'OPEN' | 'RESOLVED'
+  createdBy: string
+  authorName: string
+  createdAt: string
+  causedStepId: string | null
+  causedTurnId: string | null
+}
+
+export type NewComment = {
+  targetKind: CommentTarget
+  sessionId?: string | null
+  fileId?: string
+  turnId?: string
+  stepId?: string
+  anchor?: Anchor
+  quote?: string
+  body: string
 }

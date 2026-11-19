@@ -34,10 +34,16 @@ function request(prompt: string, overrides: Partial<TurnRequest> = {}): TurnRequ
 
 const tool = (name: string, input: object) => `@tool ${name} ${JSON.stringify(input)}`
 
-async function run(workspace: MemoryWorkspace, prompt: string, overrides: Partial<TurnRequest> = {}, signal = new AbortController().signal) {
+async function run(
+  workspace: MemoryWorkspace,
+  prompt: string,
+  overrides: Partial<TurnRequest> = {},
+  signal = new AbortController().signal,
+  takeGuidance?: () => string[],
+) {
   const ledger = new MemoryLedger()
   const status = await runTurn(request(prompt, overrides), {
-    workspace, ledger, signal, typing: { chunk: 3, delayMs: 1 }, baseURL, fallbacks: true,
+    workspace, ledger, signal, typing: { chunk: 3, delayMs: 1 }, baseURL, fallbacks: true, takeGuidance,
   })
   return { status, ledger }
 }
@@ -175,6 +181,7 @@ describe('an agent turn', () => {
     const { status, ledger } = await run(workspace, 'hello', { apiKey: 'sk-ant-invalid' })
     expect(status).toBe('FAILED')
     expect(ledger.finished?.error).toBe('The Anthropic API key was rejected. Update it in agent settings.')
+    expect(ledger.finished?.code).toBe('KEY_REJECTED') // so a session it drives can be taken over
   })
 
   it('carries earlier exchanges in the lane as history', async () => {
@@ -183,5 +190,49 @@ describe('an agent turn', () => {
     const messages = model.requests[0]!.body.messages as Array<{ role: string; content: string }>
     expect(messages.map((m) => m.role)).toEqual(['user', 'assistant', 'user'])
     expect(messages[2]!.content).toBe('Asha asks:\n\nsecond question')
+  })
+
+  it('works the session plan: proposes steps for its sponsor and only moves those (design §13.9)', async () => {
+    const workspace = new MemoryWorkspace()
+    workspace.steps.push({ position: 1, title: 'Review copy', ownerName: 'Ben', status: 'TODO' })
+    const session = { id: '7d6c1c3a-1111-4222-8333-944455556666', task: 'Ship the signup form' }
+    const { status, ledger } = await run(workspace, [
+      tool('get_plan', {}),
+      tool('propose_plan', { steps: ['Add validation', 'Write tests'] }),
+      tool('update_step', { position: 2, status: 'DONE' }),
+      tool('update_step', { position: 1, status: 'DONE' }),
+    ].join('\n'), { session })
+
+    expect(status).toBe('SUCCEEDED')
+    expect(workspace.steps.map((s) => `${s.position} ${s.status} ${s.ownerName}`)).toEqual(['1 TODO Ben', '2 DONE Asha', '3 TODO Asha'])
+    expect(ledger.events.filter((e) => e.kind === 'tool').map((e) => e.kind === 'tool' && e.ok)).toEqual([true, true, true, false])
+    const first = model.requests[0]!.body
+    expect((first.tools as Array<{ name: string }>).map((x) => x.name)).toContain('propose_plan')
+    expect(JSON.stringify(first.messages)).toContain('Session task: Ship the signup form')
+    expect(JSON.stringify(model.requests[1]!.body.messages)).toContain('1. [TODO] Review copy (Ben)')
+  })
+
+  it('offers plan tools only inside a session', async () => {
+    await run(new MemoryWorkspace(), 'hello')
+    expect((model.requests[0]!.body.tools as Array<{ name: string }>).map((x) => x.name)).not.toContain('get_plan')
+  })
+
+  it("passes the sponsor's guidance to the model between tool calls, and late guidance keeps the turn going", async () => {
+    const workspace = new MemoryWorkspace()
+    workspace.add('a.txt', 'x')
+    const queue = ['focus on the email check']
+    let calls = 0
+    const take = () => {
+      calls++
+      // The first guidance arrives during the first tool call; more arrives as the model is finishing.
+      if (calls === 1) return queue.splice(0)
+      if (calls === 2) return ['also add a test']
+      return []
+    }
+    const { status } = await run(workspace, tool('list_files', {}), {}, new AbortController().signal, take)
+    expect(status).toBe('SUCCEEDED')
+    const second = JSON.stringify(model.requests[1]!.body.messages)
+    expect(second).toContain('Guidance from Asha while you work: focus on the email check')
+    expect(JSON.stringify(model.requests.at(-1)!.body.messages)).toContain('also add a test')
   })
 })

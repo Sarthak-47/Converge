@@ -19,6 +19,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import dev.converge.api.agent.AgentRunnerClient.History;
 import dev.converge.api.agent.AgentRunnerClient.RevertFile;
+import dev.converge.api.agent.AgentRunnerClient.SessionContext;
 import dev.converge.api.agent.AgentRunnerClient.Sponsor;
 import dev.converge.api.agent.AgentRunnerClient.StartTurn;
 import dev.converge.api.common.ApiException;
@@ -35,7 +36,7 @@ import tools.jackson.databind.json.JsonMapper;
 @Service
 public class AgentTurns {
 
-    public record Turn(UUID id, UUID laneUserId, UUID sponsorId, String sponsorName, String model, String status,
+    public record Turn(UUID id, UUID sessionId, UUID laneUserId, UUID sponsorId, String sponsorName, String model, String status,
             String error, long costMicros, long costCapMicros, Instant startedAt, Instant endedAt, String revertStatus,
             boolean revertible, List<Map<String, Object>> events) {
     }
@@ -72,21 +73,38 @@ public class AgentTurns {
         this.costCapMicros = costCapMicros;
     }
 
-    /** Starts a turn in the member's own lane, paid with their own key (design §13.5). */
-    public Turn start(UUID workspaceId, UUID userId, String displayName, String prompt) {
+    /**
+     * Starts a turn in the member's own lane, paid with their own key (design §13.5). Within a session the
+     * member joins as a lane if they were watching, and the runner gets the session's task so the agent can
+     * read and update the plan.
+     */
+    public Turn start(UUID workspaceId, UUID sessionId, UUID userId, String displayName, String prompt) {
         access.require(workspaceId, userId, Role.EDITOR);
+        String task = sessionId == null ? null : sessionTask(workspaceId, sessionId);
         String apiKey = keys.reveal(userId).orElseThrow(() -> ApiException.conflict(
                 "Add your Anthropic API key before prompting your agent"));
         UUID turnId = UUID.randomUUID();
-        List<History> history = history(workspaceId, userId);
+        List<History> history = history(workspaceId, sessionId, userId);
         try {
             tx.executeWithoutResult(status -> {
                 jdbc.sql("""
-                        insert into agent_turns (id, workspace_id, lane_user_id, sponsor_id, model, status, cost_cap_micros)
-                        values (?, ?, ?, ?, ?, 'RUNNING', ?)
+                        insert into agent_turns (id, workspace_id, session_id, lane_user_id, sponsor_id, model, status, cost_cap_micros)
+                        values (?, ?, ?, ?, ?, ?, 'RUNNING', ?)
                         """)
-                        .params(turnId, workspaceId, userId, userId, model, costCapMicros)
+                        .params(turnId, workspaceId, sessionId, userId, userId, model, costCapMicros)
                         .update();
+                if (sessionId != null) {
+                    jdbc.sql("""
+                            insert into session_participants (session_id, user_id, mode) values (?, ?, 'LANE')
+                            on conflict (session_id, user_id) do update set mode = 'LANE'
+                            """).params(sessionId, userId).update();
+                    // The driver prompting again (with a new key or after the cap) resumes a stalled session.
+                    jdbc.sql("""
+                            update sessions set status = 'ACTIVE', row_version = row_version + 1
+                            where id = ? and driver_id = ? and status = 'AWAITING_TAKEOVER'
+                            """).params(sessionId, userId).update();
+                    publishSession(workspaceId, userId, sessionId);
+                }
                 append(turnId, workspaceId, userId, Map.of("kind", "prompt", "text", prompt));
                 publish("AGENT_TURN_STARTED", workspaceId, userId, turnId);
             });
@@ -95,7 +113,7 @@ public class AgentTurns {
         }
         try {
             runner.start(new StartTurn(turnId, workspaceId, new Sponsor(userId, displayName), apiKey, model, effort,
-                    prompt, history, costCapMicros));
+                    prompt, history, costCapMicros, sessionId == null ? null : new SessionContext(sessionId, task)));
         } catch (ApiException e) {
             finish(turnId, "FAILED", "The agent runner is unavailable");
             throw e;
@@ -103,10 +121,35 @@ public class AgentTurns {
         return turn(workspaceId, turnId);
     }
 
-    public List<Turn> list(UUID workspaceId, UUID userId) {
+    /** Refuses early when a member has no key, before anything else changes (for example a takeover). */
+    public void requireKey(UUID userId) {
+        if (keys.reveal(userId).isEmpty()) {
+            throw ApiException.conflict("Add your Anthropic API key before prompting your agent");
+        }
+    }
+
+    /** Stops a running turn for a takeover, whoever its sponsor is (design §13.8). */
+    public void stop(UUID turnId, String reason) {
+        if (!runner.cancel(turnId)) finish(turnId, "CANCELLED", reason);
+    }
+
+    /** The agent's latest replies in a turn, for carrying context over to whoever continues the work. */
+    public List<String> summary(UUID turnId) {
+        List<String> replies = transcript(turnId).stream()
+                .filter(e -> "text".equals(e.get("kind")))
+                .map(e -> String.valueOf(e.get("text")))
+                .toList();
+        return replies.subList(Math.max(0, replies.size() - 3), replies.size());
+    }
+
+    /** The newest turns of a session (or, without one, of the whole workspace), oldest first. */
+    public List<Turn> list(UUID workspaceId, UUID sessionId, UUID userId) {
         access.require(workspaceId, userId, Role.VIEWER);
-        List<UUID> ids = jdbc.sql("select id from agent_turns where workspace_id = ? order by started_at desc limit 30")
-                .param(workspaceId).query(UUID.class).list();
+        List<UUID> ids = jdbc.sql("""
+                select id from agent_turns where workspace_id = ? and (cast(? as uuid) is null or session_id = ?)
+                order by started_at desc limit 50
+                """)
+                .params(workspaceId, sessionId, sessionId).query(UUID.class).list();
         return ids.reversed().stream().map(id -> turn(workspaceId, id)).toList();
     }
 
@@ -120,6 +163,22 @@ public class AgentTurns {
         if (!runner.cancel(turnId)) {
             finish(turnId, "CANCELLED", "The agent runner no longer had this turn");
         }
+        return turn(workspaceId, turnId);
+    }
+
+    /**
+     * Guidance for a running turn (design §13.8). Only the sponsor steers, because it spends their key; if the
+     * turn has already ended, the caller gets a conflict and the client returns the text to the composer.
+     */
+    public Turn steer(UUID workspaceId, UUID turnId, UUID userId, String text) {
+        access.require(workspaceId, userId, Role.EDITOR);
+        TurnRow row = row(turnId);
+        if (!row.workspaceId().equals(workspaceId)) throw ApiException.notFound("Turn");
+        if (!row.sponsorId().equals(userId)) throw ApiException.forbidden("Only the turn's sponsor can steer it");
+        if (!"RUNNING".equals(row.status()) || !runner.steer(turnId, text)) {
+            throw ApiException.conflict("The turn has already ended; send this as a new prompt instead");
+        }
+        tx.executeWithoutResult(status -> append(turnId, workspaceId, userId, Map.of("kind", "steer", "text", text)));
         return turn(workspaceId, turnId);
     }
 
@@ -163,14 +222,15 @@ public class AgentTurns {
 
     // ---- Called by the runner, through AgentInternalController -----------------------------------------
 
-    record TurnRow(UUID id, UUID workspaceId, UUID sponsorId, String status, String revertStatus, UUID revertedBy) {
+    record TurnRow(UUID id, UUID workspaceId, UUID sessionId, UUID sponsorId, String status, String revertStatus,
+            UUID revertedBy) {
     }
 
     TurnRow row(UUID turnId) {
-        return jdbc.sql("select id, workspace_id, sponsor_id, status, revert_status, reverted_by from agent_turns where id = ?")
+        return jdbc.sql("select id, workspace_id, session_id, sponsor_id, status, revert_status, reverted_by from agent_turns where id = ?")
                 .param(turnId)
                 .query((rs, n) -> new TurnRow(rs.getObject("id", UUID.class), rs.getObject("workspace_id", UUID.class),
-                        rs.getObject("sponsor_id", UUID.class), rs.getString("status"), rs.getString("revert_status"),
+                        rs.getObject("session_id", UUID.class), rs.getObject("sponsor_id", UUID.class), rs.getString("status"), rs.getString("revert_status"),
                         rs.getObject("reverted_by", UUID.class)))
                 .optional()
                 .orElseThrow(() -> ApiException.notFound("Turn"));
@@ -235,14 +295,31 @@ public class AgentTurns {
                 .update();
     }
 
-    void finish(UUID turnId, String status, String error) {
+    /**
+     * Ends a turn. When the session's driver can no longer pay (cost cap reached, key rejected), the session
+     * waits for a takeover instead of failing silently (design §13.5, §13.8).
+     */
+    void finish(UUID turnId, String status, String error, String code) {
         TurnRow row = row(turnId);
         tx.executeWithoutResult(t -> {
             int updated = jdbc.sql("update agent_turns set status = ?, error = ?, ended_at = now() where id = ? and status = 'RUNNING'")
                     .params(status, error == null ? null : redact(error), turnId)
                     .update();
-            if (updated > 0) publish("AGENT_TURN_FINISHED", row.workspaceId(), row.sponsorId(), turnId);
+            if (updated == 0) return;
+            publish("AGENT_TURN_FINISHED", row.workspaceId(), row.sponsorId(), turnId);
+            boolean cannotPay = "BUDGET_EXCEEDED".equals(status) || "KEY_REJECTED".equals(code);
+            if (row.sessionId() != null && cannotPay) {
+                int stalled = jdbc.sql("""
+                        update sessions set status = 'AWAITING_TAKEOVER', row_version = row_version + 1
+                        where id = ? and driver_id = ? and status = 'ACTIVE'
+                        """).params(row.sessionId(), row.sponsorId()).update();
+                if (stalled > 0) publishSession(row.workspaceId(), row.sponsorId(), row.sessionId());
+            }
         });
+    }
+
+    void finish(UUID turnId, String status, String error) {
+        finish(turnId, status, error, null);
     }
 
     // ---- Helpers ---------------------------------------------------------------------------------------
@@ -263,6 +340,21 @@ public class AgentTurns {
         clean.put("seq", seq);
         clean.put("turnId", turnId);
         events.publishEvent(WorkspaceEvent.of("AGENT_TURN_EVENT", workspaceId, actorId, clean));
+    }
+
+    private void publishSession(UUID workspaceId, UUID actorId, UUID sessionId) {
+        events.publishEvent(WorkspaceEvent.of("SESSION_CHANGED", workspaceId, actorId, Map.of("sessionId", sessionId)));
+    }
+
+    private String sessionTask(UUID workspaceId, UUID sessionId) {
+        record S(String task, String status) {
+        }
+        S session = jdbc.sql("select task, status from sessions where id = ? and workspace_id = ?")
+                .params(sessionId, workspaceId)
+                .query((rs, n) -> new S(rs.getString(1), rs.getString(2)))
+                .optional().orElseThrow(() -> ApiException.notFound("Session"));
+        if ("DONE".equals(session.status())) throw ApiException.conflict("This session is finished");
+        return session.task();
     }
 
     private void publish(String type, UUID workspaceId, UUID actorId, UUID turnId) {
@@ -287,11 +379,12 @@ public class AgentTurns {
     }
 
     /** The last few finished exchanges in a lane, so a follow-up prompt has context. */
-    private List<History> history(UUID workspaceId, UUID laneUserId) {
+    private List<History> history(UUID workspaceId, UUID sessionId, UUID laneUserId) {
         List<UUID> ids = jdbc.sql("""
                 select id from agent_turns where workspace_id = ? and lane_user_id = ? and status <> 'RUNNING'
+                  and session_id is not distinct from cast(? as uuid)
                 order by started_at desc limit 5
-                """).params(workspaceId, laneUserId).query(UUID.class).list();
+                """).params(workspaceId, laneUserId, sessionId).query(UUID.class).list();
         List<History> history = new ArrayList<>();
         for (UUID id : ids.reversed()) {
             String prompt = "";
@@ -313,7 +406,7 @@ public class AgentTurns {
                 where t.id = ? and t.workspace_id = ?
                 """)
                 .params(turnId, workspaceId)
-                .query((rs, n) -> new Turn(turnId, rs.getObject("lane_user_id", UUID.class),
+                .query((rs, n) -> new Turn(turnId, rs.getObject("session_id", UUID.class), rs.getObject("lane_user_id", UUID.class),
                         rs.getObject("sponsor_id", UUID.class), rs.getString("display_name"), rs.getString("model"),
                         rs.getString("status"), rs.getString("error"), rs.getLong("cost_micros"),
                         rs.getLong("cost_cap_micros"), toInstant(rs.getTimestamp("started_at")),
@@ -323,7 +416,7 @@ public class AgentTurns {
                         List.of()))
                 .optional()
                 .orElseThrow(() -> ApiException.notFound("Turn"));
-        return new Turn(turn.id(), turn.laneUserId(), turn.sponsorId(), turn.sponsorName(), turn.model(), turn.status(),
+        return new Turn(turn.id(), turn.sessionId(), turn.laneUserId(), turn.sponsorId(), turn.sponsorName(), turn.model(), turn.status(),
                 turn.error(), turn.costMicros(), turn.costCapMicros(), turn.startedAt(), turn.endedAt(),
                 turn.revertStatus(), turn.revertible(), transcript(turnId));
     }

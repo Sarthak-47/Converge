@@ -902,3 +902,216 @@ button.link {
   text-decoration: underline;
   font-size: inherit;
 }
+
+/* Sessions: board, plan, lanes and comments (design §13.3, §13.9) */
+.alerts-strip {
+  display: grid;
+  gap: 4px;
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.alerts-strip .alert {
+  text-align: left;
+  background: var(--warn-bg);
+  color: var(--warn-text);
+  border-color: transparent;
+}
+
+.session-cards {
+  flex: 1;
+  overflow: auto;
+  list-style: none;
+  margin: 0;
+  padding: 8px;
+}
+
+.session-cards > li + li {
+  margin-top: 6px;
+}
+
+.session-card {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+}
+
+.session-card[data-status='AWAITING_TAKEOVER'] {
+  border-color: var(--dirty);
+}
+
+.session-card[data-status='DONE'] {
+  opacity: 0.7;
+}
+
+.session-card-task {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.session-files {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  overflow-wrap: anywhere;
+}
+
+.session-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 8px 8px 0;
+}
+
+.session-head p {
+  margin: 2px 0 0;
+}
+
+.session-task {
+  overflow-wrap: anywhere;
+}
+
+.session-status.status-awaiting_takeover {
+  color: var(--warn-text);
+  font-weight: 600;
+}
+
+.session-people,
+.session-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 8px 0;
+}
+
+.session-actions button {
+  padding: 3px 8px;
+}
+
+.session-scroll {
+  flex: 1;
+  overflow: auto;
+  padding: 0 12px 8px;
+  margin-top: 6px;
+  border-top: 1px solid var(--border);
+}
+
+.session-section {
+  margin: 12px 0 4px;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.plan-steps,
+.session-comments,
+.file-comments {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.plan-step {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 6px;
+  align-items: center;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.plan-step .step-title {
+  overflow-wrap: anywhere;
+}
+
+.plan-step > .muted,
+.plan-step .step-actions {
+  grid-column: 2;
+}
+
+.step-actions button {
+  padding: 1px 6px;
+  font-size: 0.8rem;
+}
+
+.step-status {
+  font-size: 0.75rem;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--muted);
+}
+
+.step-status.status-in_progress {
+  background: var(--warn-bg);
+  color: var(--warn-text);
+}
+
+.step-status.status-done {
+  background: var(--up-bg);
+  color: var(--up-text);
+}
+
+.plan-add {
+  margin-top: 6px;
+}
+
+.lane .agent-turns {
+  padding: 0;
+  overflow: visible;
+}
+
+.comment {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.comment p {
+  margin: 2px 0;
+  overflow-wrap: anywhere;
+}
+
+.comment.resolved {
+  opacity: 0.6;
+}
+
+.comment-quote {
+  margin: 2px 0;
+  padding: 4px 6px;
+  font-size: 0.8rem;
+  background: var(--surface-2);
+  border-radius: 4px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.comment-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.file-comments {
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  max-height: 120px;
+  overflow: auto;
+}
+
+.file-comments li.resolved {
+  opacity: 0.6;
+}
+
+.monaco-editor .comment-range {
+  background: color-mix(in srgb, var(--dirty) 22%, transparent);
+  border-bottom: 2px solid var(--dirty);
+}
+
+.notice {
+  color: var(--warn-text);
+}
+
+.session-loading {
+  padding: 12px;
+}

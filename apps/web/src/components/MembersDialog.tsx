@@ -5,7 +5,7 @@ const ROLES: Role[] = ['OWNER', 'EDITOR', 'COMMENTER', 'VIEWER']
 const ROLE_HELP: Record<Role, string> = {
   OWNER: 'Manage members and settings',
   EDITOR: 'Edit files',
-  COMMENTER: 'Read and chat',
+  COMMENTER: 'Read, chat, comment and hold plan steps',
   VIEWER: 'Read only',
 }
 

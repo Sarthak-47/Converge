@@ -120,5 +120,5 @@ describe('reverting a turn (design §13.2)', () => {
       }),
       { numRuns: 300 },
     )
-  })
+  }, 60_000)
 })

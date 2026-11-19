@@ -2,7 +2,7 @@ import type Anthropic from '@anthropic-ai/sdk'
 import * as Y from 'yjs'
 import { z } from 'zod'
 import { replaceRange, TurnRecorder, type Typing, type UndoRecord } from './edits.js'
-import { TEXT_FIELD, type FileEntry, type TurnWorkspace } from './workspace.js'
+import { TEXT_FIELD, type FileEntry, type PlanStep, type TurnWorkspace } from './workspace.js'
 
 /**
  * The agent's tools (design §13.4). Reads and edits work on the live Yjs documents; nothing touches a disk or
@@ -24,6 +24,9 @@ const schemas = {
     replace_all: z.boolean().optional(),
   }).strict(),
   create_file: z.object({ path: z.string().min(1), content: z.string() }).strict(),
+  get_plan: z.object({}).strict(),
+  propose_plan: z.object({ steps: z.array(z.string().min(1).max(300)).min(1).max(20) }).strict(),
+  update_step: z.object({ position: z.number().int().positive(), status: z.enum(['TODO', 'IN_PROGRESS', 'DONE']) }).strict(),
 }
 
 export type ToolName = keyof typeof schemas
@@ -92,6 +95,40 @@ export const TOOLS: Anthropic.Beta.BetaTool[] = [
   },
 ]
 
+/** Plan tools (design §13.4), offered only to turns that belong to a session. */
+export const PLAN_TOOLS: Anthropic.Beta.BetaTool[] = [
+  {
+    name: 'get_plan',
+    description: "Show the session's plan: numbered steps with status and owner.",
+    input_schema: { type: 'object', properties: {}, additionalProperties: false },
+  },
+  {
+    name: 'propose_plan',
+    description: 'Append steps to the session plan. New steps belong to the member you work for. Propose a plan before larger changes; keep steps short and concrete.',
+    input_schema: {
+      type: 'object',
+      properties: { steps: { type: 'array', items: { type: 'string', maxLength: 300 }, minItems: 1, maxItems: 20 } },
+      required: ['steps'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'update_step',
+    description: "Set the status of one of your member's steps by its number. Mark a step IN_PROGRESS when you start it and DONE when it is finished. Steps owned by other people are theirs to update.",
+    input_schema: {
+      type: 'object',
+      properties: { position: { type: 'integer', minimum: 1 }, status: { type: 'string', enum: ['TODO', 'IN_PROGRESS', 'DONE'] } },
+      required: ['position', 'status'],
+      additionalProperties: false,
+    },
+  },
+]
+
+function formatPlan(steps: PlanStep[]): string {
+  if (steps.length === 0) return 'The plan is empty.'
+  return steps.map((s) => `${s.position}. [${s.status}] ${s.title}${s.ownerName ? ` (${s.ownerName})` : ' (unowned)'}`).join('\n')
+}
+
 export type ToolOutcome = { content: string; isError: boolean; summary: string }
 
 /** Limits per turn (design §13.2): total characters changed. */
@@ -141,6 +178,10 @@ export class Toolbox {
       return await this.execute(name as ToolName, parsed.data as never)
     } catch (error) {
       if (error instanceof ToolError) return { content: error.message, isError: true, summary: `${name}: ${error.message}` }
+      // The API refused (for example a step owned by someone else): the model can read why and adapt.
+      if (error instanceof Error && 'status' in error && typeof error.status === 'number' && error.status < 500) {
+        return { content: error.message, isError: true, summary: `${name}: ${error.message}` }
+      }
       throw error
     }
   }
@@ -205,6 +246,18 @@ export class Toolbox {
         }
         this.workspace.setCursor(file.id, null)
         return { content: `Edited ${file.path} (${replaced} replacement${replaced === 1 ? '' : 's'}).`, isError: false, summary: `edited ${file.path}` }
+      }
+      case 'get_plan':
+        return { content: formatPlan(await this.workspace.plan()), isError: false, summary: 'read the plan' }
+      case 'propose_plan': {
+        const { steps } = input as z.infer<typeof schemas.propose_plan>
+        const plan = await this.workspace.proposePlan(steps)
+        return { content: formatPlan(plan), isError: false, summary: `proposed ${steps.length} plan step${steps.length === 1 ? '' : 's'}` }
+      }
+      case 'update_step': {
+        const { position, status } = input as z.infer<typeof schemas.update_step>
+        const plan = await this.workspace.setStepStatus(position, status)
+        return { content: formatPlan(plan), isError: false, summary: `marked step ${position} ${status.toLowerCase().replace('_', ' ')}` }
       }
       case 'create_file': {
         const { path, content } = input as z.infer<typeof schemas.create_file>

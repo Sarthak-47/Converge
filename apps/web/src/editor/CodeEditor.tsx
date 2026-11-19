@@ -3,10 +3,19 @@ import { MonacoBinding } from 'y-monaco'
 import type { CollabDocument, Peer } from './collabDocument.ts'
 import { monaco } from './monaco.ts'
 
+/** A highlighted range, as offsets into the current text. */
+export type Highlight = { start: number; end: number; title: string }
+
 type Props = {
   model: monaco.editor.ITextModel
   live: CollabDocument
   readOnly: boolean
+  /** Ranges that comments are anchored to (design §13.9). */
+  highlights?: Highlight[]
+  /** A range to scroll to and select once, e.g. "Show in file" on a comment. */
+  reveal?: { start: number; end: number; key: string } | null
+  /** Exposes the editor so the page can read the selection for a new comment. */
+  onEditor?: (editor: monaco.editor.IStandaloneCodeEditor | null) => void
 }
 
 const darkScheme = window.matchMedia('(prefers-color-scheme: dark)')
@@ -37,11 +46,15 @@ function cursorStyles(peers: Peer[]) {
  * go through the file's per-user UndoManager instead of Monaco's own stack, which cannot tell whose edit
  * is whose (design §8.8).
  */
-export default function CodeEditor({ model, live, readOnly }: Props) {
+export default function CodeEditor({ model, live, readOnly, highlights = [], reveal = null, onEditor }: Props) {
   const host = useRef<HTMLDivElement>(null)
   const editor = useRef<monaco.editor.IStandaloneCodeEditor | null>(null)
   const current = useRef(live)
   const styles = useRef<HTMLStyleElement | null>(null)
+  const notifyEditor = useRef(onEditor)
+  useEffect(() => {
+    notifyEditor.current = onEditor
+  })
 
   useEffect(() => {
     current.current = live
@@ -66,7 +79,9 @@ export default function CodeEditor({ model, live, readOnly }: Props) {
     darkScheme.addEventListener('change', followTheme)
     styles.current = document.head.appendChild(document.createElement('style'))
     editor.current = instance
+    notifyEditor.current?.(instance)
     return () => {
+      notifyEditor.current?.(null)
       darkScheme.removeEventListener('change', followTheme)
       styles.current?.remove()
       instance.dispose()
@@ -96,6 +111,32 @@ export default function CodeEditor({ model, live, readOnly }: Props) {
   useEffect(() => {
     editor.current?.updateOptions({ readOnly })
   }, [readOnly])
+
+  const decorations = useRef<monaco.editor.IEditorDecorationsCollection | null>(null)
+  useEffect(() => {
+    const instance = editor.current
+    if (!instance) return
+    const ranges = highlights.map(({ start, end, title }) => {
+      const from = model.getPositionAt(start)
+      const to = model.getPositionAt(end)
+      return {
+        range: new monaco.Range(from.lineNumber, from.column, to.lineNumber, to.column),
+        options: { inlineClassName: 'comment-range', hoverMessage: { value: title } },
+      }
+    })
+    decorations.current?.clear()
+    decorations.current = instance.createDecorationsCollection(ranges)
+  }, [highlights, model])
+
+  useEffect(() => {
+    const instance = editor.current
+    if (!instance || !reveal) return
+    const from = model.getPositionAt(reveal.start)
+    const to = model.getPositionAt(reveal.end)
+    const range = new monaco.Range(from.lineNumber, from.column, to.lineNumber, to.column)
+    instance.setSelection(range)
+    instance.revealRangeInCenter(range)
+  }, [reveal, model])
 
   return <div className="code-editor" ref={host} />
 }

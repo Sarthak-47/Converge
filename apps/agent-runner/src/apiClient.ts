@@ -1,7 +1,7 @@
 import type { UndoRecord } from './edits.js'
 import type { Usage } from './pricing.js'
 import type { TurnEvent, TurnLedger, TurnStatus } from './turn.js'
-import type { FileEntry, SearchHit } from './workspace.js'
+import type { FileEntry, PlanStep, SearchHit, StepStatus } from './workspace.js'
 
 /**
  * The runner's side of the API boundary (design §5.3): every call is scoped to one turn, so the API checks
@@ -20,6 +20,18 @@ export class TurnApi implements TurnLedger {
 
   search(query: string): Promise<SearchHit[]> {
     return this.call('GET', `/search?q=${encodeURIComponent(query)}`)
+  }
+
+  plan(): Promise<PlanStep[]> {
+    return this.call('GET', '/plan')
+  }
+
+  proposePlan(steps: string[]): Promise<PlanStep[]> {
+    return this.call('POST', '/plan', { steps })
+  }
+
+  setStepStatus(position: number, status: StepStatus): Promise<PlanStep[]> {
+    return this.call('POST', '/plan/status', { position, status })
   }
 
   async ticket(fileId: string): Promise<string> {
@@ -45,8 +57,8 @@ export class TurnApi implements TurnLedger {
     })
   }
 
-  async finish(status: TurnStatus, error?: string): Promise<void> {
-    await this.call('POST', '/finish', { status, error: error ?? null })
+  async finish(status: TurnStatus, error?: string, code?: string): Promise<void> {
+    await this.call('POST', '/finish', { status, error: error ?? null, code: code ?? null })
   }
 
   private async call<T>(method: string, path: string, body?: unknown): Promise<T> {
