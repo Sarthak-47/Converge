@@ -30,7 +30,8 @@ services:
       context: ..
       dockerfile: apps/collab/Dockerfile
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-converge}:${POSTGRES_PASSWORD:-converge}@postgres:5432/${POSTGRES_DB:-converge}
+      # COLLAB_DB_HOST/PORT route the database connection through Toxiproxy in the chaos profile.
+      DATABASE_URL: postgres://${POSTGRES_USER:-converge}:${POSTGRES_PASSWORD:-converge}@${COLLAB_DB_HOST:-postgres}:${COLLAB_DB_PORT:-5432}/${POSTGRES_DB:-converge}
       REDIS_URL: redis://redis:6379
       API_URL: http://api:8080
       INTERNAL_TOKEN: ${INTERNAL_TOKEN:-dev-internal-token}
@@ -40,6 +41,9 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      toxiproxy:
+        condition: service_started
+        required: false
 
   api:
     build:
@@ -49,7 +53,7 @@ services:
       DATABASE_USER: ${POSTGRES_USER:-converge}
       DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-converge}
       REDIS_HOST: redis
-      COLLAB_URL: http://collab:1234
+      COLLAB_URL: ${API_COLLAB_URL:-http://collab:1234}
       INTERNAL_TOKEN: ${INTERNAL_TOKEN:-dev-internal-token}
       AGENT_RUNNER_URL: http://agent-runner:4100
       GIT_ALLOW_INSECURE_REMOTES: ${GIT_ALLOW_INSECURE_REMOTES:-false}
@@ -137,6 +141,17 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  # Fault injection between services (design §22.6), for the chaos tests only:
+  #   COMPOSE_PROFILES=chaos COLLAB_DB_HOST=toxiproxy COLLAB_DB_PORT=15432 API_COLLAB_URL=http://toxiproxy:11234
+  toxiproxy:
+    profiles: [chaos]
+    image: ghcr.io/shopify/toxiproxy:2.9.0
+    command: ["-host=0.0.0.0", "-config=/config/toxiproxy.json"]
+    volumes:
+      - ./toxiproxy.json:/config/toxiproxy.json:ro
+    ports:
+      - "8474:8474"
 
   nginx:
     build:

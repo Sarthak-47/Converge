@@ -276,3 +276,10 @@ Decisions made while working autonomously, newest last. Each entry says what was
   - **Node services**: a 20-line W3C helper rather than the full OpenTelemetry SDK. The runner continues the API's trace for a whole agent turn: its log lines and every call back to the API share that trace ID. The collaboration service logs each external change (restore, import, apply-text) with the caller's trace, and the executor uses one trace per job.
   - **CI check**: one agent turn's trace ID appears in both the runner's and the API's logs.
   - **Not exported yet**: Node spans, which would need the OpenTelemetry SDK.
+- **Fault injection with Toxiproxy** (design §22.6): a `chaos` Compose profile routes the collaboration service's database connection and the API's calls to the collaboration service through Toxiproxy (`COLLAB_DB_HOST`/`COLLAB_DB_PORT`/`API_COLLAB_URL`). `tests/chaos/faults.mjs` runs three scenarios in a CI job of its own:
+  1. the database 400 ms slower: two people's typing converges and is still stored;
+  2. the database unreachable while they type: replicas keep converging, and everything is stored once it returns;
+  3. the collaboration service unreachable from the API: an API write answers 503, changes nothing, and works again once the fault clears.
+
+  The baseline and fault scripts share their session helpers (`tests/load/stack.mjs`).
+- **Desktop branch check, found by CI**: `git rev-parse --abbrev-ref HEAD` fails on a branch with no commits, so a freshly initialised checkout looked like "not Git" and never paused. The app now uses `git symbolic-ref`.

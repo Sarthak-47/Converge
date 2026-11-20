@@ -60,6 +60,48 @@ jobs:
       - name: Executor tests (allowlist parity; Git against git http-backend; sandbox isolation, Gate C)
         run: npm test --workspace @converge/executor
 
+  chaos:
+    name: Fault injection (Toxiproxy)
+    runs-on: ubuntu-latest
+    needs: [api, node]
+    env:
+      COMPOSE_PROFILES: fake-model,chaos
+      AGENT_MODEL_URL: http://fake-model:9100
+      COLLAB_DB_HOST: toxiproxy
+      COLLAB_DB_PORT: "15432"
+      API_COLLAB_URL: http://toxiproxy:11234
+      RATE_LIMIT_SCALE: "50"
+    steps:
+      - uses: actions/checkout@v7
+      - run: docker compose up -d --build
+      - name: Wait for the whole stack to report UP
+        run: |
+          for i in $(seq 1 60); do
+            curl -fsS http://localhost:8000/api/actuator/health | grep -q '"status":"UP"' && exit 0
+            sleep 3
+          done
+          docker compose ps; docker compose logs --tail=100; exit 1
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+      - run: npm ci
+      - name: Slow and cut connections between services (design §22.6)
+        run: |
+          node tests/chaos/faults.mjs | tee .tmp/faults.md
+          cat .tmp/faults.md >> "$GITHUB_STEP_SUMMARY"
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: faults
+          path: |
+            .tmp/faults.json
+            .tmp/faults.md
+          if-no-files-found: ignore
+      - if: failure()
+        run: docker compose logs --tail=200
+      - if: always()
+        run: docker compose down -v
+
   stack:
     name: Compose stack + end-to-end tests
     runs-on: ubuntu-latest

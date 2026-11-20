@@ -12,8 +12,8 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { HocuspocusProvider, HocuspocusProviderWebsocket } from '@hocuspocus/provider'
 import WebSocket from 'ws'
 import * as Y from 'yjs'
+import { BASE, origin, person, sleep } from './stack.mjs'
 
-const BASE = process.env.BASELINE_URL ?? 'http://localhost:8000'
 const CLIENTS = Number(process.env.CLIENTS ?? 40)
 const WORKSPACES = Number(process.env.WORKSPACES ?? 4)
 const FILES = Number(process.env.FILES_PER_WORKSPACE ?? 2)
@@ -21,46 +21,10 @@ const DURATION_MS = Number(process.env.DURATION_MS ?? 60_000)
 const TYPE_EVERY_MS = Number(process.env.TYPE_EVERY_MS ?? 700)
 const CHAOS = process.env.CHAOS === '1'
 const AGENT_TURNS = Number(process.env.AGENT_TURNS ?? 5)
-const origin = new URL(BASE).origin
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 const percentile = (values, p) => {
   if (values.length === 0) return null
   const sorted = [...values].sort((a, b) => a - b)
   return Math.round(sorted[Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length))])
-}
-
-/** A signed-in person: cookies, CSRF, JSON requests. */
-class Session {
-  cookies = new Map()
-  header() {
-    return [...this.cookies].map(([k, v]) => `${k}=${v}`).join('; ')
-  }
-  remember(response) {
-    for (const raw of response.headers.getSetCookie()) {
-      const [pair] = raw.split(';')
-      const i = pair.indexOf('=')
-      this.cookies.set(pair.slice(0, i).trim(), pair.slice(i + 1).trim())
-    }
-  }
-  async request(method, path, body) {
-    if (method !== 'GET' && !this.cookies.has('XSRF-TOKEN')) {
-      this.remember(await fetch(`${BASE}/api/v1/auth/csrf`, { headers: { Cookie: this.header() } }))
-    }
-    const headers = { Cookie: this.header() }
-    if (body !== undefined) headers['Content-Type'] = 'application/json'
-    if (method !== 'GET') headers['X-XSRF-TOKEN'] = this.cookies.get('XSRF-TOKEN') ?? ''
-    const response = await fetch(`${BASE}${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) })
-    this.remember(response)
-    if (!response.ok) throw new Error(`${method} ${path}: ${response.status} ${await response.text()}`)
-    return response.status === 204 ? undefined : response.json()
-  }
-}
-
-async function person(name) {
-  const session = new Session()
-  const email = `load-${name}-${Date.now()}-${Math.random().toString(36).slice(2)}@example.test`
-  const user = await session.request('POST', '/api/v1/auth/register', { email, displayName: name, password: 'correct horse battery' })
-  return { session, email, id: user.id, name }
 }
 
 /** A WebSocket whose sends are delayed 50-300 ms, as on a slow network. */

@@ -1,0 +1,14 @@
+[
+  {
+    "name": "collab-postgres",
+    "listen": "0.0.0.0:15432",
+    "upstream": "postgres:5432",
+    "enabled": true
+  },
+  {
+    "name": "api-collab",
+    "listen": "0.0.0.0:11234",
+    "upstream": "collab:1234",
+    "enabled": true
+  }
+]
