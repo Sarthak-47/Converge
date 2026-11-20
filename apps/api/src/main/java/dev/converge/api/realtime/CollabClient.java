@@ -23,7 +23,7 @@ public class CollabClient {
 
     private final RestClient client;
 
-    /** Built from Spring's RestClient.Builder, so every call carries the current trace (design §16.3). */
+    /** Every call carries the current trace (design §16.3). */
     public CollabClient(RestClient.Builder builder, @Value("${converge.collab.base-url}") String baseUrl,
             @Value("${converge.internal-token:}") String internalToken) {
         HttpClient http = HttpClient.newBuilder()
@@ -33,6 +33,7 @@ public class CollabClient {
         JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(http);
         factory.setReadTimeout(Duration.ofSeconds(10));
         this.client = builder
+                .requestInterceptor(new dev.converge.api.common.TraceContext.Propagation())
                 .baseUrl(baseUrl)
                 .requestFactory(factory)
                 .defaultHeader(InternalTokenFilter.HEADER, internalToken)

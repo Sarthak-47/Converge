@@ -160,7 +160,7 @@ jobs:
           trace=$(docker compose logs agent-runner | grep -o '"event":"TURN_STARTED"[^}]*' | grep -o '"traceId":"[0-9a-f]\{32\}"' | head -1 | cut -d'"' -f4)
           echo "runner trace: $trace"
           test -n "$trace"
-          docker compose logs api | grep "Agent turn" | grep -q "$trace"
+          docker compose logs api | grep "Agent turn" | grep -q "trace=$trace"
           echo "The API logged the same trace when it started the turn."
       - name: Baseline load and chaos run (design §22.4, §22.6; Phase 13 report)
         run: |

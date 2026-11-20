@@ -56,11 +56,20 @@ public class SecurityConfig {
         return http.build();
     }
 
+    /** Runs first of all, so every log line of a request, including security's, carries its trace. */
+    @Bean
+    FilterRegistrationBean<dev.converge.api.common.TraceContext.Filter> traceContextFilter() {
+        FilterRegistrationBean<dev.converge.api.common.TraceContext.Filter> registration =
+                new FilterRegistrationBean<>(new dev.converge.api.common.TraceContext.Filter());
+        registration.setOrder(Ordered.HIGHEST_PRECEDENCE);
+        return registration;
+    }
+
     /** Runs before Spring Security so internal calls are rejected before any session handling. */
     @Bean
     FilterRegistrationBean<InternalTokenFilter> internalTokenFilter(@Value("${converge.internal-token:}") String token) {
         FilterRegistrationBean<InternalTokenFilter> registration = new FilterRegistrationBean<>(new InternalTokenFilter(token));
-        registration.setOrder(Ordered.HIGHEST_PRECEDENCE);
+        registration.setOrder(Ordered.HIGHEST_PRECEDENCE + 1);
         return registration;
     }
 

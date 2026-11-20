@@ -30,6 +30,8 @@ const setEnabled = (proxy, enabled) => toxiproxy('POST', `/proxies/${proxy}`, { 
 class OriginSocket extends WebSocket {
   constructor(url, protocols) {
     super(url, protocols, { headers: { Origin: origin } })
+    // Faults make sockets drop and reconnect; closing one mid-connect must not crash the run.
+    this.on('error', () => undefined)
   }
 }
 
