@@ -103,6 +103,30 @@ public class FileService {
         return created;
     }
 
+    /** Creates a file and any missing folders on its path, in order. */
+    public FileNode createPath(UUID workspaceId, String rawPath, UUID userId) {
+        String[] segments = rawPath.strip().replace('\\', '/').replaceAll("^/+|/+$", "").split("/+");
+        // Every segment is checked first, so a bad path never leaves half its folders behind.
+        for (String segment : segments) FileNames.validate(segment);
+        List<FileNode> nodes = tree(workspaceId, userId);
+        UUID parentId = null;
+        String prefix = "";
+        for (int i = 0; i < segments.length - 1; i++) {
+            String folderPath = prefix + segments[i];
+            FileNode folder = nodes.stream().filter(n -> n.path().equals(folderPath)).findFirst().orElse(null);
+            if (folder == null) {
+                folder = create(workspaceId, parentId, segments[i], Kind.FOLDER, userId);
+                nodes = new java.util.ArrayList<>(nodes);
+                nodes.add(folder);
+            } else if (folder.kind() != Kind.FOLDER) {
+                throw ApiException.badRequest(folderPath + " is a file, not a folder");
+            }
+            parentId = folder.id();
+            prefix = folderPath + "/";
+        }
+        return create(workspaceId, parentId, segments[segments.length - 1], Kind.FILE, userId);
+    }
+
     /**
      * Renames and/or moves a file or folder. Moving a folder rewrites the paths of everything inside it
      * in the same transaction, so the tree is never observed half-moved.

@@ -21,6 +21,12 @@ export type GitRequest = {
   files: Map<string, string>
 }
 
+/** What an import read from the repository: text files to apply, and what it left out and why. */
+export type BranchContents = { sha: string; files: Map<string, string>; skipped: Array<{ path: string; reason: string }> }
+
+/** Files larger than this stay out of live documents (the desktop sync uses the same limit, design §12.7). */
+export const MAX_IMPORT_BYTES = 1024 * 1024
+
 export type GitResult = { branch: string; sha: string; changedFiles: number; prUrl?: string; prNumber?: number }
 
 export class GitError extends Error {
@@ -122,6 +128,57 @@ export class GitWorker {
       const result: GitResult = { branch: request.branch, sha, changedFiles }
       if (request.type === 'PULL_REQUEST') Object.assign(result, await this.pullRequest(target, request, log))
       return result
+    } catch (error) {
+      if (error instanceof GitError) throw error
+      throw new GitError(redact((error as Error).message), redact(log.join('')))
+    }
+  }
+
+  /**
+   * Reads the default branch for an import (design §10.2): regular text files only. Symbolic links,
+   * submodules, binaries and files over 1 MB are skipped and reported, as are paths that could not be
+   * written into a workspace safely.
+   */
+  async readBranch(workspaceId: string, target: GitTarget): Promise<BranchContents> {
+    const log: string[] = []
+    const dir = path.join(this.root, workspaceId)
+    const redact = (text: string) => target.token ? text.split(target.token).join('***') : text
+    const author = { name: 'Converge', email: 'converge@users.noreply.converge.dev' }
+    const git = (args: string[], allowFailure = false) => this.git(dir, args, target.token, author, log, redact, allowFailure)
+    try {
+      await this.prepare()
+      await mkdir(dir, { recursive: true })
+      if (!(await exists(path.join(dir, '.git')))) {
+        await git(['init', '-q'])
+        await git(['remote', 'add', 'origin', target.remoteUrl])
+      } else {
+        await git(['remote', 'set-url', 'origin', target.remoteUrl])
+      }
+      const ref = `refs/remotes/origin/${target.defaultBranch}`
+      const fetched = await git(['fetch', '-q', '--depth=1', 'origin', `+refs/heads/${target.defaultBranch}:${ref}`], true)
+      if (fetched.code !== 0) {
+        const missing = /couldn't find remote ref|could not find remote ref/i.test(fetched.stderr)
+        throw new GitError(missing ? `The repository has no ${target.defaultBranch} branch to import`
+          : `Could not fetch from the repository: ${redact(fetched.stderr.trim().split('\n').at(-1) ?? 'unknown error')}`, redact(log.join('')))
+      }
+      const sha = (await git(['rev-parse', ref])).stdout.trim()
+      const listing = (await git(['ls-tree', '-r', '-l', '-z', ref])).stdout.split('\0').filter(Boolean)
+      const files = new Map<string, string>()
+      const skipped: Array<{ path: string; reason: string }> = []
+      for (const entry of listing) {
+        const tab = entry.indexOf('\t')
+        const [mode, type, object, size] = entry.slice(0, tab).split(/\s+/)
+        const file = entry.slice(tab + 1)
+        if (type !== 'blob') { skipped.push({ path: file, reason: 'submodule' }); continue }
+        if (mode === '120000') { skipped.push({ path: file, reason: 'symbolic link' }); continue }
+        if (!safePath(file)) { skipped.push({ path: file, reason: 'unsafe path' }); continue }
+        if (Number(size) > MAX_IMPORT_BYTES) { skipped.push({ path: file, reason: 'larger than 1 MB' }); continue }
+        const text = (await git(['cat-file', 'blob', object!])).stdout
+        // NUL bytes or undecodable sequences mean binary content, which belongs in Git, not a live document.
+        if (text.includes('\0') || text.includes('\uFFFD')) { skipped.push({ path: file, reason: 'binary' }); continue }
+        files.set(file, text)
+      }
+      return { sha, files, skipped }
     } catch (error) {
       if (error instanceof GitError) throw error
       throw new GitError(redact((error as Error).message), redact(log.join('')))

@@ -170,6 +170,8 @@ export const api = {
   disconnectGit: (workspaceId: string) => request<void>('DELETE', `/workspaces/${workspaceId}/git`),
   gitOperations: (workspaceId: string, sessionId?: string) =>
     request<GitOperation[]>('GET', `/workspaces/${workspaceId}/git/operations${sessionId ? `?sessionId=${sessionId}` : ''}`),
+  importRepository: (workspaceId: string, idempotencyKey: string) =>
+    request<GitOperation>('POST', `/workspaces/${workspaceId}/git/pulls`, { idempotencyKey }),
   openPullRequest: (sessionId: string, idempotencyKey: string) =>
     request<GitOperation>('POST', `/sessions/${sessionId}/pull-request`, { idempotencyKey }),
   overlaps: (sessionId: string) => request<Overlap[]>('GET', `/sessions/${sessionId}/overlaps`),
@@ -402,11 +404,21 @@ export type GitRepository = {
 export type GitOperation = {
   id: string
   sessionId: string | null
-  type: 'PULL_REQUEST' | 'PUSH_BRANCH'
+  type: 'PULL_REQUEST' | 'PUSH_BRANCH' | 'PULL'
   status: 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED'
   requesterName: string
   params: { branch: string; title?: string; message: string }
-  result: { branch: string; sha: string; changedFiles: number; prUrl?: string; prNumber?: number } | null
+  result: {
+    branch: string
+    sha: string
+    changedFiles: number
+    prUrl?: string
+    prNumber?: number
+    created?: number
+    updated?: number
+    unchanged?: number
+    skipped?: string[]
+  } | null
   error: string | null
   log: string | null
   createdAt: string

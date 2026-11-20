@@ -52,6 +52,13 @@ async function runGit(op: GitOperation) {
   try {
     if (!op.repository) throw new GitError('The workspace is no longer connected to a repository', '')
     const token = openSealed(op.repository.credential, `git-credential:${op.workspaceId}`, config.secretsKey)
+    if (op.type === 'PULL') {
+      const result = await importBranch(op, { ...op.repository, token })
+      await finishGitOperation(db, op.id, { status: 'SUCCEEDED', result, log: '' })
+      log('INFO', 'GIT_OPERATION_SUCCEEDED', { operationId: op.id, type: op.type, ...result, skipped: result.skipped.length })
+      await notifyGit(op.id)
+      return
+    }
     const files = await workspaceFiles(db, op.workspaceId, config.maxFilesBytes)
     const result = await git.run(op.workspaceId, { ...op.repository, token }, {
       type: op.type,
@@ -71,6 +78,39 @@ async function runGit(op: GitOperation) {
     log('WARN', 'GIT_OPERATION_FAILED', { operationId: op.id, message })
   }
   await notifyGit(op.id)
+}
+
+/**
+ * Imports the default branch (design §10.2): the files go to the API in batches, which creates the new ones
+ * and merges changes into existing documents as external edits, as the person who asked.
+ */
+async function importBranch(op: GitOperation, target: Parameters<GitWorker['readBranch']>[1]) {
+  const contents = await git.readBranch(op.workspaceId, target)
+  const totals = { created: 0, updated: 0, unchanged: 0 }
+  const refused: string[] = []
+  const entries = [...contents.files]
+  for (let i = 0; i < entries.length; i += 100) {
+    const batch = entries.slice(i, i + 100).map(([path, text]) => ({ path, text }))
+    const response = await fetch(`${config.apiUrl.replace(/\/$/, '')}/internal/git/operations/${op.id}/import`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Internal-Token': config.internalToken },
+      body: JSON.stringify({ files: batch }),
+      signal: AbortSignal.timeout(120_000),
+    })
+    if (!response.ok) throw new GitError(`The API refused the import (${response.status})`, await response.text().catch(() => ''))
+    const result = (await response.json()) as { created: number; updated: number; unchanged: number; refused: string[] }
+    totals.created += result.created
+    totals.updated += result.updated
+    totals.unchanged += result.unchanged
+    refused.push(...result.refused)
+  }
+  return {
+    branch: op.params.branch,
+    sha: contents.sha,
+    changedFiles: totals.created + totals.updated,
+    ...totals,
+    skipped: [...contents.skipped.map((s) => `${s.path}: ${s.reason}`), ...refused].slice(0, 200),
+  }
 }
 
 async function gitLoop() {

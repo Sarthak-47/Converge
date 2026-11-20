@@ -100,6 +100,25 @@ describe('opening a pull request from the workspace', () => {
   }, 60_000)
 })
 
+describe('importing the default branch', () => {
+  it('reads text files and skips binaries, large files and missing branches', async () => {
+    github.createRepo('acme', 'importable', {
+      'README.md': '# importable\n',
+      'src/main.ts': 'export const answer = 42\n',
+      'logo.png': '\u0089PNG\r\n\u001a\n\u0000\u0000binary',
+      'big.txt': 'x'.repeat(1024 * 1024 + 1),
+    })
+    const contents = await worker.readBranch('ws-import', target('importable'))
+    expect([...contents.files.keys()].sort()).toEqual(['README.md', 'src/main.ts'])
+    expect(contents.files.get('src/main.ts')).toBe('export const answer = 42\n')
+    expect(contents.skipped.map((s) => `${s.path}: ${s.reason}`).sort()).toEqual(['big.txt: larger than 1 MB', 'logo.png: binary'])
+    expect(contents.sha).toMatch(/^[0-9a-f]{40}$/)
+
+    github.createRepo('acme', 'blank', {})
+    await expect(worker.readBranch('ws-blank', target('blank'))).rejects.toThrow('has no main branch to import')
+  }, 60_000)
+})
+
 describe('paths and credentials', () => {
   it.each([
     ['src/a.ts', true], ['.github/workflows/ci.yml', true], ['.git/config', false], ['src/.GIT/x', false],

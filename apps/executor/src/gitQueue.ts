@@ -3,7 +3,7 @@ import type pg from 'pg'
 export type GitOperation = {
   id: string
   workspaceId: string
-  type: 'PULL_REQUEST' | 'PUSH_BRANCH'
+  type: 'PULL_REQUEST' | 'PUSH_BRANCH' | 'PULL'
   params: { branch: string; message: string; title?: string; body?: string }
   requester: { id: string; name: string }
   repository: { remoteUrl: string; defaultBranch: string; owner: string; repo: string; credential: Buffer } | null

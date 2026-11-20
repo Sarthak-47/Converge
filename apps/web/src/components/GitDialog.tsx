@@ -1,15 +1,26 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { api, type GitRepository, type Workspace } from '../api.ts'
+import { api, type GitOperation, type GitRepository, type Workspace } from '../api.ts'
 import { errorMessage } from './agentKit.ts'
 
-type Props = { workspace: Workspace; onClose: () => void }
+type Props = { workspace: Workspace; onClose: () => void; refreshSignal?: number }
+
+function describe(op: GitOperation): string {
+  const what = op.type === 'PULL' ? 'Import' : op.type === 'PULL_REQUEST' ? 'Pull request' : 'Push'
+  if (op.status === 'FAILED') return `${what} failed: ${op.error ?? 'unknown error'}`
+  if (op.status !== 'SUCCEEDED' || !op.result) return `${what} ${op.status === 'QUEUED' ? 'queued' : 'running'}…`
+  if (op.type === 'PULL') {
+    const r = op.result
+    return `Imported ${op.params.branch}: ${r.created ?? 0} new, ${r.updated ?? 0} updated, ${r.unchanged ?? 0} unchanged${r.skipped?.length ? `, ${r.skipped.length} skipped` : ''}`
+  }
+  return `${what} on ${op.result.branch} (${op.result.changedFiles} file${op.result.changedFiles === 1 ? '' : 's'})`
+}
 
 /**
  * Connects the workspace to a GitHub repository (design §10). Owners add a token that can push branches and
  * open pull requests; it is stored encrypted and only a hint is ever shown. Desktop members can also commit
  * and push from their own checkout with their own credentials.
  */
-export function GitDialog({ workspace, onClose }: Props) {
+export function GitDialog({ workspace, onClose, refreshSignal = 0 }: Props) {
   const [repository, setRepository] = useState<GitRepository | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [remoteUrl, setRemoteUrl] = useState('')
@@ -18,6 +29,8 @@ export function GitDialog({ workspace, onClose }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const isOwner = workspace.role === 'OWNER'
+  const canEdit = isOwner || workspace.role === 'EDITOR'
+  const [operations, setOperations] = useState<GitOperation[]>([])
   const dialog = useRef<HTMLDialogElement>(null)
 
   useEffect(() => {
@@ -27,6 +40,10 @@ export function GitDialog({ workspace, onClose }: Props) {
       .catch(() => setRepository(null))
       .finally(() => setLoaded(true))
   }, [workspace.id])
+
+  useEffect(() => {
+    if (repository) api.gitOperations(workspace.id).then(setOperations).catch(() => setOperations([]))
+  }, [workspace.id, repository, refreshSignal])
 
   async function act(action: () => Promise<void>, fallback: string) {
     setBusy(true)
@@ -59,6 +76,22 @@ export function GitDialog({ workspace, onClose }: Props) {
           <div className="git-connected">
             <p>Connected to <strong>{repository.owner}/{repository.repo}</strong> (default branch <code>{repository.defaultBranch}</code>).</p>
             <p className="muted small">Token {repository.credentialHint}, added by {repository.connectedByName}. Sessions open pull requests here.</p>
+            {canEdit && (
+              <button type="button" className="ghost" disabled={busy} onClick={() => void act(async () => {
+                const op = await api.importRepository(workspace.id, crypto.randomUUID())
+                setOperations((list) => [op, ...list])
+              }, 'Could not start the import')}>Import files from {repository.defaultBranch}</button>
+            )}
+            <p className="muted small">Importing creates the branch's text files here and merges changes into existing ones; nothing is deleted.</p>
+            {operations.length > 0 && (
+              <ul className="git-operations" aria-label="Recent Git operations">
+                {operations.slice(0, 8).map((op) => (
+                  <li key={op.id} data-status={op.status}>
+                    {op.result?.prUrl ? <a href={op.result.prUrl} target="_blank" rel="noreferrer noopener">{describe(op)}</a> : describe(op)}
+                  </li>
+                ))}
+              </ul>
+            )}
             {isOwner && (
               <button type="button" className="ghost" disabled={busy} onClick={() => void act(async () => {
                 await api.disconnectGit(workspace.id)

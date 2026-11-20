@@ -60,12 +60,15 @@ public class GitService {
     private final TransactionTemplate tx;
     private final boolean allowInsecureRemotes;
     private final dev.converge.api.common.RateLimiter limits;
+    private final dev.converge.api.file.FileService fileService;
     private final JsonMapper json = JsonMapper.builder().build();
 
     public GitService(JdbcClient jdbc, WorkspaceAccess access, SecretBox box, CollabClient collab, AuditLog audit,
             ApplicationEventPublisher events, TransactionTemplate tx, dev.converge.api.common.RateLimiter limits,
+            dev.converge.api.file.FileService fileService,
             @Value("${converge.git.allow-insecure-remotes:false}") boolean allowInsecureRemotes) {
         this.limits = limits;
+        this.fileService = fileService;
         this.jdbc = jdbc;
         this.access = access;
         this.box = box;
@@ -152,6 +155,67 @@ public class GitService {
         return enqueue(session.workspaceId(), sessionId, userId, "PULL_REQUEST", idempotencyKey,
                 Map.of("branch", branch, "title", truncate(prTitle, 200), "body", truncate(prBody, 20_000),
                         "message", truncate(prTitle, 200)));
+    }
+
+    /**
+     * Imports the repository's default branch into the workspace (design §10.2, "pull"): new files are created,
+     * changed files are merged into the live documents as external edits, so typing in progress survives.
+     */
+    public Operation pull(UUID workspaceId, UUID userId, String idempotencyKey) {
+        access.require(workspaceId, userId, Role.EDITOR);
+        String branch = jdbc.sql("select default_branch from git_repositories where workspace_id = ?").param(workspaceId)
+                .query(String.class).optional()
+                .orElseThrow(() -> ApiException.conflict("Connect a GitHub repository to this workspace first"));
+        return enqueue(workspaceId, null, userId, "PULL", idempotencyKey,
+                Map.of("branch", branch, "message", "Import " + branch));
+    }
+
+    public record ImportedFile(String path, String text) {
+    }
+
+    public record ImportResult(int created, int updated, int unchanged, List<String> refused) {
+    }
+
+    /** One batch of files from the worker, applied as the person who asked for the import. */
+    public ImportResult importFiles(UUID operationId, List<ImportedFile> files) {
+        record Op(UUID workspaceId, UUID userId, String type, String status) {
+        }
+        Op op = jdbc.sql("select workspace_id, requested_by, type, status from git_operations where id = ?").param(operationId)
+                .query((rs, n) -> new Op(rs.getObject(1, UUID.class), rs.getObject(2, UUID.class), rs.getString(3), rs.getString(4)))
+                .optional().orElseThrow(() -> ApiException.notFound("Operation"));
+        if (!"PULL".equals(op.type()) || !"RUNNING".equals(op.status())) throw ApiException.conflict("This operation is not a running import");
+        access.require(op.workspaceId(), op.userId(), Role.EDITOR);
+        Map<String, UUID> existing = new java.util.HashMap<>();
+        jdbc.sql("select path, id from files where workspace_id = ? and kind = 'FILE' and deleted_at is null")
+                .param(op.workspaceId())
+                .query((rs, n) -> existing.put(rs.getString(1), rs.getObject(2, UUID.class))).list();
+        int created = 0;
+        int updated = 0;
+        int unchanged = 0;
+        List<String> refused = new java.util.ArrayList<>();
+        for (ImportedFile file : files) {
+            try {
+                UUID fileId = existing.get(file.path());
+                if (fileId == null) {
+                    fileId = fileService.createPath(op.workspaceId(), file.path(), op.userId()).id();
+                    existing.put(file.path(), fileId);
+                    if (!file.text().isEmpty()) fileService.save(fileId, file.text(), null, op.userId());
+                    created++;
+                } else {
+                    String current = jdbc.sql("select text_content from documents where file_id = ?").param(fileId)
+                            .query(String.class).single();
+                    if (current.equals(file.text())) {
+                        unchanged++;
+                    } else {
+                        fileService.save(fileId, file.text(), null, op.userId());
+                        updated++;
+                    }
+                }
+            } catch (ApiException e) {
+                refused.add(file.path() + ": " + e.getMessage());
+            }
+        }
+        return new ImportResult(created, updated, unchanged, refused);
     }
 
     /** Pushes the workspace's current text as a branch, without a pull request. */

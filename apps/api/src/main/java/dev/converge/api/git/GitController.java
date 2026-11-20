@@ -74,6 +74,24 @@ public class GitController {
                 .body(git.pushBranch(workspaceId, user.id(), body.idempotencyKey(), body.branch(), body.message()));
     }
 
+    public record Pull(@NotBlank @Size(max = 100) String idempotencyKey) {
+    }
+
+    @PostMapping("/api/v1/workspaces/{workspaceId}/git/pulls")
+    ResponseEntity<Operation> pull(@AuthenticationPrincipal AppUser user, @PathVariable UUID workspaceId,
+            @Valid @RequestBody Pull body) {
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(git.pull(workspaceId, user.id(), body.idempotencyKey()));
+    }
+
+    public record ImportBatch(@jakarta.validation.constraints.NotNull @Size(max = 500) List<GitService.ImportedFile> files) {
+    }
+
+    /** The worker sends the repository's files in batches; applied as the person who asked. */
+    @PostMapping("/internal/git/operations/{operationId}/import")
+    GitService.ImportResult importBatch(@PathVariable UUID operationId, @Valid @RequestBody ImportBatch body) {
+        return git.importFiles(operationId, body.files());
+    }
+
     @PostMapping("/api/v1/sessions/{sessionId}/pull-request")
     ResponseEntity<Operation> pullRequest(@AuthenticationPrincipal AppUser user, @PathVariable UUID sessionId,
             @Valid @RequestBody PullRequest body) {

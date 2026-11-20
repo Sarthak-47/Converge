@@ -144,23 +144,7 @@ public class AgentInternalController {
     @PostMapping("/files")
     Entry create(@PathVariable UUID turnId, @Valid @RequestBody CreateFile body) {
         TurnRow row = turns.running(turnId);
-        String[] segments = body.path().strip().replace('\\', '/').replaceAll("^/+|/+$", "").split("/+");
-        List<FileNode> tree = files.tree(row.workspaceId(), row.sponsorId());
-        UUID parentId = null;
-        String prefix = "";
-        for (int i = 0; i < segments.length - 1; i++) {
-            String folderPath = prefix + segments[i];
-            FileNode folder = tree.stream().filter(n -> n.path().equals(folderPath)).findFirst().orElse(null);
-            if (folder == null) {
-                folder = files.create(row.workspaceId(), parentId, segments[i], Kind.FOLDER, row.sponsorId());
-            } else if (folder.kind() != Kind.FOLDER) {
-                throw ApiException.badRequest(folderPath + " is a file, not a folder");
-            }
-            parentId = folder.id();
-            prefix = folderPath + "/";
-        }
-        FileNode file = files.create(row.workspaceId(), parentId, segments[segments.length - 1], Kind.FILE,
-                row.sponsorId());
+        FileNode file = files.createPath(row.workspaceId(), body.path(), row.sponsorId());
         return new Entry(file.id(), file.path(), file.kind().name());
     }
 

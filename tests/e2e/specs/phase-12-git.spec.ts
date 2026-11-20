@@ -1,9 +1,9 @@
 import { expect, test } from '@playwright/test'
-import { createWorkspace, register, uniqueEmail } from './helpers.ts'
+import { createWorkspace, editorText, openFile, register, uniqueEmail } from './helpers.ts'
 
 /**
  * Phase 12 exit (design §10): finishing a session opens a pull request. The stack runs the fake GitHub
- * (COMPOSE_PROFILES=fake-github, GIT_ALLOW_INSECURE_REMOTES=true, GITHUB_API_URL=http://fake-github:9200/api):
+ * (COMPOSE_PROFILES=fake-github, GIT_ALLOW_INSECURE_REMOTES=true, CONVERGE_GITHUB_API_URL=http://fake-github:9200/api):
  * the worker pushes over real Git smart HTTP and opens the pull request through the fake REST API, which this
  * test then inspects on its host port.
  */
@@ -52,4 +52,25 @@ test('finishing a session opens a pull request with the session’s work', async
   const head = (await (await request.get(`${FAKE_GITHUB}/__test/repos/acme/${repo}/branches/${encodeURIComponent(pr!.head)}`)).json()) as { author: string; files: string[] }
   expect(head.author).toBe('Asha')
   expect(head.files.sort()).toEqual(['README.md', 'src/signup.ts'])
+})
+
+test('importing a repository brings its text files into the workspace', async ({ page, request }) => {
+  test.setTimeout(120_000)
+  const repo = `import-${Date.now()}`
+  await request.post(`${FAKE_GITHUB}/__test/repos`, {
+    data: { owner: 'acme', repo, files: { 'README.md': '# imported from git\n', 'src/util.ts': 'export const imported = true\n', 'logo.png': '\u0000\u0001binary' } },
+  })
+  await register(page, uniqueEmail('asha'), 'Asha')
+  await createWorkspace(page, 'Import check')
+  await page.getByRole('button', { name: 'Repository' }).click()
+  await page.getByLabel('Repository URL').fill(`http://fake-github:9200/acme/${repo}.git`)
+  await page.getByLabel('Access token').fill(TOKEN)
+  await page.getByRole('button', { name: 'Connect', exact: true }).click()
+  await page.getByRole('button', { name: 'Import files from main' }).click()
+  await expect(page.getByLabel('Recent Git operations')).toContainText('Imported main: 2 new, 0 updated, 0 unchanged, 1 skipped', { timeout: 60_000 })
+  await page.getByRole('button', { name: 'Close' }).click()
+
+  await openFile(page, 'README.md')
+  await expect.poll(() => editorText(page), { timeout: 20_000 }).toContain('# imported from git')
+  await expect(page.locator('.tree-name', { hasText: 'logo.png' })).toHaveCount(0)
 })

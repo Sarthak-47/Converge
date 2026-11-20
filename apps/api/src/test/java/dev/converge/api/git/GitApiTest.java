@@ -115,4 +115,29 @@ class GitApiTest extends IntegrationTest {
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.params.branch").value("feature/login"));
     }
+
+    @Test
+    void anImportCreatesNewFilesAndMergesChangedOnesAsTheRequester() throws Exception {
+        connect();
+        String existing = id(createFile(asha, workspace, null, "README.md", "FILE"));
+        String op = id(perform(asha, post("/api/v1/workspaces/" + workspace + "/git/pulls"), "{'idempotencyKey':'pull-1'}")
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.type").value("PULL"))
+                .andExpect(jsonPath("$.params.branch").value("main")));
+        // The worker would have claimed it.
+        jdbc.sql("update git_operations set status = 'RUNNING' where id = ?::uuid").param(op).update();
+
+        mvc.perform(post("/internal/git/operations/{id}/import", op).header(InternalTokenFilter.HEADER, INTERNAL_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json("{'files':[{'path':'README.md','text':'# from git\\n'},{'path':'src/app/main.ts','text':'export {}\\n'},{'path':'bad/../x','text':'x'}]}")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.created").value(1))
+                .andExpect(jsonPath("$.updated").value(1))
+                .andExpect(jsonPath("$.refused.length()").value(1));
+        // The changed file went through apply-text (the collaboration service), as an external change.
+        org.mockito.Mockito.verify(collab, org.mockito.Mockito.atLeastOnce())
+                .applyText(org.mockito.ArgumentMatchers.eq(UUID.fromString(existing)), org.mockito.ArgumentMatchers.eq("# from git\n"), org.mockito.ArgumentMatchers.anyString());
+        getAs(asha, "/api/v1/workspaces/{w}/tree", workspace)
+                .andExpect(jsonPath("$[?(@.path == 'src/app/main.ts')]").exists());
+    }
 }

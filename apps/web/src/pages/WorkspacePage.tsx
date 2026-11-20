@@ -397,7 +397,7 @@ export default function WorkspacePage() {
           <button type="button" className="ghost" onClick={() => setShowMembers(true)}>Members</button>
         )}
       </TopBar>
-      {showGit && workspace && <GitDialog workspace={workspace} onClose={() => setShowGit(false)} />}
+      {showGit && workspace && <GitDialog workspace={workspace} refreshSignal={agentSignal} onClose={() => setShowGit(false)} />}
       {showMembers && workspace && user && (
         <MembersDialog workspace={workspace} currentUserId={user.id} onClose={() => setShowMembers(false)} onLeft={() => navigate('/')} />
       )}
