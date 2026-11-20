@@ -259,3 +259,9 @@ Decisions made while working autonomously, newest last. Each entry says what was
   CI runs it after the end-to-end tests and publishes the report as the job summary and an artifact; it fails if the replicas do not converge. `docs/BASELINE.md` records the first run.
 - **Not done**: OpenTelemetry tracing across services; Toxiproxy fault injection (the chaos step restarts the service instead); a daily per-member cost cap; signed, auto-updating desktop builds, which need the owner's code-signing certificates.
 - **A CI-only surprise**: GitHub Actions defines `GITHUB_API_URL` itself, and a workflow cannot override `GITHUB_*` variables. So the stack's worker called the real api.github.com with the fake test token (a harmless 401, but the wrong host). The Compose variable is now `CONVERGE_GITHUB_API_URL`, which maps to the worker's `GITHUB_API_URL` inside the container.
+- **First baseline (Phase 13 exit)**, recorded in `docs/BASELINE.md`:
+  - 40 clients with a 50–300 ms send delay: propagation p95 289 ms, which is the simulated network; the server adds about 1 ms;
+  - no update lost through reconnects and a restart of the collaboration service;
+  - 2.0 s to resync everyone after the restart;
+  - convergence within 0.5 s of typing stopping;
+  - $0.032 per scripted agent turn, matching the ledger exactly.
