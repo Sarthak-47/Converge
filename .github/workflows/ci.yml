@@ -89,6 +89,7 @@ jobs:
       - name: Slow and cut connections between services (design §22.6)
         run: |
           set -o pipefail
+          mkdir -p .tmp
           node tests/chaos/faults.mjs | tee .tmp/faults.md
           cat .tmp/faults.md >> "$GITHUB_STEP_SUMMARY"
       - if: always()
