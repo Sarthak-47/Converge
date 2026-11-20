@@ -16,7 +16,7 @@ import { TopBar } from '../components/TopBar.tsx'
 import { CollabDocument, type Peer, type SyncState } from '../editor/collabDocument.ts'
 import { monaco } from '../editor/monaco.ts'
 import { useWorkspaceChannel, type ChatMessage, type WorkspaceEvent } from '../realtime/workspaceChannel.ts'
-import { BrandMark } from '../components/Icon.tsx'
+import { BrandMark, Icon } from '../components/Icon.tsx'
 
 const CodeEditor = lazy(() => import('../editor/CodeEditor.tsx'))
 const HistoryView = lazy(() => import('../editor/HistoryView.tsx'))
@@ -401,10 +401,10 @@ export default function WorkspacePage() {
         <PresenceAvatars online={channel.online} />
         {workspace && <SyncControl workspaceId={workspace.id} />}
         {workspace && (
-          <button type="button" className="ghost" onClick={() => setShowGit(true)}>Repository</button>
+          <button type="button" className="ghost" onClick={() => setShowGit(true)}><Icon name="branch" size={15} /><span className="btn-label">Repository</span></button>
         )}
         {workspace && (
-          <button type="button" className="ghost" onClick={() => setShowMembers(true)}>Members</button>
+          <button type="button" className="ghost" onClick={() => setShowMembers(true)}><Icon name="people" size={15} /><span className="btn-label">Members</span></button>
         )}
       </TopBar>
       {showGit && workspace && <GitDialog workspace={workspace} refreshSignal={agentSignal} onClose={() => setShowGit(false)} />}
@@ -472,7 +472,7 @@ export default function WorkspacePage() {
               <li key={note.id} className={note.status === 'STALE' ? 'stale' : ''}>
                 <button type="button" className="link small" disabled={!range}
                   onClick={() => range && setReveal({ ...range, key: `${note.id}-${Date.now()}` })}>
-                  📌 {note.kind.toLowerCase()}: {note.body}
+                  <Icon name="pin" size={13} /> {note.kind.toLowerCase()}: {note.body}
                 </button>
                 {note.status === 'STALE' && <span className="muted small"> (stale: its code changed; rewrite or retire it)</span>}
               </li>

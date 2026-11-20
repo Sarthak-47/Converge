@@ -1068,6 +1068,7 @@ button.link {
 
 .sidebar {
   overflow: auto;
+  scroll-padding-top: 44px;
   background: var(--rail);
   border-right: 1px solid var(--border);
 }
@@ -1354,6 +1355,10 @@ button.link {
 }
 
 .tree-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--rail);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -2171,6 +2176,40 @@ select {
 
   .topbar-middle:empty {
     display: none;
+  }
+
+  /* Repository and Members become icon buttons, so the bar stays at two rows. */
+  .topbar .btn-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  /* The connection state gets the whole status row. */
+  .statusbar > span:not([data-sync]) {
+    display: none;
+  }
+
+  /* A short workspace name never truncates: pills wrap under it instead. */
+  .workspace-list li {
+    flex-wrap: wrap;
+  }
+
+  .workspace-link {
+    flex-basis: 100%;
+    padding-bottom: 6px;
+  }
+
+  .workspace-title {
+    overflow: visible;
+    white-space: normal;
+  }
+
+  .workspace-meta {
+    padding: 0 18px 14px 74px;
   }
 
   .statusbar > * {
