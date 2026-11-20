@@ -247,16 +247,16 @@ Spacing is a tight 4px-based rhythm: 4 / 6 / 8 / 12 / 16 in rails and rows, 24 t
 
 ## Elevation & Depth
 
-Depth is physical and limited to two jobs: sheets rest on the lid, stickers lift off it. Sheets carry a soft, long, low-opacity shadow; stickers carry a short tight lift plus their die-cut ring. Flat everywhere else: rows, banners and pills have no shadow.
+Depth has one job: stickers lift off the lid. Only stickers cast a shadow, a short tight lift plus their die-cut ring. Sheets, rows, banners and pills are flat and separated by hairlines; an active row or version is a ruled chip (an inset 1.5px ink line), and the active tab is an ink fill.
 
 ### Shadow Vocabulary
-- **Lift** (`0 6px 14px -5px rgb(22 23 26 / 0.45), 0 1px 2px rgb(22 23 26 / 0.18)`; dark `0 7px 16px -5px rgb(0 0 0 / 0.75), 0 1px 2px rgb(0 0 0 / 0.5)`): under every sticker, and under the active tab, active tree row and active history version, which read as a sheet peeled up.
-- **Sheet** (`0 1px 0 rgb(255 255 255 / 0.7) inset, 0 10px 30px -18px rgb(22 23 26 / 0.45)`; dark `0 12px 34px -16px rgb(0 0 0 / 0.8)`): cards, lane sheets, the create form, the services list.
+- **Lift** (`0 6px 14px -5px rgb(22 23 26 / 0.45), 0 1px 2px rgb(22 23 26 / 0.18)`; dark `0 7px 16px -5px rgb(0 0 0 / 0.75), 0 1px 2px rgb(0 0 0 / 0.5)`): under every sticker, and nowhere else.
+- **Sheet** (`none`): cards, lanes, the create form and the services list are flat, with a hairline border. Hovering shadows on panels read as generated UI and were removed on purpose.
 - **Die cut** (`0 0 0 2.5px` die colour, 4px on sign-in stickers): the white border every sticker wears, composed before Lift.
 - **Focus ring** (`0 0 0 2px` surface, `0 0 0 4px` ink): every focusable element; inputs instead get an ink border with a 3px lemon halo.
 
 ### Named Rules
-**The Sticker Or Sheet Rule.** An element lifts only if it is a sticker (an identity) or a sheet (a surface on the lid). Nothing else casts a shadow.
+**The Only Stickers Lift Rule.** An element casts a shadow only if it is a sticker (an identity or the brand). Tilt follows the same rule: working rows, chat avatars and workspace tiles stay straight. A pill always means a state; plain labels such as roles are text.
 
 ## Shapes
 
