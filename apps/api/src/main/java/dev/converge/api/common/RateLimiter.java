@@ -11,8 +11,10 @@ import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Component;
 
 /**
- * Fixed-window rate limits in Redis (design §14), shared by every API instance. Each check is one atomic
- * script: count this request in the current window and report how many came before. When Redis is
+ * Sliding-window rate limits in Redis (design §14), shared by every API instance. Each check is one atomic
+ * script that counts the request in the current window and reads the previous one; the estimate weights the
+ * previous window by how much of it still overlaps the last {@code window}. Unlike fixed windows, a burst at
+ * a window boundary cannot get twice the limit through. When Redis is
  * unavailable the limit is skipped and logged: availability wins over throttling, and the database-backed
  * rules (single-use tickets, approvals, compare-and-set) still hold.
  */
@@ -24,11 +26,13 @@ public class RateLimiter {
     }
 
     private static final Logger log = LoggerFactory.getLogger(RateLimiter.class);
-    private static final DefaultRedisScript<Long> COUNT = new DefaultRedisScript<>("""
-            local n = redis.call('INCR', KEYS[1])
-            if n == 1 then redis.call('PEXPIRE', KEYS[1], ARGV[1]) end
-            return n
-            """, Long.class);
+    @SuppressWarnings("rawtypes")
+    private static final DefaultRedisScript<List> COUNT = new DefaultRedisScript<>("""
+            local current = redis.call('INCR', KEYS[1])
+            if current == 1 then redis.call('PEXPIRE', KEYS[1], ARGV[1]) end
+            local previous = tonumber(redis.call('GET', KEYS[2]) or '0')
+            return {current, previous}
+            """, List.class);
 
     private final StringRedisTemplate redis;
     private final ConvergeMetrics metrics;
@@ -45,19 +49,26 @@ public class RateLimiter {
     public void check(Limit limit, String subject) {
         if (scale <= 0) return;
         long windowMs = limit.window().toMillis();
-        long window = System.currentTimeMillis() / windowMs;
-        String key = "rl:" + limit.bucket() + ":" + subject + ":" + window;
-        Long count;
+        long now = System.currentTimeMillis();
+        long window = now / windowMs;
+        String prefix = "rl:" + limit.bucket() + ":" + subject + ":";
+        List<?> counts;
         try {
-            count = redis.execute(COUNT, List.of(key), String.valueOf(windowMs));
+            // Kept for two windows, so the next window can still read this one as its previous.
+            counts = redis.execute(COUNT, List.of(prefix + window, prefix + (window - 1)), String.valueOf(windowMs * 2));
         } catch (RuntimeException e) {
             log.warn("Rate limit {} skipped: Redis unavailable ({})", limit.bucket(), e.getMessage());
             return;
         }
+        if (counts == null || counts.size() < 2) return;
+        long current = ((Number) counts.get(0)).longValue();
+        long previous = ((Number) counts.get(1)).longValue();
+        double overlap = 1.0 - (double) (now % windowMs) / windowMs;
+        double estimate = previous * overlap + current;
         int max = (int) Math.max(1, Math.round(limit.max() * scale));
-        if (count != null && count > max) {
+        if (estimate > max) {
             metrics.rateLimited(limit.bucket());
-            long retryAfterMs = (window + 1) * windowMs - System.currentTimeMillis();
+            long retryAfterMs = (window + 1) * windowMs - now;
             throw new RateLimitedException(Math.max(1, (retryAfterMs + 999) / 1000));
         }
     }

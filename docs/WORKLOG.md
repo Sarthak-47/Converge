@@ -239,7 +239,7 @@ Decisions made while working autonomously, newest last. Each entry says what was
   - `external_changes_applied_total{reason}`, update sizes;
   - rate-limited closes, memory checks, and the default Node process metrics.
 - **Per-connection limits in the collaboration service** (design §7.4): token buckets of 100 messages/s with a burst of 400, and 1 MB/s with a burst of 4 MB. A client beyond them is closed with 4429. Hocuspocus closes with the code thrown from `beforeHandleMessage`, which was checked in its source.
-- **API rate limits** are fixed windows in Redis, one atomic script per check, shared by every API instance:
+- **API rate limits** are sliding windows in Redis (the current count plus the previous window weighted by its remaining overlap), one atomic script per check, shared by every API instance. They started as fixed windows; `RateLimitTest` then failed in CI because its attempts straddled a window boundary, which is exactly the hole a fixed window leaves (twice the limit around boundaries). The limits cover:
   - sign-in, per email and per client address (`forward-headers-strategy: native`, so the address comes from nginx);
   - sign-up, per address;
   - agent prompts, per member (each spends their key);
