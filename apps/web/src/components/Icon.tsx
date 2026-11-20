@@ -39,14 +39,11 @@ export function Icon({ name, size = 16, className }: { name: IconName; size?: nu
   )
 }
 
-/** Converge's mark: three threads (people and agents) drawn into one line. */
-export function BrandMark({ size = 22 }: { size?: number }) {
+/** Converge's mark: the name as a die-cut lemon sticker, the first sticker on the lid. */
+export function BrandMark({ size = 15 }: { size?: number }) {
   return (
-    <svg className="brand-mark" width={size} height={size} viewBox="0 0 32 32" aria-hidden="true" focusable="false">
-      <path d="M3 6c8 0 10 10 15 10h11" fill="none" stroke="var(--thread-1)" strokeWidth="3" strokeLinecap="round" />
-      <path d="M3 16h26" fill="none" stroke="var(--thread-2)" strokeWidth="3" strokeLinecap="round" />
-      <path d="M3 26c8 0 10-10 15-10h11" fill="none" stroke="var(--thread-3)" strokeWidth="3" strokeLinecap="round" />
-      <circle cx="27" cy="16" r="3.2" fill="var(--signal)" />
-    </svg>
+    <span className="logo-sticker" style={{ fontSize: size }} aria-hidden="true">
+      CONVERGE
+    </span>
   )
 }

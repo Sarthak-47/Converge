@@ -1,9 +1,8 @@
 import { useState, type FormEvent } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router'
 import { useAuth } from '../auth.tsx'
-import { BrandMark } from '../components/Icon.tsx'
 import { ThemeSwitch } from '../components/ThemeSwitch.tsx'
-import { ThreadField } from '../components/ThreadField.tsx'
+import { StickerLid } from '../components/StickerLid.tsx'
 
 export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const { user, login, register } = useAuth()
@@ -38,11 +37,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   return (
     <main className="auth">
       <section className="auth-story">
-        <div className="auth-brand">
-          <BrandMark size={28} />
-          <span className="brand-word">Converge</span>
-        </div>
-        <ThreadField />
+        <StickerLid />
         <div className="auth-copy">
           <p className="auth-headline">Your team and its agents, typing in one live file.</p>
           <p className="auth-sub">Edit together, run tests behind named approvals, and open pull requests from shared sessions. Every change says who made it.</p>

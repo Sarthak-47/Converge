@@ -526,7 +526,7 @@ export default function WorkspacePage() {
         ) : (
           <div className="center editor-empty">
             <div className="editor-empty-inner">
-              <BrandMark size={56} />
+              <BrandMark size={26} />
               <p className="editor-empty-title">{files.length ? 'Select a file to start editing.' : 'Create a file to start editing.'}</p>
               <p className="muted small">Everyone here types into the same file. Cursors, lanes and turns carry each person's colour.</p>
             </div>

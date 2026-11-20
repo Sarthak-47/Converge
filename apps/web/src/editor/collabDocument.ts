@@ -14,9 +14,9 @@ function collabUrl() {
 }
 
 /** A stable, readable colour per user, so the same person looks the same in every tab. */
-// The thread palette (index.css --thread-1..6): reads on both themes and stays clear of the marigold signal and
-// the cyan accent. Kept as hsl() strings, the only form awareness validation accepts from other clients.
-const THREADS = ['hsl(12 85% 58%)', 'hsl(168 80% 38%)', 'hsl(252 90% 66%)', 'hsl(330 75% 56%)', 'hsl(212 100% 58%)', 'hsl(84 70% 42%)']
+// The sticker palette (index.css --sticker-1..6): one die-cut colour per person, all clear of lemon, which belongs to
+// primary actions and Live. Kept as hsl() strings, the only form awareness validation accepts from other clients.
+const THREADS = ['hsl(9 100% 59%)', 'hsl(230 100% 58%)', 'hsl(153 79% 43%)', 'hsl(333 100% 69%)', 'hsl(258 90% 66%)', 'hsl(195 100% 42%)']
 
 export function colorFor(userId: string) {
   let hash = 0
@@ -33,7 +33,7 @@ const SAFE_COLOR = /^hsl\(\d{1,3} \d{1,3}% \d{1,3}%\)$/
 function toPeer(clientId: number, state: Record<string, unknown>): Peer | null {
   const user = state.user as { name?: unknown; color?: unknown } | undefined
   if (!user || typeof user.name !== 'string') return null
-  const color = typeof user.color === 'string' && SAFE_COLOR.test(user.color) ? user.color : 'hsl(30 90% 50%)'
+  const color = typeof user.color === 'string' && SAFE_COLOR.test(user.color) ? user.color : 'hsl(220 8% 52%)'
   return { clientId, name: user.name.slice(0, 80), color }
 }
 

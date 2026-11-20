@@ -1,7 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { api, type Workspace } from '../api.ts'
-import { BrandMark, Icon } from '../components/Icon.tsx'
+import { Icon } from '../components/Icon.tsx'
+import { stickerStyle } from '../components/sticker.ts'
 import { TopBar } from '../components/TopBar.tsx'
 
 function monogram(name: string) {
@@ -35,7 +36,6 @@ export function WorkspacesPage() {
       <TopBar />
       <main className="content">
         <div className="page-head">
-          <span className="page-head-mark" aria-hidden="true"><BrandMark size={150} /></span>
           <h1>Workspaces</h1>
           <p className="muted">Each workspace is a shared set of files with its people, agents, sessions and history.</p>
         </div>
@@ -65,7 +65,7 @@ export function WorkspacesPage() {
             {workspaces.map((w) => (
               <li key={w.id}>
                 <Link to={`/w/${w.id}`} className="workspace-link">
-                  <span className="monogram" aria-hidden="true">{monogram(w.name)}</span>
+                  <span className="monogram" style={stickerStyle(w.id)} aria-hidden="true">{monogram(w.name)}</span>
                   <span className="workspace-title">{w.name}</span>
                 </Link>
                 <span className="workspace-meta">

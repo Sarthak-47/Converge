@@ -383,6 +383,13 @@ function SessionView({ workspaceId, currentUser, role, refreshSignal, jobSignal,
               : `Prompt your agent. Uses ${currentUser.displayName}'s API key (${key.hint}).`}
             {spend && <span className="muted"> Last 24 h: ${(spend.spentMicros / 1e6).toFixed(2)} of ${(spend.dailyCapMicros / 1e6).toFixed(2)}.</span>}
           </label>
+          {spend && spend.dailyCapMicros > 0 && (
+            // The day's budget as a fixed-capacity tape: it fills, and it cannot overflow.
+            <div className="budget-tape" role="meter" aria-label="Agent spend in the last 24 hours"
+              aria-valuemin={0} aria-valuemax={spend.dailyCapMicros} aria-valuenow={Math.min(spend.spentMicros, spend.dailyCapMicros)}>
+              <i style={{ width: `${Math.min(100, (spend.spentMicros / spend.dailyCapMicros) * 100)}%` }} />
+            </div>
+          )}
           <textarea
             id="agent-prompt"
             rows={3}

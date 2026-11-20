@@ -18,7 +18,6 @@ export function TopBar({ children }: { children?: ReactNode }) {
     <header className="topbar">
       <Link to="/" className="brand" aria-label="Converge, all workspaces">
         <BrandMark />
-        <span className="brand-word">Converge</span>
       </Link>
       <div className="topbar-middle">{children}</div>
       <div className="topbar-user">

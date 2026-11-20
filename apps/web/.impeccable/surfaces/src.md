@@ -7,19 +7,20 @@ related_targets: []
 
 # Converge web app (workspace IDE, workspaces list, sign-in)
 
-Mode: Operate (sign-in carries a brand moment). Audience: teams and their coding agents in long sessions.
-Constraint: e2e selectors (class names, roles, accessible names, `.connection` text) unchanged.
+Mode: Operate (sign-in carries the brand moment). Audience: dev teams and their coding agents in long sessions.
+Constraint: e2e selectors (class names, roles, accessible names, `.connection` text "Live") unchanged.
+Replaces the cyanotype world, which the owner judged generic ("the ui still looks like ai slop").
 
 ## Direction contract
 
-THESIS: Converge is many threads, people and agents, braided into one file. The interface is a calm cyanotype instrument and the colour lives in the threads (cursors, avatars, lanes, turns), refusing the default blue-accent SaaS grey with colour scattered on buttons.
+THESIS: Every person and every agent in a workspace is a die-cut sticker slapped onto the work: on cursors, avatars, lanes and turns, you see who is in the file the way you read a laptop lid. Refuses the grey IDE with one blue accent and the gradient-banner SaaS look.
 
-OWN-WORLD: Cyanotype. Dark: Prussian night ground (deep blue-black), panels a step lighter, hairlines in blueprint blue. Light: cool blueprint paper, white sheets, Prussian ink. One marigold signal reserved for primary actions and live state; cyan-blue for focus, links and selection. Bricolage Grotesque for brand and headings, Geist for UI, JetBrains Mono for code, IDs and the status line. Pills for state, full-tint borders, no side bars.
+OWN-WORLD: Sticker Lid. Graphite lid shell in dark, brushed-aluminium shell in light, with the editor as the flattest, quietest sheet. Die-cut vinyl stickers: saturated flat colour, white die-cut border, soft lift shadow, a slight deterministic tilt. Six sticker colours belong to people (tomato, cobalt, mint, pink, violet, sky); lemon belongs only to primary actions and Live. Archivo (wide, heavy) only on stickers, brand and the workspace name; Figtree for UI; JetBrains Mono for code and data. One strict type scale (12/14/17/22/30), rank by weight and case. Raises: state by shape, never a person's colour (from Emission-Line Rail); one strict type scale (from Timetable Slide Rack); each member's agent budget is a fixed-capacity tape (from Cassette J-Card); the open file owns the stage (from Vertical Feed).
 
-STORY: The visitor sees who is here and what each thread is doing, edits without fear, and acts on approvals and takeovers with clear state.
+STORY: People open a workspace and see at a glance who and which agents are in the file; they edit, steer, approve and take over with every state readable by shape.
 
-FIRST VIEWPORT: Sign-in: left two-thirds a drawn field of coloured threads converging to one line beside the headline; right, the form on a sheet with a marigold primary. IDE: thin top bar with mark, workspace name in display face, live pill; tinted file rail; editor; segmented side panel.
+FIRST VIEWPORT: As the chosen sketch (.impeccable/mocks/decision/assigned.html): 56px graphite top bar with the lemon CONVERGE sticker tilted, the workspace name in Archivo, owner pill, lemon Live pill, presence stickers; 248px file rail; editor stage with sticker flags on remote cursors; 360px side panel with segmented tabs and lane cards headed by tilted lane stickers and the budget tape. Sign-in: the lid itself, stickers slapped on beside the headline, form on the right.
 
-FORM: delegated by the owner, then approved after seeing the first build ("i like where you are going with this", then "go ahead with all of it, bolder colour too"). seed: none (pinned) by the owner's approval of the built direction: "i like where you are going with this".
+FORM: Sticker Lid, the roll's assigned direction (grounded candidate 5), chosen by the owner on the decision page. seed:655244b03dffe853
 
 FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
