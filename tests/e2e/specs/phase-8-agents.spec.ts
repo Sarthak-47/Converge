@@ -63,7 +63,7 @@ test("a teammate's agent edits alongside a person, and reverting its turn keeps 
 
   const turn = page.locator('.agent-turn').last()
   await expect(turn.locator('.agent-status')).toHaveText('Done', { timeout: 30_000 })
-  await expect(turn).toContainText('✓ edited app.ts')
+  await expect(turn.locator('.agent-tool.ok', { hasText: 'edited app.ts' })).toBeVisible()
   await expect(turn).toContainText('on Asha\'s key')
   for (const p of [page, ben.page]) {
     await expect.poll(() => editorText(p), { timeout: 20_000 }).toContain('fromAgent')

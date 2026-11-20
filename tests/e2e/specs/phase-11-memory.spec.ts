@@ -103,7 +103,7 @@ test('agents pin notes and stay out of ranges people hold', async ({ page }) => 
   const lane = page.getByLabel("Asha's lane")
   await expect(lane.locator('.agent-status').last()).toHaveText('Done', { timeout: 30_000 })
   await expect(lane).toContainText('held by Asha (migrating the gateway)')
-  await expect(lane).toContainText('✓ pinned a note to pay.ts')
+  await expect(lane.locator('.agent-tool.ok', { hasText: 'pinned a note to pay.ts' })).toBeVisible()
   expect(await editorText(page)).toContain('legacyGateway')
 
   await page.getByRole('tab', { name: 'Memory' }).click()

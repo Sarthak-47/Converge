@@ -71,7 +71,7 @@ test('an agent runs the tests only after a named approval, inside the sandbox', 
   }
   const lane = page.getByLabel("Asha's lane")
   await expect(lane.locator('.agent-status').last()).toHaveText('Done', { timeout: 30_000 })
-  await expect(lane).toContainText('✓ ran node --test tests/math.test.js (exit 0)')
+  await expect(lane.locator('.agent-tool.ok', { hasText: 'ran node --test tests/math.test.js (exit 0)' })).toBeVisible()
 
   // The card is decided: it offers no second answer (the API refuses one too).
   await expect(bensCard.getByRole('button', { name: 'Approve' })).toHaveCount(0)
@@ -94,6 +94,6 @@ test('a denied command never runs', async ({ page }) => {
   await expect(card).toContainText('Denied by Asha')
   const lane = page.getByLabel("Asha's lane")
   await expect(lane.locator('.agent-status').last()).toHaveText('Done', { timeout: 30_000 })
-  await expect(lane).toContainText('✗ run_command: "npm test" was denied by Asha; it did not run.')
+  await expect(lane.locator('.agent-tool.failed', { hasText: 'run_command: "npm test" was denied by Asha; it did not run.' })).toBeVisible()
   await expect(card.getByLabel('Job output')).toHaveCount(0)
 })

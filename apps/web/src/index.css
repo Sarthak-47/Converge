@@ -171,6 +171,16 @@ pre {
   font-weight: 600;
 }
 
+/* Text for assistive technology only. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .center {
   display: grid;
   place-items: center;

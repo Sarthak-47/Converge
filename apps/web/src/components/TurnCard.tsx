@@ -38,7 +38,7 @@ export function TurnCard({ turn, currentUserId, canEdit, busy, onStop, onRevert,
       {turn.events.map((e) => {
         if (e.kind === 'prompt') return <p key={e.seq} className="agent-prompt"><span className="muted">{turn.sponsorName}:</span> {e.text}</p>
         if (e.kind === 'steer') return <p key={e.seq} className="agent-prompt"><span className="muted">{turn.sponsorName} (steering):</span> {e.text}</p>
-        if (e.kind === 'tool') return <p key={e.seq} className={`agent-tool ${e.ok ? 'ok' : 'failed'}`}><Icon name={e.ok ? 'check' : 'cross'} size={13} /> {e.summary}</p>
+        if (e.kind === 'tool') return <p key={e.seq} className={`agent-tool ${e.ok ? 'ok' : 'failed'}`}><Icon name={e.ok ? 'check' : 'cross'} size={13} /><span className="sr-only">{e.ok ? 'Done: ' : 'Failed: '}</span>{e.summary}</p>
         if (e.kind === 'note') return <p key={e.seq} className="agent-note muted">{e.text}</p>
         if (e.kind === 'approval') return <div key={e.seq}>{e.approvalId && renderApproval?.(e.approvalId)}</div>
         return <p key={e.seq} className="agent-text">{e.text}</p>
