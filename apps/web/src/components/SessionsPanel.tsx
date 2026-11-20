@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { api, type AgentTurn, type Approval, type Comment, type GitOperation, type Overlap, type PlanStep, type Role, type SessionCard, type SessionDetail } from '../api.ts'
 import { ApprovalCard } from './ApprovalCard.tsx'
+import { askText } from './askText.tsx'
 import { AgentKeyForm, TurnCard } from './TurnCard.tsx'
 import { errorMessage, useAgentKey } from './agentKit.ts'
 
@@ -193,19 +194,24 @@ function SessionView({ workspaceId, currentUser, role, refreshSignal, jobSignal,
     }, 'Could not take over')
   }
 
-  function handOff() {
+  async function handOff() {
     const candidates = session.participants.filter((p) => p.userId !== currentUser.id && p.mode === 'LANE')
     if (candidates.length === 0) {
       setError('Ask a teammate to join with a lane first; sessions are handed to lane participants.')
       return
     }
-    const name = window.prompt(`Hand the session to: ${candidates.map((c) => c.displayName).join(', ')}`, candidates[0]!.displayName)
-    const target = candidates.find((c) => c.displayName === name?.trim())
+    const name = await askText({
+      title: 'Hand off the session',
+      label: `Hand it to: ${candidates.map((c) => c.displayName).join(', ')}`,
+      initial: candidates[0]!.displayName,
+      submitLabel: 'Hand off',
+    })
+    const target = candidates.find((c) => c.displayName === name)
     if (target) void run(() => api.handOff(sessionId, target.userId, session.rowVersion), 'Could not hand the session over')
   }
 
-  function commentOn(target: { turnId?: string; stepId?: string }) {
-    const body = window.prompt('Comment')?.trim()
+  async function commentOn(target: { turnId?: string; stepId?: string }) {
+    const body = await askText({ title: 'Comment', label: 'Comment', multiline: true })
     if (!body) return
     void run(() => api.addComment(workspaceId, {
       targetKind: target.turnId ? 'TURN' : 'PLAN_STEP', sessionId, ...target, body,
@@ -233,7 +239,7 @@ function SessionView({ workspaceId, currentUser, role, refreshSignal, jobSignal,
         {!done && !me && <button type="button" className="ghost" disabled={busy} onClick={() => void run(() => api.joinSession(sessionId, 'WATCH'), 'Could not join')}>Watch</button>}
         {!done && canEdit && me?.mode !== 'LANE' && <button type="button" className="ghost" disabled={busy} onClick={() => void run(() => api.joinSession(sessionId, 'LANE'), 'Could not join')}>Join with my agent</button>}
         {!done && canEdit && !isDriver && key?.configured && <button type="button" className={session.status === 'AWAITING_TAKEOVER' ? 'primary' : 'ghost'} disabled={busy} onClick={takeOver}>Take over</button>}
-        {!done && isDriver && <button type="button" className="ghost" disabled={busy} onClick={handOff}>Hand off</button>}
+        {!done && isDriver && <button type="button" className="ghost" disabled={busy} onClick={() => void handOff()}>Hand off</button>}
         {!done && (isDriver || role === 'OWNER') && hasRepository && (
           <button type="button" className="primary" disabled={busy} onClick={() => void run(async () => {
             // A finished session is closed by a pull request (design §10, Phase 12). The key makes a retry safe.
@@ -295,7 +301,7 @@ function SessionView({ workspaceId, currentUser, role, refreshSignal, jobSignal,
                     <button type="button" className="ghost" disabled={busy} onClick={() => void run(() => api.updateStep(step, step.status, true), 'Could not hand back the step')}>Hand back</button>
                   </>
                 )}
-                {canComment && <button type="button" className="ghost" onClick={() => commentOn({ stepId: step.id })} aria-label={`Comment on step ${step.position}`}>💬</button>}
+                {canComment && <button type="button" className="ghost" onClick={() => void commentOn({ stepId: step.id })} aria-label={`Comment on step ${step.position}`}>💬</button>}
               </span>
             </li>
           ))}
@@ -330,7 +336,7 @@ function SessionView({ workspaceId, currentUser, role, refreshSignal, jobSignal,
                 ))}
               </ol>
               {canComment && laneTurns.length > 0 && (
-                <button type="button" className="link small" onClick={() => commentOn({ turnId: laneTurns.at(-1)!.id })}>Comment on the latest turn</button>
+                <button type="button" className="link small" onClick={() => void commentOn({ turnId: laneTurns.at(-1)!.id })}>Comment on the latest turn</button>
               )}
             </div>
           )

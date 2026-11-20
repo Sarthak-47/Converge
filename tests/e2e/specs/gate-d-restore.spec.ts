@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import {
+  answer,
   createFile,
   createWorkspace,
   editorText,
@@ -24,9 +25,9 @@ test('restoring a version keeps edits made concurrently with the restore', async
   await createFile(page, 'chapter.md')
   await typeAtEnd(page, 'chapter one')
   await waitUntilSaved(page)
-
-  page.once('dialog', (dialog) => void dialog.accept('first draft'))
   await page.getByRole('button', { name: 'Checkpoint' }).click()
+
+  await answer(page, 'first draft')
   await expect(page.locator('.notice-banner')).toContainText('Saved checkpoint v1')
 
   await typeAtEnd(page, ' rewritten later')

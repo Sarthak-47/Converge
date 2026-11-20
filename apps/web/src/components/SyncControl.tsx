@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { desktop, type SyncEvent } from '../desktop.ts'
+import { askText } from './askText.tsx'
 
 function describe(event: SyncEvent): string {
   switch (event.type) {
@@ -58,7 +59,7 @@ export function SyncControl({ workspaceId }: { workspaceId: string }) {
   }
 
   async function commitAndPush() {
-    const message = window.prompt('Commit message')?.trim()
+    const message = await askText({ title: 'Commit & push', label: 'Commit message', multiline: true, submitLabel: 'Commit & push' })
     if (!message) return
     setError(null)
     try {

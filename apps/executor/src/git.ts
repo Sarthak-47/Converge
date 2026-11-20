@@ -80,6 +80,11 @@ export class GitWorker {
       const base = `refs/remotes/origin/${target.defaultBranch}`
       const fetched = await git(['fetch', '-q', '--depth=50', 'origin', `+refs/heads/${target.defaultBranch}:${base}`], { allowFailure: true })
       const hasBase = fetched.code === 0
+      // Only a missing branch means "empty repository"; anything else (authentication, network, a server
+      // that cannot serve Git) is reported as the failure it is.
+      if (!hasBase && !/couldn't find remote ref|could not find remote ref/i.test(fetched.stderr)) {
+        throw new GitError(`Could not fetch from the repository: ${redact(fetched.stderr.trim().split('\n').at(-1) ?? 'unknown error')}`, redact(log.join('')))
+      }
       if (!hasBase && request.type === 'PULL_REQUEST') {
         throw new GitError(`The repository has no ${target.defaultBranch} branch to open a pull request against`, redact(log.join('')))
       }

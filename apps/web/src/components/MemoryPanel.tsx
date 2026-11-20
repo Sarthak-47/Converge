@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api, type Memory, type RangeLock, type Role } from '../api.ts'
 import { errorMessage } from './agentKit.ts'
+import { askText } from './askText.tsx'
 
 type Props = {
   workspaceId: string
@@ -81,10 +82,10 @@ export function MemoryPanel({ workspaceId, currentUserId, role, refreshSignal, o
               )}
               {canWrite && (
                 <div className="comment-actions">
-                  <button type="button" className="link small" onClick={() => {
-                    const body = window.prompt('Rewrite the note', note.body)?.trim()
-                    if (body) void act(() => api.updateMemory(note, body), 'Could not update the note')
-                  }}>Edit</button>
+                  <button type="button" className="link small" onClick={() => void (async () => {
+                    const body = await askText({ title: 'Edit note', label: 'Rewrite the note', initial: note.body, multiline: true, submitLabel: 'Save' })
+                    if (body) await act(() => api.updateMemory(note, body), 'Could not update the note')
+                  })()}>Edit</button>
                   <button type="button" className="link small" onClick={() => void act(() => api.retireMemory(note), 'Could not retire the note')}>Retire</button>
                 </div>
               )}

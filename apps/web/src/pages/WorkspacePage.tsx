@@ -6,6 +6,7 @@ import { MemoryPanel } from '../components/MemoryPanel.tsx'
 import { useAuth } from '../auth.tsx'
 import { ChatPanel } from '../components/ChatPanel.tsx'
 import { FileTree } from '../components/FileTree.tsx'
+import { askText } from '../components/askText.tsx'
 import { GitDialog } from '../components/GitDialog.tsx'
 import { MembersDialog } from '../components/MembersDialog.tsx'
 import { PresenceAvatars } from '../components/PresenceAvatars.tsx'
@@ -297,10 +298,10 @@ export default function WorkspacePage() {
     }
   }
 
-  async function onSelection(what: string, ask: string, save: (target: { fileId: string; anchor: Anchor; quote: string }, text: string) => Promise<unknown>) {
+  async function onSelection(what: string, title: string, ask: string, save: (target: { fileId: string; anchor: Anchor; quote: string }, text: string) => Promise<unknown>) {
     const target = selectionAnchor(what)
     if (!target) return
-    const text = window.prompt(ask)?.trim()
+    const text = await askText({ title, label: ask, multiline: true })
     if (!text) return
     try {
       await save(target, text)
@@ -311,13 +312,13 @@ export default function WorkspacePage() {
   }
 
   function commentOnSelection() {
-    void onSelection('comment on', 'Comment on the selected code', (t, body) =>
+    void onSelection('comment on', 'Comment', 'Comment on the selected code', (t, body) =>
       api.addComment(workspaceId, { targetKind: 'FILE_RANGE', sessionId: openSession, fileId: t.fileId, anchor: t.anchor, quote: t.quote, body }))
   }
 
   /** "gotcha: …", "decision: …" or "convention: …" sets the note's kind. */
   function noteOnSelection() {
-    void onSelection('pin a note to', 'Note for teammates and agents (start with "decision:", "gotcha:" or "convention:" to set its kind)', (t, text) => {
+    void onSelection('pin a note to', 'Note', 'Note for teammates and agents (start with "decision:", "gotcha:" or "convention:" to set its kind)', (t, text) => {
       const match = /^(decision|gotcha|convention)\s*:\s*/i.exec(text)
       const kind = (match ? match[1]!.toUpperCase() : 'NOTE') as MemoryKind
       return api.createMemory(workspaceId, { fileId: t.fileId, kind, body: match ? text.slice(match[0].length) : text, anchor: t.anchor, anchoredText: t.quote })
@@ -325,13 +326,14 @@ export default function WorkspacePage() {
   }
 
   function holdSelection() {
-    void onSelection('hold', 'Why are you holding this code? Agents will leave it alone for two hours.', (t, reason) =>
+    void onSelection('hold', 'Hold this code', 'Why are you holding this code? Agents will leave it alone for two hours.', (t, reason) =>
       api.holdRange(workspaceId, { fileId: t.fileId, anchor: t.anchor, quote: t.quote, reason }))
   }
 
   async function createCheckpoint() {
     if (!activeId) return
-    const label = window.prompt('Name this checkpoint (optional)') ?? undefined
+    const label = await askText({ title: 'Checkpoint', label: 'Name this checkpoint (optional)', optional: true, submitLabel: 'Save checkpoint' })
+    if (label === null) return
     try {
       const version = await api.checkpoint(activeId, label || undefined)
       setNotice(`Saved checkpoint v${version.versionNo}.`)

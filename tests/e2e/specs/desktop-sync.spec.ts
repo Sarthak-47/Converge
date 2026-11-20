@@ -4,7 +4,7 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 import { _electron as electron, expect, test } from '@playwright/test'
-import { createFile, createWorkspace, editorText, register, typeAtEnd, uniqueEmail, waitUntilSaved } from './helpers.ts'
+import { answer, createFile, createWorkspace, editorText, register, typeAtEnd, uniqueEmail, waitUntilSaved } from './helpers.ts'
 
 /**
  * The desktop app end to end (design §12, Phase 7): sign in inside the real Electron app, start syncing a
@@ -64,8 +64,8 @@ test('the desktop app mirrors a workspace into a local folder, both ways', async
     await expect.poll(() => readFile(onDisk, 'utf8'), { timeout: 20_000 }).toContain('typed after sync')
 
     // Commit and push from the app: the commit holds what the team sees, and Converge's state stays out.
-    window.once('dialog', (dialog) => void dialog.accept('Add app.ts from Converge'))
     await window.getByRole('button', { name: 'Commit & push' }).click()
+    await answer(window, 'Add app.ts from Converge')
     await expect(window.locator('.sync-control [role="status"]')).toContainText('and pushed', { timeout: 30_000 })
     expect(git(origin, 'log', '-1', '--format=%an|%s', 'main').trim()).toBe('Desktop Tester|Add app.ts from Converge')
     expect(git(origin, 'show', 'main:app.ts')).toContain('typed after sync')

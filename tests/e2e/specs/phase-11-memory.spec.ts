@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type Page } from '@playwright/test'
-import { createFile, createWorkspace, editorText, openFile, register, typeAtEnd, typeAtStart, uniqueEmail, waitUntilSaved } from './helpers.ts'
+import { answer, createFile, createWorkspace, editorText, openFile, register, typeAtEnd, typeAtStart, uniqueEmail, waitUntilSaved } from './helpers.ts'
 
 /**
  * Phase 11 exit (design §13.10, §13.11): a note follows its code through edits and is flagged when that code is
@@ -44,8 +44,8 @@ test('a note follows its code through edits and is flagged when that code is rew
   await openFile(page, 'retry.ts')
 
   await selectFirstLine(page)
-  page.once('dialog', (dialog) => void dialog.accept('gotcha: Upstream allows three calls per minute'))
   await page.getByRole('button', { name: 'Note', exact: true }).click()
+  await answer(page, 'gotcha: Upstream allows three calls per minute')
   await expect(page.getByLabel('Notes on this file')).toContainText('gotcha: Upstream allows three calls per minute')
   await expect.poll(() => under(page, '.memory-range')).toBe('export const retryLimit = 3')
 
@@ -68,8 +68,8 @@ test('a note follows its code through edits and is flagged when that code is rew
   await expect(page.getByLabel('Notes on this file')).toContainText('stale: its code changed')
 
   // Rewriting the note keeps it; retiring it removes it from the list.
-  page.once('dialog', (dialog) => void dialog.accept('The limit now comes from config'))
   await note.getByRole('button', { name: 'Edit' }).click()
+  await answer(page, 'The limit now comes from config')
   await expect(page.getByLabel(/Note on retry.ts: The limit now comes from config/)).toBeVisible()
   await page.getByLabel(/Note on retry.ts/).getByRole('button', { name: 'Retire' }).click()
   await expect(page.getByLabel(/Note on retry.ts/)).toHaveCount(0)
@@ -86,8 +86,8 @@ test('agents pin notes and stay out of ranges people hold', async ({ page }) => 
   await waitUntilSaved(page)
 
   await selectFirstLine(page)
-  page.once('dialog', (dialog) => void dialog.accept('migrating the gateway'))
   await page.getByRole('button', { name: 'Hold', exact: true }).click()
+  await answer(page, 'migrating the gateway')
   await expect(page.getByLabel('Notes on this file')).toContainText('Held by Asha: migrating the gateway')
 
   await page.getByRole('tab', { name: 'Sessions' }).click()

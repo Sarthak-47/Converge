@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type Page } from '@playwright/test'
-import { createFile, createWorkspace, editorText, openFile, register, typeAtEnd, typeAtStart, uniqueEmail, waitUntilSaved } from './helpers.ts'
+import { answer, createFile, createWorkspace, editorText, openFile, register, typeAtEnd, typeAtStart, uniqueEmail, waitUntilSaved } from './helpers.ts'
 
 /**
  * Phase 9 exit (design §13.3, §13.8, §13.9): two members' agents work one session, and a takeover race has
@@ -136,8 +136,8 @@ test('a comment on code follows teammates’ edits and is labelled outdated when
   await page.locator('.monaco-editor .view-lines').click()
   await page.keyboard.press('ControlOrMeta+Home')
   await page.keyboard.press('Shift+End')
-  page.once('dialog', (dialog) => void dialog.accept('Name this constant better'))
   await page.getByRole('button', { name: 'Comment' }).click()
+  await answer(page, 'Name this constant better')
   const strip = page.getByLabel('Comments on this file')
   await expect(strip).toContainText('Asha: Name this constant better')
   await expect.poll(() => highlighted(page)).toBe('const answer = 42')

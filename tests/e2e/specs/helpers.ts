@@ -113,6 +113,14 @@ export async function editorText(page: Page): Promise<string> {
   })
 }
 
+/** Answers the in-app text dialog (askText) that an action opened. */
+export async function answer(page: Page, text: string) {
+  const dialog = page.locator('dialog.ask-text')
+  await dialog.locator('#ask-text-input').fill(text)
+  await dialog.locator('button[type="submit"]').click()
+  await expect(dialog).toHaveCount(0)
+}
+
 export async function waitUntilSaved(page: Page) {
   await expect(page.locator('.statusbar [data-sync]')).toHaveAttribute('data-sync', 'saved', { timeout: 30_000 })
 }
