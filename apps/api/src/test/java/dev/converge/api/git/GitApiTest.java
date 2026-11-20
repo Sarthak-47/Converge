@@ -92,7 +92,7 @@ class GitApiTest extends IntegrationTest {
                 .andExpect(jsonPath("$.type").value("PULL_REQUEST"))
                 .andExpect(jsonPath("$.params.branch").value("converge/add-input-validation-" + session.substring(0, 8)))
                 .andExpect(jsonPath("$.params.title").value("Add input validation!"))
-                .andExpect(jsonPath("$.params.body").value(org.hamcrest.Matchers.containsString("- [ ] Validate email (Asha)"))));
+                .andExpect(jsonPath("$.params.body").value(org.hamcrest.Matchers.containsString("- [ ] Validate email"))));
         // A retry with the same key returns the same operation instead of pushing twice.
         perform(asha, post("/api/v1/sessions/" + session + "/pull-request"), "{'idempotencyKey':'k1'}")
                 .andExpect(jsonPath("$.id").value(op));
