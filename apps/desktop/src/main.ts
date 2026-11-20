@@ -19,7 +19,17 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
  */
 const E2E_SYNC_FOLDER = process.env.CONVERGE_E2E_SYNC_FOLDER ? path.resolve(process.env.CONVERGE_E2E_SYNC_FOLDER) : null
 
-type Running = { workspaceId: string; folder: string; bridge: SyncBridge; remote: HttpRemoteWorkspace }
+type Running = {
+  workspaceId: string
+  folder: string
+  bridge: SyncBridge | null
+  remote: HttpRemoteWorkspace
+  /** The branch this folder must be on for sync to run; null when the folder is not a Git checkout. */
+  expectedBranch: string | null
+  /** Why sync is paused, e.g. another branch is checked out; null while syncing. */
+  paused: string | null
+  watchBranch: NodeJS.Timeout | null
+}
 
 let window: BrowserWindow | null = null
 let running: Running | null = null
@@ -60,16 +70,69 @@ function fromApp(event: IpcMainInvokeEvent) {
   if (!url || new URL(url).origin !== SERVER.origin) throw new Error('IPC is only available to the Converge app')
 }
 
-function send(event: BridgeEvent) {
+type SyncNotice = BridgeEvent | { type: 'paused'; path: string; reason: string } | { type: 'resumed'; path: string }
+
+function send(event: SyncNotice) {
   window?.webContents.send('sync:event', event)
 }
 
 async function stopSync() {
   if (!running) return
-  const { bridge, remote } = running
+  const { bridge, remote, watchBranch } = running
   running = null
-  await bridge.stop()
+  if (watchBranch) clearInterval(watchBranch)
+  await bridge?.stop()
   await remote.destroy()
+}
+
+async function currentBranch(folder: string): Promise<string | null> {
+  try {
+    return (await gitIn(folder, ['rev-parse', '--abbrev-ref', 'HEAD'])).trim()
+  } catch {
+    return null // not a Git checkout
+  }
+}
+
+/**
+ * Branch mismatch pauses sync (design §12.8): if the member checks out another branch, that branch's files
+ * must not flow into the live documents, nor the workspace's text into that branch. Pausing stops the
+ * bridge, which keeps its saved bases; switching back restarts it, which merges whatever changed on disk
+ * meanwhile the same way as edits made while the app was closed.
+ */
+async function checkBranch() {
+  const sync = running
+  if (!sync || !sync.expectedBranch) return
+  const branch = await currentBranch(sync.folder)
+  if (running !== sync || branch === null) return
+  if (branch !== sync.expectedBranch && !sync.paused) {
+    sync.paused = `The local branch "${branch}" differs from the workspace's branch "${sync.expectedBranch}"`
+    const bridge = sync.bridge
+    sync.bridge = null
+    await bridge?.stop()
+    send({ type: 'paused', path: '', reason: sync.paused })
+  } else if (branch === sync.expectedBranch && sync.paused) {
+    sync.paused = null
+    const bridge = new SyncBridge({ root: sync.folder, remote: sync.remote, onEvent: send })
+    await bridge.start()
+    if (running === sync) sync.bridge = bridge
+    else await bridge.stop()
+    send({ type: 'resumed', path: '' })
+  }
+}
+
+/** The workspace's branch: its repository's default branch, or the branch checked out when sync started. */
+async function expectedBranch(workspaceId: string, folder: string, cookies: Record<string, string>): Promise<string | null> {
+  const checkedOut = await currentBranch(folder)
+  if (checkedOut === null) return null
+  try {
+    const response = await fetch(`${SERVER.origin}/api/v1/workspaces/${workspaceId}/git`, {
+      headers: { Cookie: Object.entries(cookies).map(([k, v]) => `${k}=${v}`).join('; ') },
+    })
+    if (response.status === 200) return ((await response.json()) as { defaultBranch: string }).defaultBranch
+  } catch {
+    // The API is unreachable: fall back to the branch that is checked out now.
+  }
+  return checkedOut
 }
 
 ipcMain.handle('sync:choose-folder', async (event) => {
@@ -110,10 +173,19 @@ ipcMain.handle('sync:start', async (event, request: { workspaceId?: unknown; fol
   )
   if (!cookies.CONVERGE_SESSION) throw new Error('Sign in before syncing')
   const remote = new HttpRemoteWorkspace({ baseUrl: SERVER.origin, workspaceId, cookies })
-  const bridge = new SyncBridge({ root: folder, remote, onEvent: send })
-  await bridge.start()
-  running = { workspaceId, folder, bridge, remote }
-  return { started: true }
+  const branch = await expectedBranch(workspaceId, folder, cookies)
+  const checkedOut = await currentBranch(folder)
+  running = { workspaceId, folder, bridge: null, remote, expectedBranch: branch, paused: null, watchBranch: null }
+  if (branch !== null && checkedOut !== branch) {
+    running.paused = `The local branch "${checkedOut}" differs from the workspace's branch "${branch}"`
+    send({ type: 'paused', path: '', reason: running.paused })
+  } else {
+    const bridge = new SyncBridge({ root: folder, remote, onEvent: send })
+    await bridge.start()
+    running.bridge = bridge
+  }
+  if (branch !== null) running.watchBranch = setInterval(() => void checkBranch().catch(() => undefined), 1500)
+  return { started: true, paused: running.paused }
 })
 
 ipcMain.handle('sync:stop', async (event) => {
@@ -139,6 +211,7 @@ function gitIn(folder: string, args: string[]): Promise<string> {
 ipcMain.handle('git:commit-push', async (event, request: { message?: unknown }) => {
   fromApp(event)
   if (!running) throw new Error('Start syncing to a folder first')
+  if (running.paused || !running.bridge) throw new Error(`Sync is paused: ${running.paused ?? 'not running'}`)
   const message = typeof request?.message === 'string' ? request.message.trim() : ''
   if (!message || message.length > 2000) throw new Error('A commit needs a message')
   const { bridge, folder } = running
@@ -166,7 +239,7 @@ ipcMain.handle('git:commit-push', async (event, request: { message?: unknown }) 
 
 ipcMain.handle('sync:status', (event) => {
   fromApp(event)
-  return running ? { workspaceId: running.workspaceId, folder: running.folder } : null
+  return running ? { workspaceId: running.workspaceId, folder: running.folder, paused: running.paused } : null
 })
 
 app.on('web-contents-created', (_event, contents) => {

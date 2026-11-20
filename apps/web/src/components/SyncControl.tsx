@@ -20,6 +20,10 @@ function describe(event: SyncEvent): string {
       return `Refused unsafe path ${event.path}`
     case 'error':
       return `Problem with ${event.path}: ${event.message}`
+    case 'paused':
+      return `Sync paused: ${event.reason}`
+    case 'resumed':
+      return 'Sync resumed'
   }
 }
 
@@ -29,14 +33,22 @@ export function SyncControl({ workspaceId }: { workspaceId: string }) {
   const [last, setLast] = useState<SyncEvent | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [gitNote, setGitNote] = useState<string | null>(null)
+  const [paused, setPaused] = useState<string | null>(null)
 
   useEffect(() => {
     if (!desktop) return
     let cancelled = false
     void desktop.status().then((s) => {
-      if (!cancelled) setFolder(s?.workspaceId === workspaceId ? s.folder : null)
+      if (!cancelled) {
+        setFolder(s?.workspaceId === workspaceId ? s.folder : null)
+        setPaused(s?.workspaceId === workspaceId ? s.paused ?? null : null)
+      }
     })
-    const stop = desktop.onSyncEvent(setLast)
+    const stop = desktop.onSyncEvent((event) => {
+      setLast(event)
+      if (event.type === 'paused') setPaused(event.reason)
+      if (event.type === 'resumed') setPaused(null)
+    })
     return () => {
       cancelled = true
       stop()
@@ -51,8 +63,11 @@ export function SyncControl({ workspaceId }: { workspaceId: string }) {
     try {
       const chosen = await api.chooseFolder()
       if (!chosen) return
-      const { started } = await api.startSync(workspaceId, chosen)
-      if (started) setFolder(chosen)
+      const { started, paused: reason } = await api.startSync(workspaceId, chosen)
+      if (started) {
+        setFolder(chosen)
+        setPaused(reason ?? null)
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not start syncing')
     }
@@ -88,7 +103,11 @@ export function SyncControl({ workspaceId }: { workspaceId: string }) {
   }
   return (
     <span className="sync-control" title={last ? describe(last) : 'Watching for changes'}>
-      <span className={`connection ${last?.type === 'error' ? '' : 'connected'}`}>Syncing to {folder}</span>
+      {paused ? (
+        <span className="connection" role="alert" title={paused}>Sync paused: {paused}. Switch back to resume.</span>
+      ) : (
+        <span className={`connection ${last?.type === 'error' ? '' : 'connected'}`}>Syncing to {folder}</span>
+      )}
       <button type="button" className="ghost" onClick={() => void commitAndPush()}>Commit & push</button>
       <button type="button" className="ghost" onClick={() => void stop()}>Stop</button>
       {gitNote && <span className="small" role="status">{gitNote}</span>}

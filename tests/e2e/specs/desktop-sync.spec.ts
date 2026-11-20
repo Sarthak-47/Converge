@@ -70,6 +70,21 @@ test('the desktop app mirrors a workspace into a local folder, both ways', async
     expect(git(origin, 'log', '-1', '--format=%an|%s', 'main').trim()).toBe('Desktop Tester|Add app.ts from Converge')
     expect(git(origin, 'show', 'main:app.ts')).toContain('typed after sync')
     expect(git(origin, 'ls-tree', '-r', '--name-only', 'main')).not.toContain('.converge')
+
+    // Checking out another branch pauses sync: its files must not reach the live workspace (design §12.8).
+    git(folder, 'checkout', '-q', '-b', 'experiment')
+    await expect(window.locator('.sync-control')).toContainText('Sync paused', { timeout: 10_000 })
+    await writeFile(onDisk, 'export const onlyOnExperiment = true\n')
+    git(folder, 'commit', '-q', '-am', 'Experiment')
+    await window.waitForTimeout(3000)
+    expect(await editorText(window)).not.toContain('onlyOnExperiment')
+
+    // Switching back resumes: the workspace's text is still there, and typing reaches the disk again.
+    git(folder, 'checkout', '-q', 'main')
+    await expect(window.locator('.sync-control')).toContainText('Syncing to', { timeout: 10_000 })
+    expect(await editorText(window)).not.toContain('onlyOnExperiment')
+    await typeAtEnd(window, ' // after switching back')
+    await expect.poll(() => readFile(onDisk, 'utf8'), { timeout: 20_000 }).toContain('after switching back')
   } finally {
     await app.close()
     await rm(folder, { recursive: true, force: true })

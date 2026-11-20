@@ -6,10 +6,10 @@ import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
  */
 contextBridge.exposeInMainWorld('convergeDesktop', {
   chooseFolder: (): Promise<string | null> => ipcRenderer.invoke('sync:choose-folder'),
-  startSync: (workspaceId: string, folder: string): Promise<{ started: boolean }> =>
+  startSync: (workspaceId: string, folder: string): Promise<{ started: boolean; paused?: string | null }> =>
     ipcRenderer.invoke('sync:start', { workspaceId, folder }),
   stopSync: (): Promise<void> => ipcRenderer.invoke('sync:stop'),
-  status: (): Promise<{ workspaceId: string; folder: string } | null> => ipcRenderer.invoke('sync:status'),
+  status: (): Promise<{ workspaceId: string; folder: string; paused?: string | null } | null> => ipcRenderer.invoke('sync:status'),
   commitAndPush: (message: string): Promise<{ committed: boolean; pushed: boolean; sha?: string; files: number; detail: string }> =>
     ipcRenderer.invoke('git:commit-push', { message }),
   onSyncEvent: (listener: (event: unknown) => void): (() => void) => {
