@@ -1,6 +1,7 @@
 import { Server } from '@hocuspocus/server'
 import { Redis } from 'ioredis'
 import pg from 'pg'
+import type * as Y from 'yjs'
 import { authenticate, checkOrigin, type ConnectionContext } from './auth.js'
 import { config } from './config.js'
 import { checkHealth } from './health.js'
@@ -11,7 +12,11 @@ import { timingSafeEqual } from 'node:crypto'
 import { childHeader, fromHeader } from './trace.js'
 import { loadDocument, storeDocument } from './persistence.js'
 
-const db = new pg.Pool({ connectionString: config.databaseUrl, max: 10 })
+// A connection attempt that hangs fails after 5 s, so a store fails (and is retried) instead of waiting forever.
+const db = new pg.Pool({ connectionString: config.databaseUrl, max: 10, connectionTimeoutMillis: 5000 })
+// The pool emits 'error' when the database drops an idle connection. Unhandled, that event ends the process,
+// and with it every open document; the pool replaces the connection on its own (found by fault injection).
+db.on('error', (error) => log('ERROR', 'DATABASE_CONNECTION_LOST', { message: error.message }))
 const redis = new Redis(config.redisUrl, { lazyConnect: true, maxRetriesPerRequest: 1 })
 redis.on('error', (error) => log('ERROR', 'REDIS_ERROR', { message: error.message }))
 
@@ -32,6 +37,51 @@ async function reportMemoryChecks(checks: MemoryCheck[]) {
 }
 
 const limiter = new ConnectionLimiter()
+
+async function store(documentName: string, document: Y.Doc) {
+  const started = performance.now()
+  try {
+    await storeDocument(db, documentName, document)
+  } catch (error) {
+    metrics.storeFailures.inc()
+    throw error
+  }
+  const durationMs = performance.now() - started
+  metrics.storeDuration.observe(durationMs)
+  log('INFO', 'DOCUMENT_STORED', { fileId: documentName, durationMs: Math.round(durationMs) })
+  // Notes pinned to this file are re-checked against what was just stored (design §13.10). Context, not
+  // authority: a failure is logged and never blocks storing.
+  checkMemories(db, documentName, document, reportMemoryChecks)
+    .then((changed) => metrics.memoryChecks.inc({ outcome: changed > 0 ? 'changed' : 'unchanged' }))
+    .catch((error: Error) => {
+      metrics.memoryChecks.inc({ outcome: 'failed' })
+      log('WARN', 'MEMORY_CHECK_FAILED', { fileId: documentName, message: error.message })
+    })
+}
+
+/**
+ * Hocuspocus stores again only after the next change, so a store that failed while the database was away would
+ * leave the last edits unstored until someone typed again. Failed stores are retried with backoff for as long
+ * as the same document stays loaded. A store writes the whole state, so once the document is unloaded (or
+ * replaced by a newer load) the retry stops: a later load holds at least as much and stores it itself.
+ */
+const retries = new Map<string, ReturnType<typeof setTimeout>>()
+function retryStore(documentName: string, document: Y.Doc, isCurrent: () => boolean, attempt = 1) {
+  if (retries.has(documentName)) return
+  const delay = Math.min(30_000, 1000 * 2 ** (attempt - 1))
+  const timer = setTimeout(() => {
+    retries.delete(documentName)
+    if (!isCurrent()) return
+    store(documentName, document)
+      .then(() => log('INFO', 'DOCUMENT_STORE_RECOVERED', { fileId: documentName, attempt }))
+      .catch((error: Error) => {
+        log('WARN', 'DOCUMENT_STORE_FAILED', { fileId: documentName, attempt, message: error.message })
+        retryStore(documentName, document, isCurrent, attempt + 1)
+      })
+  }, delay)
+  timer.unref()
+  retries.set(documentName, timer)
+}
 
 function internalCaller(headers: Record<string, string | string[] | undefined>) {
   const presented = Buffer.from(String(headers['x-internal-token'] ?? ''))
@@ -100,25 +150,14 @@ const server = new Server<ConnectionContext>({
     await loadDocument(db, documentName, document)
   },
 
-  async onStoreDocument({ documentName, document }) {
-    const started = performance.now()
+  async onStoreDocument({ documentName, document, instance }) {
     try {
-      await storeDocument(db, documentName, document)
+      await store(documentName, document)
     } catch (error) {
-      metrics.storeFailures.inc()
+      log('WARN', 'DOCUMENT_STORE_FAILED', { fileId: documentName, attempt: 0, message: (error as Error).message })
+      retryStore(documentName, document, () => instance.documents.get(documentName) === document)
       throw error
     }
-    const durationMs = performance.now() - started
-    metrics.storeDuration.observe(durationMs)
-    log('INFO', 'DOCUMENT_STORED', { fileId: documentName, durationMs: Math.round(durationMs) })
-    // Notes pinned to this file are re-checked against what was just stored (design §13.10). Context, not
-    // authority: a failure is logged and never blocks storing.
-    checkMemories(db, documentName, document, reportMemoryChecks)
-      .then((changed) => metrics.memoryChecks.inc({ outcome: changed > 0 ? 'changed' : 'unchanged' }))
-      .catch((error: Error) => {
-        metrics.memoryChecks.inc({ outcome: 'failed' })
-        log('WARN', 'MEMORY_CHECK_FAILED', { fileId: documentName, message: error.message })
-      })
   },
 
   async onRequest({ request, response, instance }) {

@@ -100,7 +100,7 @@ jobs:
             .tmp/faults.md
           if-no-files-found: ignore
       - if: failure()
-        run: docker compose logs --tail=200
+        run: docker compose logs collab | head -400; docker compose logs --tail=200
       - if: always()
         run: docker compose down -v
 
