@@ -87,9 +87,15 @@ async function stopSync() {
 
 async function currentBranch(folder: string): Promise<string | null> {
   try {
-    return (await gitIn(folder, ['rev-parse', '--abbrev-ref', 'HEAD'])).trim()
+    // symbolic-ref also works on a branch with no commits yet, where rev-parse HEAD fails.
+    return (await gitIn(folder, ['symbolic-ref', '--short', '-q', 'HEAD'])).trim()
   } catch {
-    return null // not a Git checkout
+    try {
+      await gitIn(folder, ['rev-parse', '--git-dir'])
+      return 'a detached HEAD' // a Git checkout, but on no branch
+    } catch {
+      return null // not a Git checkout
+    }
   }
 }
 
@@ -105,7 +111,7 @@ async function checkBranch() {
   const branch = await currentBranch(sync.folder)
   if (running !== sync || branch === null) return
   if (branch !== sync.expectedBranch && !sync.paused) {
-    sync.paused = `The local branch "${branch}" differs from the workspace's branch "${sync.expectedBranch}"`
+    sync.paused = mismatch(branch, sync.expectedBranch)
     const bridge = sync.bridge
     sync.bridge = null
     await bridge?.stop()
@@ -118,6 +124,12 @@ async function checkBranch() {
     else await bridge.stop()
     send({ type: 'resumed', path: '' })
   }
+}
+
+function mismatch(local: string, expected: string): string {
+  return local === 'a detached HEAD'
+    ? `The checkout is on a detached HEAD, not the workspace's branch "${expected}"`
+    : `The local branch "${local}" differs from the workspace's branch "${expected}"`
 }
 
 /** The workspace's branch: its repository's default branch, or the branch checked out when sync started. */
@@ -177,7 +189,7 @@ ipcMain.handle('sync:start', async (event, request: { workspaceId?: unknown; fol
   const checkedOut = await currentBranch(folder)
   running = { workspaceId, folder, bridge: null, remote, expectedBranch: branch, paused: null, watchBranch: null }
   if (branch !== null && checkedOut !== branch) {
-    running.paused = `The local branch "${checkedOut}" differs from the workspace's branch "${branch}"`
+    running.paused = mismatch(checkedOut ?? 'no branch', branch)
     send({ type: 'paused', path: '', reason: running.paused })
   } else {
     const bridge = new SyncBridge({ root: folder, remote, onEvent: send })
