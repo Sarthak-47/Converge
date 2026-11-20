@@ -63,6 +63,7 @@ jobs:
   chaos:
     name: Fault injection (Toxiproxy)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: [api, node]
     env:
       COMPOSE_PROFILES: fake-model,chaos
@@ -87,6 +88,7 @@ jobs:
       - run: npm ci
       - name: Slow and cut connections between services (design §22.6)
         run: |
+          set -o pipefail
           node tests/chaos/faults.mjs | tee .tmp/faults.md
           cat .tmp/faults.md >> "$GITHUB_STEP_SUMMARY"
       - if: always()

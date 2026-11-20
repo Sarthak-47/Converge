@@ -23,7 +23,8 @@ export class Session {
     const headers = { Cookie: this.header() }
     if (body !== undefined) headers['Content-Type'] = 'application/json'
     if (method !== 'GET') headers['X-XSRF-TOKEN'] = this.cookies.get('XSRF-TOKEN') ?? ''
-    const response = await fetch(`${BASE}${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) })
+    // A stalled call fails after 20 s instead of hanging the run (faults make calls stall).
+    const response = await fetch(`${BASE}${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(20_000) })
     this.remember(response)
     if (!response.ok) throw new Error(`${method} ${path}: ${response.status} ${await response.text()}`)
     return response.status === 204 ? undefined : response.json()

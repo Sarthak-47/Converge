@@ -63,11 +63,20 @@ function editor(owner, fileId) {
   }
 }
 
-/** Polls until `check` passes; returns the time it took, or null on timeout. */
+/** Rejects when `promise` takes longer than `ms`. */
+function limit(ms, promise, what) {
+  let timer
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => (timer = setTimeout(() => reject(new Error(`${what} took over ${ms} ms`)), ms))),
+  ]).finally(() => clearTimeout(timer))
+}
+
+/** Polls until `check` passes; returns the time it took, or null on timeout. A check that stalls counts as failed. */
 async function within(ms, check) {
   const start = Date.now()
   while (Date.now() - start < ms) {
-    if (await check().catch(() => false)) return Date.now() - start
+    if (await limit(5_000, check(), 'check').catch(() => false)) return Date.now() - start
     await sleep(500)
   }
   return null
@@ -81,7 +90,7 @@ async function setup(name) {
   const file = await owner.session.request('POST', '/api/v1/files', { workspaceId: workspace.id, parentId: null, name: 'notes.txt', kind: 'FILE' })
   const a = editor(owner, file.id)
   const b = editor(owner, file.id)
-  await Promise.all([a.ready, b.ready])
+  await limit(30_000, Promise.all([a.ready, b.ready]), 'editors syncing')
   return { owner, fileId: file.id, a, b }
 }
 
@@ -152,14 +161,25 @@ async function collabUnreachable() {
   })
 }
 
-try {
-  await slowDatabase()
-  await databaseDown()
-  await collabUnreachable()
-} finally {
-  await removeToxic('collab-postgres', 'slow').catch(() => undefined)
-  await setEnabled('collab-postgres', true).catch(() => undefined)
-  await setEnabled('api-collab', true).catch(() => undefined)
+// Stop the whole run if something hangs, so CI fails with a reason instead of timing out.
+const watchdog = setTimeout(() => {
+  console.error('fault injection: gave up after 10 minutes', JSON.stringify(results))
+  process.exit(1)
+}, 600_000)
+watchdog.unref()
+
+for (const scenario of [slowDatabase, databaseDown, collabUnreachable]) {
+  console.error(`fault injection: ${scenario.name}`)
+  try {
+    await scenario()
+  } catch (error) {
+    console.error(`fault injection: ${scenario.name} failed: ${error.message}`)
+    results.push({ scenario: scenario.name, error: error.message, ok: false })
+  } finally {
+    await removeToxic('collab-postgres', 'slow').catch(() => undefined)
+    await setEnabled('collab-postgres', true).catch(() => undefined)
+    await setEnabled('api-collab', true).catch(() => undefined)
+  }
 }
 
 const ms = (v) => (v === null || v === undefined ? 'n/a' : `${v} ms`)
@@ -169,6 +189,7 @@ const markdown = [
   '| Scenario | Result |',
   '|---|---|',
   ...results.map((r) => {
+    if ('error' in r) return `| ${r.scenario} | FAILED: ${r.error} |`
     if ('convergedMs' in r) return `| ${r.scenario} | ${r.ok ? 'passed' : 'FAILED'}: converged in ${ms(r.convergedMs)}, stored ${ms(r.storedMs)} later |`
     if ('storedAfterRecoveryMs' in r) return `| ${r.scenario} | ${r.ok ? 'passed' : 'FAILED'}: replicas converged while the database was down; everything stored ${ms(r.storedAfterRecoveryMs)} after it returned |`
     return `| ${r.scenario} | ${r.ok ? 'passed' : 'FAILED'}: the API answered ${r.status} after ${ms(r.failedAfterMs)} and changed nothing${r.unchanged ? '' : ' (TEXT CHANGED)'}; worked again ${ms(r.recoveredMs)} after recovery |`
