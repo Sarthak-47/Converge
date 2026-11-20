@@ -11,6 +11,8 @@ RUN npm run build --workspace @converge/executor
 FROM node:24-alpine
 ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1
 ENV NODE_ENV=production
+# Git for server-side commits and pushes (design §10); the fake GitHub uses git http-backend from it too.
+RUN apk add --no-cache git
 WORKDIR /repo
 COPY package.json package-lock.json ./
 COPY apps/executor/package.json apps/executor/

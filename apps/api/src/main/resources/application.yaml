@@ -47,6 +47,9 @@ converge:
     effort: ${AGENT_EFFORT:high}
     # Hard cap per turn, in micro-dollars, enforced from recorded usage.
     cost-cap-micros: ${AGENT_COST_CAP_MICROS:2000000}
+  git:
+    # Only for tests against a local fake GitHub; production remotes must be https.
+    allow-insecure-remotes: ${GIT_ALLOW_INSECURE_REMOTES:false}
   collab:
     base-url: ${COLLAB_URL:http://localhost:1234}
     health:

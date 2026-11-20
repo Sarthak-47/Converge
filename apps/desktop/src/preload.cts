@@ -10,6 +10,8 @@ contextBridge.exposeInMainWorld('convergeDesktop', {
     ipcRenderer.invoke('sync:start', { workspaceId, folder }),
   stopSync: (): Promise<void> => ipcRenderer.invoke('sync:stop'),
   status: (): Promise<{ workspaceId: string; folder: string } | null> => ipcRenderer.invoke('sync:status'),
+  commitAndPush: (message: string): Promise<{ committed: boolean; pushed: boolean; sha?: string; files: number; detail: string }> =>
+    ipcRenderer.invoke('git:commit-push', { message }),
   onSyncEvent: (listener: (event: unknown) => void): (() => void) => {
     const handler = (_event: IpcRendererEvent, payload: unknown) => listener(payload)
     ipcRenderer.on('sync:event', handler)

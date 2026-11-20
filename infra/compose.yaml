@@ -52,6 +52,7 @@ services:
       COLLAB_URL: http://collab:1234
       INTERNAL_TOKEN: ${INTERNAL_TOKEN:-dev-internal-token}
       AGENT_RUNNER_URL: http://agent-runner:4100
+      GIT_ALLOW_INSECURE_REMOTES: ${GIT_ALLOW_INSECURE_REMOTES:-false}
       SECRETS_KEY: ${SECRETS_KEY:-ZGV2ZWxvcG1lbnQtb25seS1zZWNyZXRzLWtleS0zMiE=}
     depends_on:
       postgres:
@@ -89,8 +90,13 @@ services:
       INTERNAL_TOKEN: ${INTERNAL_TOKEN:-dev-internal-token}
       SANDBOX_IMAGE: ${SANDBOX_IMAGE:-node:24-alpine}
       SANDBOX_RUNTIME: ${SANDBOX_RUNTIME:-}
+      # Server-side Git (design §10): the stored credential is opened with the API's secrets key.
+      SECRETS_KEY: ${SECRETS_KEY:-ZGV2ZWxvcG1lbnQtb25seS1zZWNyZXRzLWtleS0zMiE=}
+      GITHUB_API_URL: ${GITHUB_API_URL:-https://api.github.com}
+      GIT_ROOT: /var/lib/converge-git
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - git-data:/var/lib/converge-git
     # The API applies the database migrations; until it has, the executor exits and is restarted.
     restart: on-failure
     depends_on:
@@ -113,6 +119,24 @@ services:
       timeout: 3s
       retries: 10
 
+  # Stand-in for GitHub (git smart HTTP + the pull-request API), for tests only:
+  #   COMPOSE_PROFILES=fake-github GIT_ALLOW_INSECURE_REMOTES=true GITHUB_API_URL=http://fake-github:9200/api
+  fake-github:
+    profiles: [fake-github]
+    build:
+      context: ..
+      dockerfile: apps/executor/Dockerfile
+    command: ["node", "dist/testing/fakeGithubMain.js"]
+    environment:
+      FAKE_GITHUB_TOKEN: ${FAKE_GITHUB_TOKEN:-ghp_fake_token_for_tests}
+    ports:
+      - "9200:9200"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:9200/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   nginx:
     build:
       context: ..
@@ -125,3 +149,4 @@ services:
 
 volumes:
   postgres-data:
+  git-data:

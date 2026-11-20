@@ -6,6 +6,7 @@ import { MemoryPanel } from '../components/MemoryPanel.tsx'
 import { useAuth } from '../auth.tsx'
 import { ChatPanel } from '../components/ChatPanel.tsx'
 import { FileTree } from '../components/FileTree.tsx'
+import { GitDialog } from '../components/GitDialog.tsx'
 import { MembersDialog } from '../components/MembersDialog.tsx'
 import { PresenceAvatars } from '../components/PresenceAvatars.tsx'
 import { SessionsPanel } from '../components/SessionsPanel.tsx'
@@ -42,6 +43,7 @@ export default function WorkspacePage() {
   const { user } = useAuth()
   const navigate = useNavigate()
   const [showMembers, setShowMembers] = useState(false)
+  const [showGit, setShowGit] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [workspace, setWorkspace] = useState<Workspace | null>(null)
@@ -145,7 +147,7 @@ export default function WorkspacePage() {
       if (event.type === 'JOB_UPDATED') setAgentSignal((n) => n + 1)
       return
     }
-    if (/^(AGENT|SESSION|COMMENT|APPROVAL|MEMORY|LOCKS)_/.test(event.type)) {
+    if (/^(AGENT|SESSION|COMMENT|APPROVAL|MEMORY|LOCKS|GIT)_/.test(event.type)) {
       setAgentSignal((n) => n + 1)
       return
     }
@@ -387,9 +389,13 @@ export default function WorkspacePage() {
         <PresenceAvatars online={channel.online} />
         {workspace && <SyncControl workspaceId={workspace.id} />}
         {workspace && (
+          <button type="button" className="ghost" onClick={() => setShowGit(true)}>Repository</button>
+        )}
+        {workspace && (
           <button type="button" className="ghost" onClick={() => setShowMembers(true)}>Members</button>
         )}
       </TopBar>
+      {showGit && workspace && <GitDialog workspace={workspace} onClose={() => setShowGit(false)} />}
       {showMembers && workspace && user && (
         <MembersDialog workspace={workspace} currentUserId={user.id} onClose={() => setShowMembers(false)} onLeft={() => navigate('/')} />
       )}

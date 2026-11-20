@@ -26,6 +26,12 @@ export const config = {
   pollMs: number('JOB_POLL_MS', 1000),
   /** Total size of the files copied into one job. */
   maxFilesBytes: number('JOB_MAX_FILES_BYTES', 20 * 1024 * 1024),
+  /** Where the worker keeps one Git checkout per workspace (a volume in Compose). */
+  gitRoot: required('GIT_ROOT', '/var/lib/converge-git'),
+  /** GitHub's REST API; tests point it at the fake GitHub. */
+  githubApi: required('GITHUB_API_URL', 'https://api.github.com'),
+  /** The API's secrets key, to open the stored Git credential of the repository being pushed to. */
+  secretsKey: process.env.SECRETS_KEY ?? '',
   /** Output kept per job; the rest is dropped with a note. */
   maxOutputBytes: number('JOB_MAX_OUTPUT_BYTES', 1024 * 1024),
 }

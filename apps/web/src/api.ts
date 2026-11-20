@@ -162,6 +162,15 @@ export const api = {
   holdRange: (workspaceId: string, lock: { fileId: string; anchor: Anchor; quote: string; reason: string }) =>
     request<RangeLock>('POST', `/workspaces/${workspaceId}/locks`, lock),
   releaseLock: (lockId: string) => request<void>('DELETE', `/locks/${lockId}`),
+  gitRepository: async (workspaceId: string) =>
+    (await request<GitRepository | undefined>('GET', `/workspaces/${workspaceId}/git`)) ?? null,
+  connectGit: (workspaceId: string, repo: { remoteUrl: string; defaultBranch: string; token: string }) =>
+    request<GitRepository>('PUT', `/workspaces/${workspaceId}/git`, repo),
+  disconnectGit: (workspaceId: string) => request<void>('DELETE', `/workspaces/${workspaceId}/git`),
+  gitOperations: (workspaceId: string, sessionId?: string) =>
+    request<GitOperation[]>('GET', `/workspaces/${workspaceId}/git/operations${sessionId ? `?sessionId=${sessionId}` : ''}`),
+  openPullRequest: (sessionId: string, idempotencyKey: string) =>
+    request<GitOperation>('POST', `/sessions/${sessionId}/pull-request`, { idempotencyKey }),
   overlaps: (sessionId: string) => request<Overlap[]>('GET', `/sessions/${sessionId}/overlaps`),
 
   comments: (workspaceId: string, filter: { fileId?: string; sessionId?: string }) => {
@@ -377,3 +386,28 @@ export type RangeLock = {
 }
 
 export type Overlap = { sessionId: string; task: string; driverName: string; status: string; files: string[] }
+
+export type GitRepository = {
+  remoteUrl: string
+  defaultBranch: string
+  owner: string
+  repo: string
+  credentialHint: string
+  connectedByName: string
+  updatedAt: string
+}
+
+/** An asynchronous Git operation run by the worker (design §10.3). */
+export type GitOperation = {
+  id: string
+  sessionId: string | null
+  type: 'PULL_REQUEST' | 'PUSH_BRANCH'
+  status: 'QUEUED' | 'RUNNING' | 'SUCCEEDED' | 'FAILED'
+  requesterName: string
+  params: { branch: string; title?: string; message: string }
+  result: { branch: string; sha: string; changedFiles: number; prUrl?: string; prNumber?: number } | null
+  error: string | null
+  log: string | null
+  createdAt: string
+  endedAt: string | null
+}

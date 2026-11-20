@@ -10,6 +10,8 @@ export type DesktopApi = {
   startSync(workspaceId: string, folder: string): Promise<{ started: boolean }>
   stopSync(): Promise<void>
   status(): Promise<{ workspaceId: string; folder: string } | null>
+  /** Commits the local checkout and pushes it with the member's own Git credentials (design §12.8). */
+  commitAndPush(message: string): Promise<{ committed: boolean; pushed: boolean; sha?: string; files: number; detail: string }>
   onSyncEvent(listener: (event: SyncEvent) => void): () => void
 }
 

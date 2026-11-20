@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
-import { api, type AgentTurn, type Approval, type Comment, type Overlap, type PlanStep, type Role, type SessionCard, type SessionDetail } from '../api.ts'
+import { api, type AgentTurn, type Approval, type Comment, type GitOperation, type Overlap, type PlanStep, type Role, type SessionCard, type SessionDetail } from '../api.ts'
 import { ApprovalCard } from './ApprovalCard.tsx'
 import { AgentKeyForm, TurnCard } from './TurnCard.tsx'
 import { errorMessage, useAgentKey } from './agentKit.ts'
@@ -108,6 +108,8 @@ function SessionView({ workspaceId, currentUser, role, refreshSignal, jobSignal,
   const [detail, setDetail] = useState<SessionDetail | null>(null)
   const [approvals, setApprovals] = useState<Approval[]>([])
   const [overlaps, setOverlaps] = useState<Overlap[]>([])
+  const [gitOps, setGitOps] = useState<GitOperation[]>([])
+  const [hasRepository, setHasRepository] = useState(false)
   const [comments, setComments] = useState<Comment[]>([])
   const [draft, setDraft] = useState('')
   const [newStep, setNewStep] = useState('')
@@ -124,6 +126,8 @@ function SessionView({ workspaceId, currentUser, role, refreshSignal, jobSignal,
     api.comments(workspaceId, { sessionId }).then(setComments).catch(() => undefined)
     api.approvals(workspaceId, sessionId).then(setApprovals).catch(() => undefined)
     api.overlaps(sessionId).then(setOverlaps).catch(() => setOverlaps([]))
+    api.gitOperations(workspaceId, sessionId).then(setGitOps).catch(() => setGitOps([]))
+    api.gitRepository(workspaceId).then((r) => setHasRepository(r !== null)).catch(() => setHasRepository(false))
   }, [workspaceId, sessionId])
 
   useEffect(() => {
@@ -230,10 +234,35 @@ function SessionView({ workspaceId, currentUser, role, refreshSignal, jobSignal,
         {!done && canEdit && me?.mode !== 'LANE' && <button type="button" className="ghost" disabled={busy} onClick={() => void run(() => api.joinSession(sessionId, 'LANE'), 'Could not join')}>Join with my agent</button>}
         {!done && canEdit && !isDriver && key?.configured && <button type="button" className={session.status === 'AWAITING_TAKEOVER' ? 'primary' : 'ghost'} disabled={busy} onClick={takeOver}>Take over</button>}
         {!done && isDriver && <button type="button" className="ghost" disabled={busy} onClick={handOff}>Hand off</button>}
+        {!done && (isDriver || role === 'OWNER') && hasRepository && (
+          <button type="button" className="primary" disabled={busy} onClick={() => void run(async () => {
+            // A finished session is closed by a pull request (design §10, Phase 12). The key makes a retry safe.
+            await api.openPullRequest(sessionId, crypto.randomUUID())
+            await api.finishSession(sessionId, session.rowVersion)
+          }, 'Could not open the pull request')}>Finish and open pull request</button>
+        )}
+        {(isDriver || role === 'OWNER') && hasRepository && done && (
+          <button type="button" className="ghost" disabled={busy} onClick={() => void run(() => api.openPullRequest(sessionId, crypto.randomUUID()), 'Could not open the pull request')}>Open pull request</button>
+        )}
         {!done && (isDriver || role === 'OWNER') && <button type="button" className="ghost" disabled={busy} onClick={() => void run(() => api.finishSession(sessionId, session.rowVersion), 'Could not finish')}>Finish</button>}
         {me && !isDriver && <button type="button" className="ghost" disabled={busy} onClick={() => void run(() => api.leaveSession(sessionId), 'Could not leave')}>Leave</button>}
       </div>
 
+      {gitOps.length > 0 && (
+        <ul className="git-operations" aria-label="Pull requests">
+          {gitOps.map((op) => (
+            <li key={op.id} data-status={op.status}>
+              {op.status === 'SUCCEEDED' && op.result?.prUrl ? (
+                <a href={op.result.prUrl} target="_blank" rel="noreferrer noopener">Pull request #{op.result.prNumber}</a>
+              ) : (
+                <span>{op.type === 'PULL_REQUEST' ? 'Pull request' : 'Push'}: {op.status === 'QUEUED' ? 'queued' : op.status === 'RUNNING' ? 'pushing…' : op.status.toLowerCase()}</span>
+              )}
+              <span className="muted small"> · {op.params.branch}{op.result ? ` · ${op.result.changedFiles} file${op.result.changedFiles === 1 ? '' : 's'}` : ''}</span>
+              {op.error && <p className="agent-error small">{op.error}</p>}
+            </li>
+          ))}
+        </ul>
+      )}
       {overlaps.length > 0 && (
         <div className="overlap-warning" role="status">
           {overlaps.map((o) => (

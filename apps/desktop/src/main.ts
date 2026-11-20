@@ -1,3 +1,5 @@
+import { execFile } from 'node:child_process'
+import { appendFile, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { app, BrowserWindow, dialog, ipcMain, session, shell, type IpcMainInvokeEvent } from 'electron'
@@ -117,6 +119,49 @@ ipcMain.handle('sync:start', async (event, request: { workspaceId?: unknown; fol
 ipcMain.handle('sync:stop', async (event) => {
   fromApp(event)
   await stopSync()
+})
+
+/** Runs git in the member's own checkout, with their own config and credentials (design §12.8). */
+function gitIn(folder: string, args: string[]): Promise<string> {
+  return new Promise((resolve, reject) => {
+    execFile('git', args, { cwd: folder, timeout: 120_000, maxBuffer: 4 * 1024 * 1024 }, (error, stdout, stderr) => {
+      if (error) reject(new Error((stderr || error.message).trim().split('\n').slice(-2).join(' ')))
+      else resolve(stdout)
+    })
+  })
+}
+
+/**
+ * Commit and push from the local checkout (design §12.8): first the bridge settles, so every edit typed in the
+ * app is on disk and every disk change has been sent; the commit then contains exactly what the team sees.
+ * Converge's own state folder is kept out of Git.
+ */
+ipcMain.handle('git:commit-push', async (event, request: { message?: unknown }) => {
+  fromApp(event)
+  if (!running) throw new Error('Start syncing to a folder first')
+  const message = typeof request?.message === 'string' ? request.message.trim() : ''
+  if (!message || message.length > 2000) throw new Error('A commit needs a message')
+  const { bridge, folder } = running
+  await bridge.idle()
+  try {
+    await gitIn(folder, ['rev-parse', '--is-inside-work-tree'])
+  } catch {
+    throw new Error('This folder is not a Git checkout. Clone the repository here, or run git init, first.')
+  }
+  const exclude = path.resolve(folder, (await gitIn(folder, ['rev-parse', '--git-path', 'info/exclude'])).trim())
+  const excluded = await readFile(exclude, 'utf8').catch(() => '')
+  if (!excluded.split(/\r?\n/).includes('.converge/')) await appendFile(exclude, `${excluded.endsWith('\n') || !excluded ? '' : '\n'}.converge/\n`)
+
+  await gitIn(folder, ['add', '-A'])
+  const staged = (await gitIn(folder, ['diff', '--cached', '--name-only'])).split('\n').filter(Boolean)
+  if (staged.length === 0) return { committed: false, pushed: false, files: 0, detail: 'Nothing to commit' }
+  await gitIn(folder, ['commit', '-q', '-m', message])
+  const sha = (await gitIn(folder, ['rev-parse', '--short', 'HEAD'])).trim()
+  const remotes = (await gitIn(folder, ['remote'])).split('\n').filter(Boolean)
+  if (remotes.length === 0) return { committed: true, pushed: false, sha, files: staged.length, detail: 'No remote to push to' }
+  const upstream = await gitIn(folder, ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}']).catch(() => null)
+  await gitIn(folder, upstream ? ['push', '-q'] : ['push', '-q', '-u', remotes.includes('origin') ? 'origin' : remotes[0]!, 'HEAD'])
+  return { committed: true, pushed: true, sha, files: staged.length, detail: '' }
 })
 
 ipcMain.handle('sync:status', (event) => {

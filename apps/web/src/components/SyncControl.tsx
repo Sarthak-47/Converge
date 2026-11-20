@@ -27,6 +27,7 @@ export function SyncControl({ workspaceId }: { workspaceId: string }) {
   const [folder, setFolder] = useState<string | null>(null)
   const [last, setLast] = useState<SyncEvent | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [gitNote, setGitNote] = useState<string | null>(null)
 
   useEffect(() => {
     if (!desktop) return
@@ -56,6 +57,20 @@ export function SyncControl({ workspaceId }: { workspaceId: string }) {
     }
   }
 
+  async function commitAndPush() {
+    const message = window.prompt('Commit message')?.trim()
+    if (!message) return
+    setError(null)
+    try {
+      const result = await api.commitAndPush(message)
+      setGitNote(!result.committed
+        ? result.detail
+        : `Committed ${result.sha} (${result.files} file${result.files === 1 ? '' : 's'})${result.pushed ? ' and pushed' : `; ${result.detail.toLowerCase()}`}`)
+    } catch (e) {
+      setError(e instanceof Error ? e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : 'Could not commit')
+    }
+  }
+
   async function stop() {
     await api.stopSync()
     setFolder(null)
@@ -73,7 +88,10 @@ export function SyncControl({ workspaceId }: { workspaceId: string }) {
   return (
     <span className="sync-control" title={last ? describe(last) : 'Watching for changes'}>
       <span className={`connection ${last?.type === 'error' ? '' : 'connected'}`}>Syncing to {folder}</span>
+      <button type="button" className="ghost" onClick={() => void commitAndPush()}>Commit & push</button>
       <button type="button" className="ghost" onClick={() => void stop()}>Stop</button>
+      {gitNote && <span className="small" role="status">{gitNote}</span>}
+      {error && <span className="error small">{error}</span>}
     </span>
   )
 }

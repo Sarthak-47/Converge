@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
@@ -25,7 +26,16 @@ test.skip(!electronBinary, 'Electron binary not installed')
 
 test('the desktop app mirrors a workspace into a local folder, both ways', async () => {
   const folder = path.join(repo, '.tmp', `desktop-e2e-${Date.now()}`)
+  const origin = `${folder}-origin.git`
   await mkdir(folder, { recursive: true })
+  // The member's own checkout, with a remote of their own (design §12.8).
+  const git = (cwd: string, ...args: string[]) => execFileSync('git', args, { cwd }).toString()
+  await mkdir(origin, { recursive: true })
+  git(origin, 'init', '-q', '--bare', '--initial-branch=main')
+  git(folder, 'init', '-q', '--initial-branch=main')
+  git(folder, 'config', 'user.name', 'Desktop Tester')
+  git(folder, 'config', 'user.email', 'desktop@example.test')
+  git(folder, 'remote', 'add', 'origin', origin)
   const app = await electron.launch({
     executablePath: electronBinary!,
     args: [path.join(repo, 'apps', 'desktop')],
@@ -52,8 +62,17 @@ test('the desktop app mirrors a workspace into a local folder, both ways', async
     // And typing in the app reaches the file on disk.
     await typeAtEnd(window, ' // typed after sync')
     await expect.poll(() => readFile(onDisk, 'utf8'), { timeout: 20_000 }).toContain('typed after sync')
+
+    // Commit and push from the app: the commit holds what the team sees, and Converge's state stays out.
+    window.once('dialog', (dialog) => void dialog.accept('Add app.ts from Converge'))
+    await window.getByRole('button', { name: 'Commit & push' }).click()
+    await expect(window.locator('.sync-control [role="status"]')).toContainText('and pushed', { timeout: 30_000 })
+    expect(git(origin, 'log', '-1', '--format=%an|%s', 'main').trim()).toBe('Desktop Tester|Add app.ts from Converge')
+    expect(git(origin, 'show', 'main:app.ts')).toContain('typed after sync')
+    expect(git(origin, 'ls-tree', '-r', '--name-only', 'main')).not.toContain('.converge')
   } finally {
     await app.close()
     await rm(folder, { recursive: true, force: true })
+    await rm(origin, { recursive: true, force: true })
   }
 })

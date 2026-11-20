@@ -57,7 +57,7 @@ jobs:
         run: npm test --workspace @converge/sync-bridge
       - name: Agent runner tests (edits, revert property tests, scripted model)
         run: npm test --workspace @converge/agent-runner
-      - name: Executor tests (allowlist parity; sandbox isolation against the runner's Docker, Gate C)
+      - name: Executor tests (allowlist parity; Git against git http-backend; sandbox isolation, Gate C)
         run: npm test --workspace @converge/executor
 
   stack:
@@ -66,8 +66,11 @@ jobs:
     needs: [api, node]
     env:
       # Agent turns run against the scripted fake model: deterministic, free, and no key needed.
-      COMPOSE_PROFILES: fake-model
+      COMPOSE_PROFILES: fake-model,fake-github
       AGENT_MODEL_URL: http://fake-model:9100
+      # Git runs against the fake GitHub: real git smart HTTP and a fake pull-request API.
+      GIT_ALLOW_INSECURE_REMOTES: "true"
+      GITHUB_API_URL: http://fake-github:9200/api
     steps:
       - uses: actions/checkout@v7
       - run: docker compose up -d --build

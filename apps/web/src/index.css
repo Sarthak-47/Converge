@@ -1264,3 +1264,26 @@ button.link {
   color: var(--down-text);
   font-weight: 600;
 }
+
+/* Repository and pull requests (design §10) */
+.git-form {
+  display: grid;
+  gap: 6px;
+}
+
+.git-form p,
+.git-connected p {
+  margin: 4px 0;
+}
+
+.git-operations {
+  list-style: none;
+  margin: 6px 8px 0;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--surface-2);
+}
+
+.git-operations li[data-status='SUCCEEDED'] a {
+  font-weight: 600;
+}
