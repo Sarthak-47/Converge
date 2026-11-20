@@ -202,4 +202,28 @@ class AgentApiTest extends IntegrationTest {
         mvc.perform(get("/internal/agent/turns/{t}/tree", UUID.randomUUID())).andExpect(status().isUnauthorized());
         verify(agentRunner, never()).revert(any(), anyString(), anyList());
     }
+
+    @Test
+    void theDailyCapLimitsEachTurnAndThenRefusesNewOnes() throws Exception {
+        setKey(asha, KEY);
+        String ashaId = jdbc.sql("select id::text from users where display_name = 'Asha' order by created_at desc limit 1").query(String.class).single();
+        // Earlier turns today already spent $19 of the $20 daily cap.
+        jdbc.sql("""
+                insert into agent_turns (id, workspace_id, lane_user_id, sponsor_id, model, status, cost_micros, cost_cap_micros, ended_at)
+                values (gen_random_uuid(), ?::uuid, ?::uuid, ?::uuid, 'claude-opus-5-5', 'SUCCEEDED', 19000000, 2000000, now())
+                """).params(workspace, ashaId, ashaId).update();
+        getAs(asha, "/api/v1/me/agent-spend").andExpect(jsonPath("$.spentMicros").value(19000000))
+                .andExpect(jsonPath("$.dailyCapMicros").value(20000000));
+
+        String turn = id(prompt(asha, "one more"));
+        ArgumentCaptor<StartTurn> started = ArgumentCaptor.forClass(StartTurn.class);
+        verify(agentRunner).start(started.capture());
+        assertThat(started.getValue().costCapMicros()).isEqualTo(1000000); // what is left today, below the $2 turn cap
+
+        internal(post("/internal/agent/turns/{t}/usage", turn),
+                "{'inputTokens':1,'outputTokens':1,'cacheReadTokens':0,'cacheWriteTokens':0,'costMicros':1000000,'model':'claude-opus-5-5'}");
+        internal(post("/internal/agent/turns/{t}/finish", turn), "{'status':'BUDGET_EXCEEDED','error':'cap'}");
+        prompt(asha, "and another").andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.containsString("daily cap")));
+    }
 }

@@ -60,12 +60,19 @@ public class AgentTurns {
     private final String model;
     private final String effort;
     private final long costCapMicros;
+    private final long dailyCapMicros;
+
+    /** What a member's agents have spent in the last 24 hours, against their daily cap (design §13.5). */
+    public record Spend(long spentMicros, long dailyCapMicros, long turnCapMicros) {
+    }
 
     public AgentTurns(JdbcClient jdbc, WorkspaceAccess access, ProviderKeys keys, TeamContext team,
             dev.converge.api.common.RateLimiter limits, dev.converge.api.common.ConvergeMetrics metrics, SecretBox box,
             AgentRunnerClient runner, ApplicationEventPublisher events, TransactionTemplate tx,
             @Value("${converge.agent.model}") String model, @Value("${converge.agent.effort}") String effort,
-            @Value("${converge.agent.cost-cap-micros}") long costCapMicros) {
+            @Value("${converge.agent.cost-cap-micros}") long costCapMicros,
+            @Value("${converge.agent.daily-cap-micros:20000000}") long dailyCapMicros) {
+        this.dailyCapMicros = dailyCapMicros;
         this.jdbc = jdbc;
         this.access = access;
         this.keys = keys;
@@ -92,6 +99,15 @@ public class AgentTurns {
         String task = sessionId == null ? null : sessionTask(workspaceId, sessionId);
         String apiKey = keys.reveal(userId).orElseThrow(() -> ApiException.conflict(
                 "Add your Anthropic API key before prompting your agent"));
+        // A turn may spend at most the per-turn cap and what is left of the member's daily cap; reaching it
+        // mid-turn ends the turn as BUDGET_EXCEEDED, which puts a session up for takeover.
+        long spent = spentToday(userId);
+        if (spent >= dailyCapMicros) {
+            throw ApiException.conflict(String.format(
+                    "Your agents have spent $%.2f in the last 24 hours, your daily cap; someone else can take over the session",
+                    dailyCapMicros / 1e6));
+        }
+        long turnCap = Math.min(costCapMicros, dailyCapMicros - spent);
         UUID turnId = UUID.randomUUID();
         List<History> history = history(workspaceId, sessionId, userId);
         // Memory, overlaps and held ranges; looked up before the transaction because they fail open.
@@ -102,7 +118,7 @@ public class AgentTurns {
                         insert into agent_turns (id, workspace_id, session_id, lane_user_id, sponsor_id, model, status, cost_cap_micros)
                         values (?, ?, ?, ?, ?, ?, 'RUNNING', ?)
                         """)
-                        .params(turnId, workspaceId, sessionId, userId, userId, model, costCapMicros)
+                        .params(turnId, workspaceId, sessionId, userId, userId, model, turnCap)
                         .update();
                 if (sessionId != null) {
                     jdbc.sql("""
@@ -125,7 +141,7 @@ public class AgentTurns {
         }
         try {
             runner.start(new StartTurn(turnId, workspaceId, new Sponsor(userId, displayName), apiKey, model, effort,
-                    prompt, history, costCapMicros, sessionId == null ? null : new SessionContext(sessionId, task),
+                    prompt, history, turnCap, sessionId == null ? null : new SessionContext(sessionId, task),
                     context.text().isBlank() ? null : context.text()));
         } catch (ApiException e) {
             finish(turnId, "FAILED", "The agent runner is unavailable");
@@ -135,6 +151,15 @@ public class AgentTurns {
     }
 
     /** Refuses early when a member has no key, before anything else changes (for example a takeover). */
+    public Spend spend(UUID userId) {
+        return new Spend(spentToday(userId), dailyCapMicros, costCapMicros);
+    }
+
+    private long spentToday(UUID userId) {
+        return jdbc.sql("select coalesce(sum(cost_micros), 0) from agent_turns where sponsor_id = ? and started_at > now() - interval '24 hours'")
+                .param(userId).query(Long.class).single();
+    }
+
     public void requireKey(UUID userId) {
         if (keys.reveal(userId).isEmpty()) {
             throw ApiException.conflict("Add your Anthropic API key before prompting your agent");

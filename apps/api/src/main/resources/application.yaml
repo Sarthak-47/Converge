@@ -49,6 +49,8 @@ converge:
     effort: ${AGENT_EFFORT:high}
     # Hard cap per turn, in micro-dollars, enforced from recorded usage.
     cost-cap-micros: ${AGENT_COST_CAP_MICROS:2000000}
+    # And per member over any 24 hours; each turn gets the smaller of the two (design §13.5).
+    daily-cap-micros: ${AGENT_DAILY_CAP_MICROS:20000000}
   rate-limits:
     # Multiplies every limit; 0 turns them off. Raise it for load tests, never to 0 in production.
     scale: ${RATE_LIMIT_SCALE:1.0}

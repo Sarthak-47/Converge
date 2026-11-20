@@ -120,6 +120,7 @@ export const api = {
   chatHistory: (workspaceId: string) => request<ChatHistoryEntry[]>('GET', `/workspaces/${workspaceId}/chat`),
 
   agentKey: () => request<AgentKey>('GET', '/me/provider-keys/anthropic'),
+  agentSpend: () => request<{ spentMicros: number; dailyCapMicros: number; turnCapMicros: number }>('GET', '/me/agent-spend'),
   setAgentKey: (apiKey: string) => request<AgentKey>('PUT', '/me/provider-keys/anthropic', { apiKey }),
   removeAgentKey: () => request<void>('DELETE', '/me/provider-keys/anthropic'),
   agentTurns: (workspaceId: string) => request<AgentTurn[]>('GET', `/workspaces/${workspaceId}/agent/turns`),

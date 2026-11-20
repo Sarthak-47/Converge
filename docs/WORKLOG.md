@@ -265,3 +265,7 @@ Decisions made while working autonomously, newest last. Each entry says what was
   - 2.0 s to resync everyone after the restart;
   - convergence within 0.5 s of typing stopping;
   - $0.032 per scripted agent turn, matching the ledger exactly.
+
+## 2026-11-20 — Remaining items: daily cap, larger load runs
+
+- **Daily agent spending cap** (design §13.5): over any 24 hours a member's agent turns may spend at most `AGENT_DAILY_CAP_MICROS` (default $20), on top of the per-turn cap (default $2). Each new turn gets the smaller of the per-turn cap and what is left today, so reaching the daily cap mid-turn ends the turn as BUDGET_EXCEEDED, which puts a session they drive up for takeover. A member at the cap is refused new turns until earlier spending ages out. The composer shows "Last 24 h: $x of $y" (`GET /api/v1/me/agent-spend`).

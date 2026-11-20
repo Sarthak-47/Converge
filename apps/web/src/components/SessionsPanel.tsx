@@ -120,6 +120,7 @@ function SessionView({ workspaceId, currentUser, role, refreshSignal, jobSignal,
   const canEdit = role === 'OWNER' || role === 'EDITOR'
   const canComment = canEdit || role === 'COMMENTER'
   const [key, setKey] = useAgentKey(canEdit)
+  const [spend, setSpend] = useState<{ spentMicros: number; dailyCapMicros: number } | null>(null)
   const lanes = useRef<HTMLDivElement>(null)
 
   const reload = useCallback(() => {
@@ -127,6 +128,7 @@ function SessionView({ workspaceId, currentUser, role, refreshSignal, jobSignal,
     api.comments(workspaceId, { sessionId }).then(setComments).catch(() => undefined)
     api.approvals(workspaceId, sessionId).then(setApprovals).catch(() => undefined)
     api.overlaps(sessionId).then(setOverlaps).catch(() => setOverlaps([]))
+    api.agentSpend().then(setSpend).catch(() => setSpend(null))
     api.gitOperations(workspaceId, sessionId).then(setGitOps).catch(() => setGitOps([]))
     api.gitRepository(workspaceId).then((r) => setHasRepository(r !== null)).catch(() => setHasRepository(false))
   }, [workspaceId, sessionId])
@@ -377,6 +379,7 @@ function SessionView({ workspaceId, currentUser, role, refreshSignal, jobSignal,
             {myRunning
               ? `Steer your running agent. Uses ${currentUser.displayName}'s API key.`
               : `Prompt your agent. Uses ${currentUser.displayName}'s API key (${key.hint}).`}
+            {spend && <span className="muted"> Last 24 h: ${(spend.spentMicros / 1e6).toFixed(2)} of ${(spend.dailyCapMicros / 1e6).toFixed(2)}.</span>}
           </label>
           <textarea
             id="agent-prompt"

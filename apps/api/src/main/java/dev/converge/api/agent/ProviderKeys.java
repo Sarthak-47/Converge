@@ -36,10 +36,12 @@ public class ProviderKeys {
 
     private final JdbcClient jdbc;
     private final SecretBox box;
+    private final org.springframework.beans.factory.ObjectProvider<AgentTurns> turns;
 
-    public ProviderKeys(JdbcClient jdbc, SecretBox box) {
+    public ProviderKeys(JdbcClient jdbc, SecretBox box, org.springframework.beans.factory.ObjectProvider<AgentTurns> turns) {
         this.jdbc = jdbc;
         this.box = box;
+        this.turns = turns;
     }
 
     @GetMapping("/api/v1/me/provider-keys/anthropic")
@@ -50,6 +52,12 @@ public class ProviderKeys {
                 .optional()
                 .map(hint -> new KeyStatus(true, hint))
                 .orElse(new KeyStatus(false, null));
+    }
+
+    /** The member's agent spending against the daily cap, for the composer. */
+    @GetMapping("/api/v1/me/agent-spend")
+    AgentTurns.Spend spend(@AuthenticationPrincipal AppUser user) {
+        return turns.getObject().spend(user.id());
     }
 
     @PutMapping("/api/v1/me/provider-keys/anthropic")
