@@ -59,11 +59,13 @@ public class GitService {
     private final ApplicationEventPublisher events;
     private final TransactionTemplate tx;
     private final boolean allowInsecureRemotes;
+    private final dev.converge.api.common.RateLimiter limits;
     private final JsonMapper json = JsonMapper.builder().build();
 
     public GitService(JdbcClient jdbc, WorkspaceAccess access, SecretBox box, CollabClient collab, AuditLog audit,
-            ApplicationEventPublisher events, TransactionTemplate tx,
+            ApplicationEventPublisher events, TransactionTemplate tx, dev.converge.api.common.RateLimiter limits,
             @Value("${converge.git.allow-insecure-remotes:false}") boolean allowInsecureRemotes) {
+        this.limits = limits;
         this.jdbc = jdbc;
         this.access = access;
         this.box = box;
@@ -192,6 +194,7 @@ public class GitService {
         var existing = jdbc.sql("select id from git_operations where workspace_id = ? and idempotency_key = ?")
                 .params(workspaceId, idempotencyKey).query(UUID.class).optional();
         if (existing.isPresent()) return operation(existing.get());
+        limits.check(dev.converge.api.common.RateLimiter.GIT, workspaceId.toString());
         flushWorkspace(workspaceId);
         UUID id = UUID.randomUUID();
         try {

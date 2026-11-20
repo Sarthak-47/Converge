@@ -53,6 +53,7 @@ services:
       INTERNAL_TOKEN: ${INTERNAL_TOKEN:-dev-internal-token}
       AGENT_RUNNER_URL: http://agent-runner:4100
       GIT_ALLOW_INSECURE_REMOTES: ${GIT_ALLOW_INSECURE_REMOTES:-false}
+      RATE_LIMIT_SCALE: ${RATE_LIMIT_SCALE:-1}
       SECRETS_KEY: ${SECRETS_KEY:-ZGV2ZWxvcG1lbnQtb25seS1zZWNyZXRzLWtleS0zMiE=}
     depends_on:
       postgres:

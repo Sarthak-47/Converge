@@ -27,7 +27,8 @@ public class InternalTokenFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !request.getRequestURI().startsWith("/internal/");
+        // Metrics are for the monitoring network too: same token, and nginx never routes them.
+        return !request.getRequestURI().startsWith("/internal/") && !request.getRequestURI().equals("/api/actuator/prometheus");
     }
 
     @Override

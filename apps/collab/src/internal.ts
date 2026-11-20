@@ -1,3 +1,4 @@
+import { metrics } from './metrics.js'
 import { timingSafeEqual } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Hocuspocus } from '@hocuspocus/server'
@@ -81,6 +82,7 @@ export async function handleInternal(
     if (typeof body.text !== 'string') return reply(response, 400, { error: 'text is required' })
     const target = body.text
     const connection = await hocuspocus.openDirectConnection(fileId, { system: true, origin: String(body.origin ?? 'api') })
+    metrics.externalChanges.inc({ reason: String(body.origin ?? 'api').split(':')[0] ?? 'api' })
     let changed = false
     try {
       await connection.transact((document) => {

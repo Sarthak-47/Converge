@@ -24,6 +24,8 @@ spring:
     locations: classpath:db/migration
 
 server:
+  # nginx sets X-Forwarded-For; trusting it (from private addresses only) gives rate limits the client's address.
+  forward-headers-strategy: native
   servlet:
     session:
       timeout: 12h
@@ -47,6 +49,9 @@ converge:
     effort: ${AGENT_EFFORT:high}
     # Hard cap per turn, in micro-dollars, enforced from recorded usage.
     cost-cap-micros: ${AGENT_COST_CAP_MICROS:2000000}
+  rate-limits:
+    # Multiplies every limit; 0 turns them off. Raise it for load tests, never to 0 in production.
+    scale: ${RATE_LIMIT_SCALE:1.0}
   git:
     # Only for tests against a local fake GitHub; production remotes must be https.
     allow-insecure-remotes: ${GIT_ALLOW_INSECURE_REMOTES:false}
@@ -60,7 +65,12 @@ management:
     web:
       base-path: /api/actuator
       exposure:
-        include: health
+        include: health, prometheus
+  metrics:
+    distribution:
+      # p50/p95/p99 for request latency, for the baseline report (design §16.1).
+      percentiles:
+        http.server.requests: 0.5, 0.95, 0.99
   endpoint:
     health:
       # Component status (UP/DOWN) is public for the status page; details such as versions are not.

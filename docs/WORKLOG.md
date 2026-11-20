@@ -223,3 +223,38 @@ Decisions made while working autonomously, newest last. Each entry says what was
 - **The fake GitHub could not serve Git in its container**: Alpine ships `git http-backend` in the separate `git-daemon` package. The worker then misread the failed fetch as "the repository has no main branch". The image now installs `git-daemon`, and the worker treats only "couldn't find remote ref" as an empty repository; any other fetch failure (authentication, network, a server that cannot serve Git) is reported as it is, redacted.
 - **`window.prompt` does not exist in Electron**, so in the desktop app the commit message (and comments, notes, holds, checkpoints and handoffs) silently got nothing. All of them now use an in-app text dialog (`askText`, a native `<dialog>`), which also looks the same in every browser. `confirm()` stays, since Electron supports it. Browser tests answer the dialog instead of a native prompt.
 - The Phase 9 takeover race test failed once and passed on retry; Playwright's retry absorbed it. It is worth watching.
+
+## 2026-11-20 — Phase 13: metrics, rate limits and the baseline run
+
+- **API metrics** on `/api/actuator/prometheus` (Micrometer):
+  - HTTP latency with p50, p95 and p99;
+  - `agent_turns_total{status}`, `agent_turn_cost_micros{model}`, `agent_cache_hit_ratio` (cache reads over all input tokens, per model response), `agent_tool_calls_total{tool,outcome}`;
+  - approvals decided, `job_duration{status}`;
+  - queue depths for jobs and Git operations, and running agent turns.
+
+  The endpoint needs the internal token (the same filter as `/internal`), and nginx refuses it as well.
+- **Collaboration-service metrics** on `/metrics` (prom-client, internal token):
+  - `websocket_active_connections`, `ws_auth_rejections_total{reason}`;
+  - `collab_documents_loaded`, `collab_store_duration_ms`, `collab_store_failures_total`;
+  - `external_changes_applied_total{reason}`, update sizes;
+  - rate-limited closes, memory checks, and the default Node process metrics.
+- **Per-connection limits in the collaboration service** (design §7.4): token buckets of 100 messages/s with a burst of 400, and 1 MB/s with a burst of 4 MB. A client beyond them is closed with 4429. Hocuspocus closes with the code thrown from `beforeHandleMessage`, which was checked in its source.
+- **API rate limits** are fixed windows in Redis, one atomic script per check, shared by every API instance:
+  - sign-in, per email and per client address (`forward-headers-strategy: native`, so the address comes from nginx);
+  - sign-up, per address;
+  - agent prompts, per member (each spends their key);
+  - approval cards, per turn;
+  - direct jobs, per member;
+  - Git operations, per workspace;
+  - comments and notes, per member.
+
+  Over the limit is a 429 with `Retry-After`. If Redis is down the limits are skipped and logged: availability wins, and the database rules (single-use tickets, approvals, compare-and-set) still hold. `RATE_LIMIT_SCALE` multiplies every limit; the end-to-end suite raises it because every test user signs up from one address, and integration tests turn it off except in `RateLimitTest`, which runs against a real Redis.
+- **The baseline run** (`tests/load/baseline.mjs`) drives real Yjs clients through nginx with single-use tickets and an artificial 50–300 ms send delay. It reconnects 10% of them mid-run and, with `CHAOS=1`, restarts the collaboration service. It measures:
+  - propagation percentiles (one process, so one clock);
+  - delivery ratio;
+  - reconnect and restart recovery times;
+  - convergence once typing stops;
+  - the cost of scripted agent turns from the API's ledger.
+
+  CI runs it after the end-to-end tests and publishes the report as the job summary and an artifact; it fails if the replicas do not converge. `docs/BASELINE.md` records the first run.
+- **Not done**: OpenTelemetry tracing across services; Toxiproxy fault injection (the chaos step restarts the service instead); a daily per-member cost cap; signed, auto-updating desktop builds, which need the owner's code-signing certificates.

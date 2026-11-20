@@ -49,9 +49,11 @@ public class Comments {
     private final ApplicationEventPublisher events;
     private final TransactionTemplate tx;
     private final JsonMapper json = JsonMapper.builder().build();
+    private final dev.converge.api.common.RateLimiter limits;
 
     public Comments(JdbcClient jdbc, WorkspaceAccess access, Plans plans, AgentTurns turns,
-            ApplicationEventPublisher events, TransactionTemplate tx) {
+            ApplicationEventPublisher events, TransactionTemplate tx, dev.converge.api.common.RateLimiter limits) {
+        this.limits = limits;
         this.jdbc = jdbc;
         this.access = access;
         this.plans = plans;
@@ -62,6 +64,7 @@ public class Comments {
 
     public Comment create(UUID workspaceId, UUID userId, NewComment input) {
         access.require(workspaceId, userId, Role.COMMENTER);
+        limits.check(dev.converge.api.common.RateLimiter.WRITE, userId.toString());
         if (input.sessionId() != null) requireIn("sessions", input.sessionId(), workspaceId);
         switch (input.targetKind()) {
             case FILE_RANGE -> {

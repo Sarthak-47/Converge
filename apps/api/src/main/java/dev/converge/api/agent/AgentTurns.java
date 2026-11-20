@@ -50,6 +50,8 @@ public class AgentTurns {
     private final WorkspaceAccess access;
     private final ProviderKeys keys;
     private final TeamContext team;
+    private final dev.converge.api.common.RateLimiter limits;
+    private final dev.converge.api.common.ConvergeMetrics metrics;
     private final SecretBox box;
     private final AgentRunnerClient runner;
     private final ApplicationEventPublisher events;
@@ -59,7 +61,8 @@ public class AgentTurns {
     private final String effort;
     private final long costCapMicros;
 
-    public AgentTurns(JdbcClient jdbc, WorkspaceAccess access, ProviderKeys keys, TeamContext team, SecretBox box,
+    public AgentTurns(JdbcClient jdbc, WorkspaceAccess access, ProviderKeys keys, TeamContext team,
+            dev.converge.api.common.RateLimiter limits, dev.converge.api.common.ConvergeMetrics metrics, SecretBox box,
             AgentRunnerClient runner, ApplicationEventPublisher events, TransactionTemplate tx,
             @Value("${converge.agent.model}") String model, @Value("${converge.agent.effort}") String effort,
             @Value("${converge.agent.cost-cap-micros}") long costCapMicros) {
@@ -67,6 +70,8 @@ public class AgentTurns {
         this.access = access;
         this.keys = keys;
         this.team = team;
+        this.limits = limits;
+        this.metrics = metrics;
         this.box = box;
         this.runner = runner;
         this.events = events;
@@ -83,6 +88,7 @@ public class AgentTurns {
      */
     public Turn start(UUID workspaceId, UUID sessionId, UUID userId, String displayName, String prompt) {
         access.require(workspaceId, userId, Role.EDITOR);
+        limits.check(dev.converge.api.common.RateLimiter.AGENT_PROMPT, userId.toString());
         String task = sessionId == null ? null : sessionTask(workspaceId, sessionId);
         String apiKey = keys.reveal(userId).orElseThrow(() -> ApiException.conflict(
                 "Add your Anthropic API key before prompting your agent"));
@@ -330,6 +336,11 @@ public class AgentTurns {
                     .update();
             if (updated == 0) return;
             publish("AGENT_TURN_FINISHED", row.workspaceId(), row.sponsorId(), turnId);
+            record Cost(String model, long micros) {
+            }
+            Cost cost = jdbc.sql("select model, cost_micros from agent_turns where id = ?").param(turnId)
+                    .query((rs, n) -> new Cost(rs.getString(1), rs.getLong(2))).single();
+            metrics.turnFinished(status, cost.model(), cost.micros());
             // A card nobody answered before the turn ended can no longer authorize anything.
             int expired = jdbc.sql("""
                     update approvals set status = 'EXPIRED', row_version = row_version + 1

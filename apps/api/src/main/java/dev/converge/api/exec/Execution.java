@@ -60,10 +60,15 @@ public class Execution {
     private final ApplicationEventPublisher events;
     private final TransactionTemplate tx;
     private final Duration approvalTtl;
+    private final dev.converge.api.common.RateLimiter limits;
+    private final dev.converge.api.common.ConvergeMetrics metrics;
 
     public Execution(JdbcClient jdbc, WorkspaceAccess access, AgentTurns turns, CollabClient collab, AuditLog audit,
-            ApplicationEventPublisher events, TransactionTemplate tx,
+            ApplicationEventPublisher events, TransactionTemplate tx, dev.converge.api.common.RateLimiter limits,
+            dev.converge.api.common.ConvergeMetrics metrics,
             @Value("${converge.agent.approval-ttl:PT10M}") Duration approvalTtl) {
+        this.limits = limits;
+        this.metrics = metrics;
         this.jdbc = jdbc;
         this.access = access;
         this.turns = turns;
@@ -79,6 +84,7 @@ public class Execution {
     /** An agent asks to run a command: a pending card everyone in the workspace sees (design §13.7). */
     public Approval requestForTurn(UUID turnId, String rawCommand) {
         AgentTurns.TurnRef turn = turns.runningRef(turnId);
+        limits.check(dev.converge.api.common.RateLimiter.AGENT_ACTION, turnId.toString());
         String command = CommandTemplates.require(rawCommand);
         UUID id = UUID.randomUUID();
         tx.executeWithoutResult(status -> {
@@ -92,6 +98,7 @@ public class Execution {
     /** A member runs an allowlisted command themselves: their request is their approval (browser-only members). */
     public Approval runDirect(UUID workspaceId, UUID userId, String rawCommand) {
         access.require(workspaceId, userId, Role.EDITOR);
+        limits.check(dev.converge.api.common.RateLimiter.JOB, userId.toString());
         String command = CommandTemplates.require(rawCommand);
         flushWorkspace(workspaceId);
         UUID id = UUID.randomUUID();
@@ -129,6 +136,7 @@ public class Execution {
             Row row = jdbc.sql("select action->>'command', requested_by from approvals where id = ?").param(approvalId)
                     .query((rs, n) -> new Row(rs.getString(1), rs.getObject(2, UUID.class))).single();
             if (approve) queueJob(approvalId, workspaceId, row.requestedBy(), row.command());
+            metrics.approvalDecided(approve ? "approved" : "denied");
             audit.record(workspaceId, userId, approve ? "approval.approved" : "approval.denied", "approval", approvalId,
                     Map.of("command", row.command()));
             changed(workspaceId, userId, "APPROVAL_CHANGED", Map.of("approvalId", approvalId));
@@ -246,6 +254,9 @@ public class Execution {
                     where id = ? and status in ('QUEUED', 'RUNNING')
                     """).params(status, exitCode, error, jobId).update();
             if (updated == 0) throw ApiException.conflict("The job has already finished");
+            Long duration = jdbc.sql("select (extract(epoch from (ended_at - coalesce(started_at, created_at))) * 1000)::bigint from jobs where id = ?")
+                    .param(jobId).query(Long.class).single();
+            metrics.jobFinished(status, duration == null ? 0 : duration);
             changed(workspaceId, null, "JOB_UPDATED", Map.of("jobId", jobId));
         });
     }

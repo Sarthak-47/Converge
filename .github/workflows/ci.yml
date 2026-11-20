@@ -71,6 +71,8 @@ jobs:
       # Git runs against the fake GitHub: real git smart HTTP and a fake pull-request API.
       GIT_ALLOW_INSECURE_REMOTES: "true"
       GITHUB_API_URL: http://fake-github:9200/api
+      # Every end-to-end user signs up from the same address; scale the per-address limits up for the suite.
+      RATE_LIMIT_SCALE: "50"
     steps:
       - uses: actions/checkout@v7
       - run: docker compose up -d --build
@@ -110,6 +112,19 @@ jobs:
         run: npm test --workspace @converge/sync-bridge -- live
         env:
           CONVERGE_LIVE_URL: http://localhost:8000
+      - name: Baseline load and chaos run (design §22.4, §22.6; Phase 13 report)
+        run: |
+          CHAOS=1 node tests/load/baseline.mjs | tee .tmp/baseline.md
+          cat .tmp/baseline.md >> "$GITHUB_STEP_SUMMARY"
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: baseline
+          path: |
+            .tmp/baseline.json
+            .tmp/baseline.md
+          if-no-files-found: ignore
+          retention-days: 30
       - if: failure()
         uses: actions/upload-artifact@v7
         with:

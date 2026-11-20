@@ -75,14 +75,16 @@ public class AgentInternalController {
 
     private final AgentTurns turns;
     private final Plans plans;
+    private final dev.converge.api.common.ConvergeMetrics metrics;
     private final FileService files;
     private final TicketService tickets;
     private final JdbcClient jdbc;
 
     public AgentInternalController(AgentTurns turns, Plans plans, FileService files, TicketService tickets,
-            JdbcClient jdbc) {
+            JdbcClient jdbc, dev.converge.api.common.ConvergeMetrics metrics) {
         this.turns = turns;
         this.plans = plans;
+        this.metrics = metrics;
         this.files = files;
         this.tickets = tickets;
         this.jdbc = jdbc;
@@ -172,6 +174,7 @@ public class AgentInternalController {
             if (body.get(key) instanceof String value) event.put(key, value.length() > 20_000 ? value.substring(0, 20_000) : value);
         }
         if (body.get("ok") instanceof Boolean ok) event.put("ok", ok);
+        if ("tool".equals(kind)) metrics.toolCall(String.valueOf(body.get("name")), Boolean.TRUE.equals(body.get("ok")));
         turns.event(turnId, event);
         return ResponseEntity.noContent().build();
     }
@@ -180,6 +183,7 @@ public class AgentInternalController {
     Map<String, Long> usage(@PathVariable UUID turnId, @Valid @RequestBody UsageReport body) {
         long total = turns.usage(turnId, body.inputTokens(), body.outputTokens(), body.cacheReadTokens(),
                 body.cacheWriteTokens(), body.costMicros());
+        metrics.modelResponse(body.model(), body.inputTokens(), body.cacheReadTokens(), body.cacheWriteTokens());
         return Map.of("costMicros", total);
     }
 

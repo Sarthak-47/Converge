@@ -38,7 +38,9 @@ import dev.converge.api.realtime.CollabClient;
         "converge.collab.health.enabled=false",
         "management.health.redis.enabled=false",
         "converge.internal-token=" + IntegrationTest.INTERNAL_TOKEN,
-        "converge.secrets-key=" + IntegrationTest.SECRETS_KEY
+        "converge.secrets-key=" + IntegrationTest.SECRETS_KEY,
+        // Tests sign up many users from one address; RateLimitTest checks the limits on their own.
+        "converge.rate-limits.scale=0"
 })
 @AutoConfigureMockMvc
 public abstract class IntegrationTest {

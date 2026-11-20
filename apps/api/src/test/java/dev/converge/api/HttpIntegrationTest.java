@@ -12,7 +12,9 @@ import org.springframework.core.env.Environment;
         "converge.collab.health.enabled=false",
         "management.health.redis.enabled=false",
         "converge.internal-token=" + IntegrationTest.INTERNAL_TOKEN,
-        "converge.secrets-key=" + IntegrationTest.SECRETS_KEY
+        "converge.secrets-key=" + IntegrationTest.SECRETS_KEY,
+        // Tests sign up many users from one address; RateLimitTest checks the limits on their own.
+        "converge.rate-limits.scale=0"
 })
 public abstract class HttpIntegrationTest extends IntegrationTest {
 

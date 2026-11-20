@@ -12,6 +12,13 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 @RestControllerAdvice
 public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
+    @ExceptionHandler(RateLimitedException.class)
+    ResponseEntity<ProblemDetail> handleRateLimited(RateLimitedException e) {
+        return ResponseEntity.status(e.status())
+                .header("Retry-After", String.valueOf(e.retryAfterSeconds()))
+                .body(ProblemDetail.forStatusAndDetail(e.status(), e.getMessage()));
+    }
+
     @ExceptionHandler(ApiException.class)
     ResponseEntity<ProblemDetail> handleApi(ApiException e) {
         return ResponseEntity.status(e.status()).body(ProblemDetail.forStatusAndDetail(e.status(), e.getMessage()));

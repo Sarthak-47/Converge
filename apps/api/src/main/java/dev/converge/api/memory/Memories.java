@@ -59,8 +59,11 @@ public class Memories {
     private final ApplicationEventPublisher events;
     private final TransactionTemplate tx;
     private final JsonMapper json = JsonMapper.builder().build();
+    private final dev.converge.api.common.RateLimiter limits;
 
-    public Memories(JdbcClient jdbc, WorkspaceAccess access, ApplicationEventPublisher events, TransactionTemplate tx) {
+    public Memories(JdbcClient jdbc, WorkspaceAccess access, ApplicationEventPublisher events, TransactionTemplate tx,
+            dev.converge.api.common.RateLimiter limits) {
+        this.limits = limits;
         this.jdbc = jdbc;
         this.access = access;
         this.events = events;
@@ -69,6 +72,7 @@ public class Memories {
 
     public Memory create(UUID workspaceId, UUID userId, UUID turnId, NewMemory input) {
         access.require(workspaceId, userId, Role.COMMENTER);
+        limits.check(dev.converge.api.common.RateLimiter.WRITE, userId.toString());
         validate(input.body(), input.anchor(), input.anchoredText());
         if (input.kind() == null) throw ApiException.badRequest("kind is required");
         int inWorkspace = jdbc.sql("select count(*) from files where id = ? and workspace_id = ? and kind = 'FILE' and deleted_at is null")

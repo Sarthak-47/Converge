@@ -26,6 +26,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import dev.converge.api.common.RateLimiter;
 import dev.converge.api.workspace.MemberService;
 
 @RestController
@@ -52,9 +53,12 @@ public class AuthController {
     private final AuthenticationManager authenticationManager;
     private final SecurityContextRepository contexts;
     private final MemberService members;
+    private final RateLimiter limits;
 
     public AuthController(UserRepository users, PasswordEncoder passwordEncoder,
-            AuthenticationManager authenticationManager, SecurityContextRepository contexts, MemberService members) {
+            AuthenticationManager authenticationManager, SecurityContextRepository contexts, MemberService members,
+            RateLimiter limits) {
+        this.limits = limits;
         this.users = users;
         this.passwordEncoder = passwordEncoder;
         this.authenticationManager = authenticationManager;
@@ -65,6 +69,7 @@ public class AuthController {
     @PostMapping("/register")
     ResponseEntity<UserView> register(@Valid @RequestBody RegisterRequest body, HttpServletRequest request,
             HttpServletResponse response) {
+        limits.check(RateLimiter.REGISTER, "ip:" + request.getRemoteAddr());
         AppUser user = users.create(body.email(), body.displayName(), passwordEncoder.encode(body.password()));
         members.acceptInvitations(user);
         signIn(user, request, response);
@@ -73,6 +78,9 @@ public class AuthController {
 
     @PostMapping("/login")
     UserView login(@Valid @RequestBody LoginRequest body, HttpServletRequest request, HttpServletResponse response) {
+        // Per account and per address, so guessing one password or spraying many accounts are both slowed.
+        limits.check(RateLimiter.LOGIN, "email:" + body.email().strip().toLowerCase(java.util.Locale.ROOT));
+        limits.check(RateLimiter.LOGIN, "ip:" + request.getRemoteAddr());
         Authentication result = authenticationManager.authenticate(
                 UsernamePasswordAuthenticationToken.unauthenticated(body.email(), body.password()));
         AppUser user = (AppUser) result.getPrincipal();
