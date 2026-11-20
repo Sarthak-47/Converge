@@ -30,6 +30,10 @@ export class CollabWorkspace implements TurnWorkspace {
     class OriginWebSocket extends WebSocket {
       constructor(url: string, protocols?: string | string[]) {
         super(url, protocols, { headers: { Origin: origin } })
+        // Closing a turn's workspace while its socket is still connecting (a cancel or a takeover right after
+        // a start) makes ws emit 'error' after the provider has detached its handlers. Without a listener of
+        // our own, that unhandled event would take the whole runner down.
+        this.on('error', () => undefined)
       }
     }
     this.socket = new HocuspocusProviderWebsocket({ url: options.collabUrl, WebSocketPolyfill: OriginWebSocket })
