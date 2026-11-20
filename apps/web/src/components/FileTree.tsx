@@ -1,5 +1,6 @@
 import { useMemo, useState, type FormEvent, type KeyboardEvent } from 'react'
 import type { FileKind, FileNode } from '../api.ts'
+import { Icon, type IconName } from './Icon.tsx'
 
 type TreeNode = FileNode & { children: TreeNode[] }
 
@@ -86,13 +87,13 @@ export function FileTree({ files, activeFileId, dirtyIds, canEdit, onOpen, onCre
 
   const renderDraftInput = (parentId: string | null, depth: number) =>
     draft?.kind === 'create' && draft.parentId === parentId ? (
-      <NameInput depth={depth} icon={draft.fileKind === 'FOLDER' ? '▸' : '·'} initial="" onDone={commit} />
+      <NameInput depth={depth} icon={draft.fileKind === 'FOLDER' ? 'folder' : 'file'} initial="" onDone={commit} />
     ) : null
 
   function renderNodes(nodes: TreeNode[], depth: number) {
     return nodes.map((node) => {
       if (draft?.kind === 'rename' && draft.file.id === node.id) {
-        return <NameInput key={node.id} depth={depth} icon={node.kind === 'FOLDER' ? '▸' : '·'} initial={node.name} onDone={commit} />
+        return <NameInput key={node.id} depth={depth} icon={node.kind === 'FOLDER' ? 'folder' : 'file'} initial={node.name} onDone={commit} />
       }
       const isFolder = node.kind === 'FOLDER'
       const open = isFolder && !collapsed.has(node.id)
@@ -105,13 +106,13 @@ export function FileTree({ files, activeFileId, dirtyIds, canEdit, onOpen, onCre
             onDoubleClick={() => canEdit && setDraft({ kind: 'rename', file: node })}
             title={node.path}
           >
-            <span className="tree-icon">{isFolder ? (open ? '▾' : '▸') : '·'}</span>
+            <span className={`tree-icon${open ? ' open' : ''}`}>{isFolder ? <Icon name="chevron" size={13} /> : <Icon name="file" size={14} />}</span>
             <span className="tree-name">{node.name}</span>
             {dirtyIds.has(node.id) && <span className="dirty-dot" aria-label="unsaved changes" />}
             {canEdit && (
               <span className="tree-actions">
-                <button type="button" className="icon" title="Rename" onClick={(e) => { e.stopPropagation(); setDraft({ kind: 'rename', file: node }) }}>✎</button>
-                <button type="button" className="icon" title="Delete" onClick={(e) => { e.stopPropagation(); void remove(node) }}>×</button>
+                <button type="button" className="icon" title="Rename" aria-label={`Rename ${node.name}`} onClick={(e) => { e.stopPropagation(); setDraft({ kind: 'rename', file: node }) }}><Icon name="pencil" size={14} /></button>
+                <button type="button" className="icon" title="Delete" aria-label={`Delete ${node.name}`} onClick={(e) => { e.stopPropagation(); void remove(node) }}><Icon name="close" size={14} /></button>
               </span>
             )}
           </div>
@@ -132,8 +133,8 @@ export function FileTree({ files, activeFileId, dirtyIds, canEdit, onOpen, onCre
         <span>Files</span>
         {canEdit && (
           <span>
-            <button type="button" className="icon" title="New file" onClick={() => startCreate('FILE')}>+</button>
-            <button type="button" className="icon" title="New folder" onClick={() => startCreate('FOLDER')}>▸+</button>
+            <button type="button" className="icon" title="New file" aria-label="New file" onClick={() => startCreate('FILE')}><Icon name="filePlus" size={15} /></button>
+            <button type="button" className="icon" title="New folder" aria-label="New folder" onClick={() => startCreate('FOLDER')}><Icon name="folderPlus" size={15} /></button>
           </span>
         )}
       </div>
@@ -147,7 +148,7 @@ export function FileTree({ files, activeFileId, dirtyIds, canEdit, onOpen, onCre
   )
 }
 
-function NameInput({ depth, icon, initial, onDone }: { depth: number; icon: string; initial: string; onDone: (name: string) => void }) {
+function NameInput({ depth, icon, initial, onDone }: { depth: number; icon: IconName; initial: string; onDone: (name: string) => void }) {
   const [value, setValue] = useState(initial)
   function onKey(e: KeyboardEvent) {
     if (e.key === 'Escape') onDone(initial)
@@ -159,7 +160,7 @@ function NameInput({ depth, icon, initial, onDone }: { depth: number; icon: stri
   return (
     <li>
       <form className="tree-row editing" style={{ paddingLeft: 8 + depth * 14 }} onSubmit={submit}>
-        <span className="tree-icon">{icon}</span>
+        <span className="tree-icon"><Icon name={icon} size={14} /></span>
         <input autoFocus value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={onKey} onBlur={() => onDone(value)} aria-label="Name" />
       </form>
     </li>

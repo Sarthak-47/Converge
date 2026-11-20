@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import type { ChatMessage } from '../realtime/workspaceChannel.ts'
+import type { CSSProperties } from 'react'
+import { colorFor } from '../editor/collabDocument.ts'
 
 type Props = {
   messages: ChatMessage[]
@@ -32,9 +34,9 @@ export function ChatPanel({ messages, currentUserId, canPost, connected, onSend 
       <ol className="chat-messages" ref={list}>
         {messages.length === 0 && <li className="muted small">No messages yet.</li>}
         {messages.map((m) => (
-          <li key={m.id} className={m.userId === currentUserId ? 'mine' : ''}>
+          <li key={m.id} className={m.userId === currentUserId ? 'mine' : ''} style={{ '--who': colorFor(m.userId) } as CSSProperties}>
             <div className="chat-meta">
-              <strong>{m.displayName}</strong>
+              <strong><span className="who-dot" aria-hidden="true" />{m.displayName}</strong>
               <time className="muted small" dateTime={m.createdAt}>{time.format(new Date(m.createdAt))}</time>
             </div>
             <p>{m.body}</p>

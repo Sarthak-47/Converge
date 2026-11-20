@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { MonacoBinding } from 'y-monaco'
 import type { CollabDocument, Peer } from './collabDocument.ts'
-import { monaco } from './monaco.ts'
+import { editorFont, monaco, monacoTheme } from './monaco.ts'
 
 /** A highlighted range, as offsets into the current text. */
 export type Highlight = { start: number; end: number; title: string; className?: string }
@@ -18,7 +18,6 @@ type Props = {
   onEditor?: (editor: monaco.editor.IStandaloneCodeEditor | null) => void
 }
 
-const darkScheme = window.matchMedia('(prefers-color-scheme: dark)')
 
 /** Escapes every Markdown control character, so text renders literally in a Markdown hover. */
 function plainMarkdown(text: string) {
@@ -68,10 +67,11 @@ export default function CodeEditor({ model, live, readOnly, highlights = [], rev
   useEffect(() => {
     const instance = monaco.editor.create(host.current!, {
       automaticLayout: true,
-      fontSize: 14,
+      ...editorFont,
+      padding: { top: 12 },
       minimap: { enabled: false },
       scrollBeyondLastLine: false,
-      theme: darkScheme.matches ? 'vs-dark' : 'vs',
+      theme: monacoTheme(),
       tabSize: 2,
     })
     const { KeyMod, KeyCode } = monaco
@@ -80,14 +80,11 @@ export default function CodeEditor({ model, live, readOnly, highlights = [], rev
     instance.addCommand(KeyMod.CtrlCmd | KeyCode.KeyZ, () => current.current.undoManager.undo())
     instance.addCommand(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyZ, () => current.current.undoManager.redo())
     instance.addCommand(KeyMod.CtrlCmd | KeyCode.KeyY, () => current.current.undoManager.redo())
-    const followTheme = (e: MediaQueryListEvent) => monaco.editor.setTheme(e.matches ? 'vs-dark' : 'vs')
-    darkScheme.addEventListener('change', followTheme)
     styles.current = document.head.appendChild(document.createElement('style'))
     editor.current = instance
     notifyEditor.current?.(instance)
     return () => {
       notifyEditor.current?.(null)
-      darkScheme.removeEventListener('change', followTheme)
       styles.current?.remove()
       instance.dispose()
       editor.current = null

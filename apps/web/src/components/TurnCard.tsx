@@ -2,6 +2,9 @@ import { useState, type FormEvent } from 'react'
 import type React from 'react'
 import { api, type AgentKey, type AgentTurn, type AgentTurnStatus } from '../api.ts'
 import { dollars, errorMessage } from './agentKit.ts'
+import { Icon } from './Icon.tsx'
+import type { CSSProperties } from 'react'
+import { colorFor } from '../editor/collabDocument.ts'
 
 const STATUS_LABEL: Record<AgentTurnStatus, string> = {
   RUNNING: 'Working…',
@@ -26,15 +29,15 @@ type TurnCardProps = {
 /** One agent turn in a lane: its transcript, cost on the sponsor's key, and stop/revert (design §13.2, §13.5). */
 export function TurnCard({ turn, currentUserId, canEdit, busy, onStop, onRevert, renderApproval }: TurnCardProps) {
   return (
-    <li className="agent-turn" data-status={turn.status} aria-label={`${turn.sponsorName}'s agent turn`}>
+    <li className="agent-turn" data-status={turn.status} aria-label={`${turn.sponsorName}'s agent turn`} style={{ '--who': colorFor(turn.sponsorId) } as CSSProperties}>
       <div className="agent-turn-head">
-        <strong>{turn.sponsorName}'s agent</strong>
+        <strong className="turn-who"><span className="who-dot agent" aria-hidden="true" />{turn.sponsorName}'s agent</strong>
         <span className={`agent-status status-${turn.status.toLowerCase()}`}>{STATUS_LABEL[turn.status]}</span>
       </div>
       {turn.events.map((e) => {
         if (e.kind === 'prompt') return <p key={e.seq} className="agent-prompt"><span className="muted">{turn.sponsorName}:</span> {e.text}</p>
         if (e.kind === 'steer') return <p key={e.seq} className="agent-prompt"><span className="muted">{turn.sponsorName} (steering):</span> {e.text}</p>
-        if (e.kind === 'tool') return <p key={e.seq} className={`agent-tool ${e.ok ? 'ok' : 'failed'}`}>{e.ok ? '✓' : '✗'} {e.summary}</p>
+        if (e.kind === 'tool') return <p key={e.seq} className={`agent-tool ${e.ok ? 'ok' : 'failed'}`}><Icon name={e.ok ? 'check' : 'cross'} size={13} /> {e.summary}</p>
         if (e.kind === 'note') return <p key={e.seq} className="agent-note muted">{e.text}</p>
         if (e.kind === 'approval') return <div key={e.seq}>{e.approvalId && renderApproval?.(e.approvalId)}</div>
         return <p key={e.seq} className="agent-text">{e.text}</p>

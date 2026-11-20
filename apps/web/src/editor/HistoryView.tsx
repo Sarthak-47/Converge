@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { api, type Version } from '../api.ts'
-import { monaco } from './monaco.ts'
+import { editorFont, monaco, monacoTheme } from './monaco.ts'
+import { Icon } from '../components/Icon.tsx'
 
 type Props = {
   fileId: string
@@ -18,7 +19,6 @@ const REASON: Record<Version['reason'], string> = {
 }
 
 const when = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' })
-const darkScheme = window.matchMedia('(prefers-color-scheme: dark)')
 
 /** Version list plus a diff of the chosen version against the live text (FR-10, FR-11). */
 export default function HistoryView({ fileId, current, canRestore, onClose, onRestored }: Props) {
@@ -46,7 +46,8 @@ export default function HistoryView({ fileId, current, canRestore, onClose, onRe
       originalEditable: false,
       renderSideBySide: true,
       minimap: { enabled: false },
-      theme: darkScheme.matches ? 'vs-dark' : 'vs',
+      theme: monacoTheme(),
+      ...editorFont,
     })
     return () => {
       diff.current?.dispose()
@@ -90,7 +91,7 @@ export default function HistoryView({ fileId, current, canRestore, onClose, onRe
       <aside className="history-list" aria-label="Versions">
         <div className="tree-header">
           <span>History</span>
-          <button type="button" className="icon" aria-label="Close history" onClick={onClose}>×</button>
+          <button type="button" className="icon" aria-label="Close history" onClick={onClose}><Icon name="close" /></button>
         </div>
         {error && <p className="error small tree-error" role="alert">{error}</p>}
         {versions?.length === 0 && <p className="muted small tree-empty">No versions yet. Create a checkpoint to start one.</p>}

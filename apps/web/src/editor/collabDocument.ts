@@ -14,10 +14,14 @@ function collabUrl() {
 }
 
 /** A stable, readable colour per user, so the same person looks the same in every tab. */
+// The thread palette (index.css --thread-1..6): reads on both themes and stays clear of the marigold signal and
+// the cyan accent. Kept as hsl() strings, the only form awareness validation accepts from other clients.
+const THREADS = ['hsl(12 85% 58%)', 'hsl(168 80% 38%)', 'hsl(252 90% 66%)', 'hsl(330 75% 56%)', 'hsl(212 100% 58%)', 'hsl(84 70% 42%)']
+
 export function colorFor(userId: string) {
   let hash = 0
   for (const ch of userId) hash = (hash * 31 + ch.charCodeAt(0)) | 0
-  return `hsl(${Math.abs(hash) % 360} 70% 45%)`
+  return THREADS[Math.abs(hash) % THREADS.length]
 }
 
 /** Someone else editing the same file, as announced through Yjs awareness. */

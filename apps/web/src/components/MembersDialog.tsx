@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { api, type Role, type Roster, type Workspace } from '../api.ts'
+import { Icon } from './Icon.tsx'
 
 const ROLES: Role[] = ['OWNER', 'EDITOR', 'COMMENTER', 'VIEWER']
 const ROLE_HELP: Record<Role, string> = {
@@ -76,7 +77,7 @@ export function MembersDialog({ workspace, currentUserId, onClose, onLeft }: Pro
     <dialog ref={dialog} className="dialog card" onClose={onClose} aria-labelledby="members-title">
       <header className="dialog-header">
         <h2 id="members-title">Members</h2>
-        <button type="button" className="icon" aria-label="Close" onClick={() => dialog.current?.close()}>×</button>
+        <button type="button" className="icon" aria-label="Close" onClick={() => dialog.current?.close()}><Icon name="close" /></button>
       </header>
       {error && <p className="error small" role="alert">{error}</p>}
       {notice && <p className="small notice" role="status">{notice}</p>}

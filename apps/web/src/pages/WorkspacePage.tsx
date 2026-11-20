@@ -16,6 +16,7 @@ import { TopBar } from '../components/TopBar.tsx'
 import { CollabDocument, type Peer, type SyncState } from '../editor/collabDocument.ts'
 import { monaco } from '../editor/monaco.ts'
 import { useWorkspaceChannel, type ChatMessage, type WorkspaceEvent } from '../realtime/workspaceChannel.ts'
+import { BrandMark } from '../components/Icon.tsx'
 
 const CodeEditor = lazy(() => import('../editor/CodeEditor.tsx'))
 const HistoryView = lazy(() => import('../editor/HistoryView.tsx'))
@@ -66,6 +67,7 @@ export default function WorkspacePage() {
   const [reveal, setReveal] = useState<{ start: number; end: number; key: string } | null>(null)
   const pendingReveal = useRef<string | null>(null)
   const editorInstance = useRef<monaco.editor.IStandaloneCodeEditor | null>(null)
+  const editorHost = useRef<HTMLDivElement | null>(null)
 
   const canEdit = workspace?.role === 'OWNER' || workspace?.role === 'EDITOR'
   const canComment = canEdit || workspace?.role === 'COMMENTER'
@@ -367,6 +369,13 @@ export default function WorkspacePage() {
     setFiles((list) => list.filter((f) => !removed(f)))
   }
 
+  // Opening a file slides its text in, once, so the switch reads as a change of document (skipped for reduced motion).
+  useEffect(() => {
+    const host = editorHost.current
+    if (!host || !activeId || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    host.animate([{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: 260, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' })
+  }, [activeId])
+
   if (loadError) {
     return (
       <div className="page">
@@ -379,6 +388,7 @@ export default function WorkspacePage() {
   }
 
   const activeState = activeId ? syncStates[activeId] ?? 'connecting' : null
+
 
   return (
     <div className="ide">
@@ -499,7 +509,7 @@ export default function WorkspacePage() {
         )}
         {active ? (
           // Stays mounted while history is open, so the binding keeps the live text (and the diff) current.
-          <div className="editor-host" hidden={showHistory}>
+          <div className="editor-host" hidden={showHistory} ref={editorHost}>
             <Suspense fallback={<div className="center muted">Loading editor…</div>}>
               <CodeEditor
                 model={active.open.model}
@@ -514,7 +524,13 @@ export default function WorkspacePage() {
             </Suspense>
           </div>
         ) : (
-          <div className="center muted">{files.length ? 'Select a file to start editing.' : 'Create a file to start editing.'}</div>
+          <div className="center editor-empty">
+            <div className="editor-empty-inner">
+              <BrandMark size={56} />
+              <p className="editor-empty-title">{files.length ? 'Select a file to start editing.' : 'Create a file to start editing.'}</p>
+              <p className="muted small">Everyone here types into the same file. Cursors, lanes and turns carry each person's colour.</p>
+            </div>
+          </div>
         )}
       </section>
       <div className="side-panel">

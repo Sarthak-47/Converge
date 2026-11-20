@@ -13,3 +13,8 @@ target/
 CLAUDE.local.md
 playwright-report/
 test-results/
+
+# Design review captures (regenerated; not source)
+.impeccable/review/
+**/.impeccable/review/
+**/.impeccable/mocks/

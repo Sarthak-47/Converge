@@ -4,6 +4,8 @@ import { ApprovalCard } from './ApprovalCard.tsx'
 import { askText } from './askText.tsx'
 import { AgentKeyForm, TurnCard } from './TurnCard.tsx'
 import { errorMessage, useAgentKey } from './agentKit.ts'
+import type { CSSProperties } from 'react'
+import { colorFor } from '../editor/collabDocument.ts'
 
 type Props = {
   workspaceId: string
@@ -324,7 +326,7 @@ function SessionView({ workspaceId, currentUser, role, refreshSignal, jobSignal,
           const laneTurns = turns.filter((t) => t.laneUserId === owner)
           const name = laneTurns[0]?.sponsorName ?? 'Someone'
           return (
-            <div key={owner} className="lane" aria-label={`${name}'s lane`}>
+            <div key={owner} className="lane" aria-label={`${name}'s lane`} style={{ '--who': colorFor(owner) } as CSSProperties}>
               <h3 className="session-section">{name}'s lane</h3>
               <ol className="agent-turns">
                 {laneTurns.map((turn) => (
