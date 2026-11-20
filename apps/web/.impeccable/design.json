@@ -1,948 +1,192 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-20T19:27:04.639Z",
+  "generatedAt": "2026-11-21T12:00:00.000Z",
   "title": "Design System: Converge",
   "extensions": {
     "colorMeta": {
-      "marigold-signal": {
-        "role": "primary",
-        "displayName": "Marigold Signal",
-        "canonical": "#ffb020",
-        "tonalRamp": [
-          "#402c08",
-          "#734f0e",
-          "#a67215",
-          "#d9961b",
-          "#ffc04d",
-          "#ffd484",
-          "#ffe7bc",
-          "#fff6e4"
-        ]
-      },
-      "marigold-deep": {
-        "role": "primary",
-        "displayName": "Marigold Deep",
-        "canonical": "#f59e0b",
-        "tonalRamp": [
-          "#3d2803",
-          "#6e4705",
-          "#9f6707",
-          "#d08609",
-          "#f7b13c",
-          "#faca79",
-          "#fce2b6",
-          "#fef3e2"
-        ]
-      },
-      "marigold-ink": {
-        "role": "primary",
-        "displayName": "Marigold Ink",
-        "canonical": "#1a1200",
-        "tonalRamp": [
-          "#070500",
-          "#0c0800",
-          "#110c00",
-          "#160f00",
-          "#484133",
-          "#817d73",
-          "#bab8b3",
-          "#e4e3e0"
-        ]
-      },
-      "night-marigold": {
-        "role": "primary",
-        "displayName": "Night Marigold",
-        "canonical": "#ffb627",
-        "tonalRamp": [
-          "#402e0a",
-          "#735212",
-          "#a67619",
-          "#d99b21",
-          "#ffc552",
-          "#ffd788",
-          "#ffe9be",
-          "#fff6e5"
-        ]
-      },
-      "night-marigold-bright": {
-        "role": "primary",
-        "displayName": "Night Marigold Bright",
-        "canonical": "#ffc54f",
-        "tonalRamp": [
-          "#403114",
-          "#735924",
-          "#a68033",
-          "#d9a743",
-          "#ffd172",
-          "#ffdf9e",
-          "#ffeeca",
-          "#fff8ea"
-        ]
-      },
-      "cyan-accent": {
-        "role": "secondary",
-        "displayName": "Cyan Accent",
-        "canonical": "#0b6fa4",
-        "tonalRamp": [
-          "#031c29",
-          "#05324a",
-          "#07486b",
-          "#095e8b",
-          "#3c8cb6",
-          "#79b0cd",
-          "#b6d4e4",
-          "#e2eef4"
-        ]
-      },
-      "cyan-wash": {
-        "role": "secondary",
-        "displayName": "Cyan Wash",
-        "canonical": "#dcf0fa",
-        "tonalRamp": [
-          "#373c3f",
-          "#636c70",
-          "#8f9ca3",
-          "#bbccd5",
-          "#e3f3fb",
-          "#ecf7fc",
-          "#f5fbfe",
-          "#fbfdfe"
-        ]
-      },
-      "night-cyan": {
-        "role": "secondary",
-        "displayName": "Night Cyan",
-        "canonical": "#6cc6ec",
-        "tonalRamp": [
-          "#1b323b",
-          "#31596a",
-          "#468199",
-          "#5ca8c9",
-          "#89d1f0",
-          "#aee0f5",
-          "#d3eef9",
-          "#edf8fd"
-        ]
-      },
-      "night-cyan-wash": {
-        "role": "secondary",
-        "displayName": "Night Cyan Wash",
-        "canonical": "#0d2d40",
-        "tonalRamp": [
-          "#030b10",
-          "#06141d",
-          "#081d2a",
-          "#0b2636",
-          "#3d5766",
-          "#7a8c96",
-          "#b6c0c6",
-          "#e2e6e8"
-        ]
-      },
-      "cyanotype-deep": {
-        "role": "secondary",
-        "displayName": "Cyanotype Band",
-        "canonical": "#0a2f4e",
-        "tonalRamp": [
-          "#030c14",
-          "#051523",
-          "#071f33",
-          "#092842",
-          "#3b5971",
-          "#788d9e",
-          "#b6c1ca",
-          "#e2e6ea"
-        ]
-      },
-      "cyanotype-ink": {
-        "role": "secondary",
-        "displayName": "Cyanotype Ink",
-        "canonical": "#f3f6ff",
-        "tonalRamp": [
-          "#3d3e40",
-          "#6d6f73",
-          "#9ea0a6",
-          "#cfd1d9",
-          "#f5f8ff",
-          "#f8faff",
-          "#fbfcff",
-          "#fefeff"
-        ]
-      },
-      "thread-vermilion": {
-        "role": "tertiary",
-        "displayName": "Thread Vermilion",
-        "canonical": "hsl(12 85% 58%)",
-        "tonalRamp": [
-          "#3c170e",
-          "#6c2a1a",
-          "#9b3c25",
-          "#cb4f30",
-          "#f27d61",
-          "#f6a692",
-          "#facec4",
-          "#fdece7"
-        ]
-      },
-      "thread-teal": {
-        "role": "tertiary",
-        "displayName": "Thread Teal",
-        "canonical": "hsl(168 80% 38%)",
-        "tonalRamp": [
-          "#052c24",
-          "#094e40",
-          "#0c715d",
-          "#10947a",
-          "#42bea5",
-          "#7dd2c1",
-          "#b8e7dd",
-          "#e3f5f2"
-        ]
-      },
-      "thread-violet": {
-        "role": "tertiary",
-        "displayName": "Thread Violet",
-        "canonical": "hsl(252 90% 66%)",
-        "tonalRamp": [
-          "#1e173e",
-          "#36286f",
-          "#4f3ba0",
-          "#674dd1",
-          "#947bf8",
-          "#b5a4fa",
-          "#d7cefc",
-          "#efebfe"
-        ]
-      },
-      "thread-magenta": {
-        "role": "tertiary",
-        "displayName": "Thread Magenta",
-        "canonical": "hsl(330 75% 56%)",
-        "tonalRamp": [
-          "#390f24",
-          "#661b40",
-          "#94265d",
-          "#c1327a",
-          "#e962a5",
-          "#f093c1",
-          "#f7c4dd",
-          "#fce7f2"
-        ]
-      },
-      "thread-azure": {
-        "role": "tertiary",
-        "displayName": "Thread Azure",
-        "canonical": "hsl(212 100% 58%)",
-        "tonalRamp": [
-          "#0a2340",
-          "#123f73",
-          "#1b5ca6",
-          "#2378d9",
-          "#54a4ff",
-          "#89c0ff",
-          "#bfddff",
-          "#e5f1ff"
-        ]
-      },
-      "thread-lime": {
-        "role": "tertiary",
-        "displayName": "Thread Lime",
-        "canonical": "hsl(84 70% 42%)",
-        "tonalRamp": [
-          "#1f2e08",
-          "#37520e",
-          "#4f7615",
-          "#689b1b",
-          "#95c54d",
-          "#b6d784",
-          "#d7e9bc",
-          "#eff6e4"
-        ]
-      },
-      "blueprint-paper": {
-        "role": "neutral",
-        "displayName": "Blueprint Paper",
-        "canonical": "#edf1f8",
-        "tonalRamp": [
-          "#3b3c3e",
-          "#6b6c70",
-          "#9a9da1",
-          "#c9cdd3",
-          "#f1f4f9",
-          "#f5f7fb",
-          "#fafbfd",
-          "#fdfdfe"
-        ]
-      },
-      "sheet-white": {
-        "role": "neutral",
-        "displayName": "Sheet White",
-        "canonical": "#ffffff",
-        "tonalRamp": [
-          "#404040",
-          "#737373",
-          "#a6a6a6",
-          "#d9d9d9",
-          "#ffffff",
-          "#ffffff",
-          "#ffffff",
-          "#ffffff"
-        ]
-      },
-      "sheet-tint": {
-        "role": "neutral",
-        "displayName": "Sheet Tint",
-        "canonical": "#f3f6fb",
-        "tonalRamp": [
-          "#3d3e3f",
-          "#6d6f71",
-          "#9ea0a3",
-          "#cfd1d5",
-          "#f5f8fc",
-          "#f8fafd",
-          "#fbfcfe",
-          "#fefeff"
-        ]
-      },
-      "rail-wash": {
-        "role": "neutral",
-        "displayName": "Rail Wash",
-        "canonical": "#e6ecf6",
-        "tonalRamp": [
-          "#3a3b3e",
-          "#676a6f",
-          "#9699a0",
-          "#c4c9d1",
-          "#ebf0f8",
-          "#f1f5fa",
-          "#f8f9fc",
-          "#fcfdfe"
-        ]
-      },
-      "prussian-ink": {
-        "role": "neutral",
-        "displayName": "Prussian Ink",
-        "canonical": "#0d1a36",
-        "tonalRamp": [
-          "#03070e",
-          "#060c18",
-          "#081123",
-          "#0b162e",
-          "#3d485e",
-          "#7a8190",
-          "#b6bac3",
-          "#e2e4e7"
-        ]
-      },
-      "slate-muted": {
-        "role": "neutral",
-        "displayName": "Slate Muted",
-        "canonical": "#4c5c7e",
-        "tonalRamp": [
-          "#131720",
-          "#222939",
-          "#313c52",
-          "#414e6b",
-          "#707d98",
-          "#9da5b8",
-          "#c9ced8",
-          "#eaebf0"
-        ]
-      },
-      "slate-faint": {
-        "role": "neutral",
-        "displayName": "Slate Faint",
-        "canonical": "#66748f",
-        "tonalRamp": [
-          "#1a1d24",
-          "#2e3440",
-          "#424b5d",
-          "#57637a",
-          "#8590a5",
-          "#abb3c1",
-          "#d1d5dd",
-          "#edeef2"
-        ]
-      },
-      "hairline": {
-        "role": "neutral",
-        "displayName": "Hairline",
-        "canonical": "#d3dcec",
-        "tonalRamp": [
-          "#35373b",
-          "#5f636a",
-          "#898f99",
-          "#b3bbc9",
-          "#dce3f0",
-          "#e7ecf5",
-          "#f2f5f9",
-          "#fafbfd"
-        ]
-      },
-      "hairline-strong": {
-        "role": "neutral",
-        "displayName": "Hairline Strong",
-        "canonical": "#b5c3dc",
-        "tonalRamp": [
-          "#2d3137",
-          "#515863",
-          "#767f8f",
-          "#9aa6bb",
-          "#c4cfe3",
-          "#d6deec",
-          "#e9edf5",
-          "#f6f8fb"
-        ]
-      },
-      "hover-wash": {
-        "role": "neutral",
-        "displayName": "Hover Wash",
-        "canonical": "#edf2fb",
-        "tonalRamp": [
-          "#3b3d3f",
-          "#6b6d71",
-          "#9a9da3",
-          "#c9ced5",
-          "#f1f5fc",
-          "#f5f8fd",
-          "#fafbfe",
-          "#fdfdff"
-        ]
-      },
-      "active-wash": {
-        "role": "neutral",
-        "displayName": "Active Wash",
-        "canonical": "#dfe8fd",
-        "tonalRamp": [
-          "#383a3f",
-          "#646872",
-          "#9197a4",
-          "#bec5d7",
-          "#e5edfd",
-          "#edf2fe",
-          "#f5f8fe",
-          "#fbfcff"
-        ]
-      },
-      "up-wash": {
-        "role": "neutral",
-        "displayName": "Up Wash",
-        "canonical": "#e1f5ec",
-        "tonalRamp": [
-          "#383d3b",
-          "#656e6a",
-          "#929f99",
-          "#bfd0c9",
-          "#e7f7f0",
-          "#effaf5",
-          "#f6fcf9",
-          "#fbfefd"
-        ]
-      },
-      "up-ink": {
-        "role": "neutral",
-        "displayName": "Up Ink",
-        "canonical": "#11734c",
-        "tonalRamp": [
-          "#041d13",
-          "#083422",
-          "#0b4b31",
-          "#0e6241",
-          "#418f70",
-          "#7cb29d",
-          "#b8d5c9",
-          "#e2eeea"
-        ]
-      },
-      "down-wash": {
-        "role": "neutral",
-        "displayName": "Down Wash",
-        "canonical": "#fde8e6",
-        "tonalRamp": [
-          "#3f3a3a",
-          "#726867",
-          "#a49796",
-          "#d7c5c4",
-          "#fdedeb",
-          "#fef2f1",
-          "#fef8f8",
-          "#fffcfc"
-        ]
-      },
-      "down-ink": {
-        "role": "neutral",
-        "displayName": "Down Ink",
-        "canonical": "#b42318",
-        "tonalRamp": [
-          "#2d0906",
-          "#51100b",
-          "#751710",
-          "#991e14",
-          "#c34f46",
-          "#d68680",
-          "#e9bdba",
-          "#f6e5e3"
-        ]
-      },
-      "warn-wash": {
-        "role": "neutral",
-        "displayName": "Warn Wash",
-        "canonical": "#fff3d6",
-        "tonalRamp": [
-          "#403d36",
-          "#736d60",
-          "#a69e8b",
-          "#d9cfb6",
-          "#fff5de",
-          "#fff8e8",
-          "#fffbf3",
-          "#fffefa"
-        ]
-      },
-      "warn-ink": {
-        "role": "neutral",
-        "displayName": "Warn Ink",
-        "canonical": "#7a4b00",
-        "tonalRamp": [
-          "#1f1300",
-          "#372200",
-          "#4f3100",
-          "#684000",
-          "#956f33",
-          "#b69c73",
-          "#d7c9b3",
-          "#efe9e0"
-        ]
-      },
-      "unsaved-rust": {
-        "role": "neutral",
-        "displayName": "Unsaved Rust",
-        "canonical": "#c2410c",
-        "tonalRamp": [
-          "#311003",
-          "#571d05",
-          "#7e2a08",
-          "#a5370a",
-          "#ce673d",
-          "#dd9779",
-          "#edc6b6",
-          "#f8e8e2"
-        ]
-      },
-      "terminal-night": {
-        "role": "neutral",
-        "displayName": "Terminal Night",
-        "canonical": "#0a1020",
-        "tonalRamp": [
-          "#030408",
-          "#05070e",
-          "#070a15",
-          "#090e1b",
-          "#3b404d",
-          "#787c84",
-          "#b6b7bc",
-          "#e2e2e4"
-        ]
-      },
-      "terminal-text": {
-        "role": "neutral",
-        "displayName": "Terminal Text",
-        "canonical": "#dfe7fb",
-        "tonalRamp": [
-          "#383a3f",
-          "#646871",
-          "#9196a3",
-          "#bec4d5",
-          "#e5ecfc",
-          "#edf2fd",
-          "#f5f8fe",
-          "#fbfcff"
-        ]
-      },
-      "prussian-night": {
-        "role": "neutral",
-        "displayName": "Prussian Night",
-        "canonical": "#06121d",
-        "tonalRamp": [
-          "#020507",
-          "#03080d",
-          "#040c13",
-          "#050f19",
-          "#38414a",
-          "#767d83",
-          "#b4b8bb",
-          "#e1e3e4"
-        ]
-      },
-      "night-sheet": {
-        "role": "neutral",
-        "displayName": "Night Sheet",
-        "canonical": "#0a1a29",
-        "tonalRamp": [
-          "#03070a",
-          "#050c12",
-          "#07111b",
-          "#091623",
-          "#3b4854",
-          "#788189",
-          "#b6babf",
-          "#e2e4e5"
-        ]
-      },
-      "night-sheet-raised": {
-        "role": "neutral",
-        "displayName": "Night Sheet Raised",
-        "canonical": "#0e2233",
-        "tonalRamp": [
-          "#04090d",
-          "#060f17",
-          "#091621",
-          "#0c1d2b",
-          "#3e4e5c",
-          "#7a858f",
-          "#b7bdc2",
-          "#e2e4e7"
-        ]
-      },
-      "night-rail": {
-        "role": "neutral",
-        "displayName": "Night Rail",
-        "canonical": "#081724",
-        "tonalRamp": [
-          "#020609",
-          "#040a10",
-          "#050f17",
-          "#07141f",
-          "#394550",
-          "#777f87",
-          "#b5b9bd",
-          "#e1e3e5"
-        ]
-      },
-      "night-ink": {
-        "role": "neutral",
-        "displayName": "Night Ink",
-        "canonical": "#e6ecfa",
-        "tonalRamp": [
-          "#3a3b3f",
-          "#676a70",
-          "#9699a3",
-          "#c4c9d5",
-          "#ebf0fb",
-          "#f1f5fc",
-          "#f8f9fe",
-          "#fcfdfe"
-        ]
-      },
-      "night-muted": {
-        "role": "neutral",
-        "displayName": "Night Muted",
-        "canonical": "#93acc4",
-        "tonalRamp": [
-          "#252b31",
-          "#424d58",
-          "#60707f",
-          "#7d92a7",
-          "#a9bdd0",
-          "#c4d1df",
-          "#dfe6ed",
-          "#f2f5f8"
-        ]
-      },
-      "night-faint": {
-        "role": "neutral",
-        "displayName": "Night Faint",
-        "canonical": "#7f97b0",
-        "tonalRamp": [
-          "#20262c",
-          "#39444f",
-          "#536272",
-          "#6c8096",
-          "#99acc0",
-          "#b9c6d4",
-          "#d9e0e7",
-          "#f0f3f6"
-        ]
-      },
-      "night-hairline": {
-        "role": "neutral",
-        "displayName": "Night Hairline",
-        "canonical": "#17324a",
-        "tonalRamp": [
-          "#060d13",
-          "#0a1621",
-          "#0f2130",
-          "#142b3f",
-          "#455b6e",
-          "#7f8e9b",
-          "#b9c2c9",
-          "#e3e6e9"
-        ]
-      },
-      "night-hairline-strong": {
-        "role": "neutral",
-        "displayName": "Night Hairline Strong",
-        "canonical": "#24476a",
-        "tonalRamp": [
-          "#09121b",
-          "#102030",
-          "#172e45",
-          "#1f3c5a",
-          "#506c88",
-          "#879aad",
-          "#bdc8d2",
-          "#e5e9ed"
-        ]
-      }
+      "lemon-signal": { "role": "primary", "displayName": "Lemon Signal", "canonical": "#ffd400", "tonalRamp": ["#3d3300", "#665500", "#998000", "#ccaa00", "#ffd400", "#ffe14d", "#ffec8c", "#fff6c7"] },
+      "lemon-deep": { "role": "primary", "displayName": "Lemon Deep", "canonical": "#ffc700" },
+      "lemon-ink": { "role": "primary", "displayName": "Lemon Ink", "canonical": "#16171a" },
+      "sticker-tomato": { "role": "secondary", "displayName": "Tomato", "canonical": "hsl(9 100% 59%)", "tonalRamp": ["hsl(9 60% 15%)", "hsl(9 75% 25%)", "hsl(9 90% 38%)", "hsl(9 100% 50%)", "hsl(9 100% 59%)", "hsl(9 100% 70%)", "hsl(9 100% 82%)", "hsl(9 90% 94%)"] },
+      "sticker-cobalt": { "role": "secondary", "displayName": "Cobalt", "canonical": "hsl(230 100% 58%)", "tonalRamp": ["hsl(230 60% 15%)", "hsl(230 75% 25%)", "hsl(230 90% 38%)", "hsl(230 100% 50%)", "hsl(230 100% 58%)", "hsl(230 100% 70%)", "hsl(230 100% 82%)", "hsl(230 90% 94%)"] },
+      "sticker-mint": { "role": "secondary", "displayName": "Mint", "canonical": "hsl(153 79% 43%)", "tonalRamp": ["hsl(153 50% 12%)", "hsl(153 65% 20%)", "hsl(153 75% 30%)", "hsl(153 79% 37%)", "hsl(153 79% 43%)", "hsl(153 70% 60%)", "hsl(153 65% 78%)", "hsl(153 60% 93%)"] },
+      "sticker-bubblegum": { "role": "secondary", "displayName": "Bubblegum", "canonical": "hsl(333 100% 69%)", "tonalRamp": ["hsl(333 60% 15%)", "hsl(333 75% 25%)", "hsl(333 90% 38%)", "hsl(333 100% 52%)", "hsl(333 100% 69%)", "hsl(333 100% 78%)", "hsl(333 100% 87%)", "hsl(333 90% 95%)"] },
+      "sticker-violet": { "role": "secondary", "displayName": "Violet", "canonical": "hsl(258 72% 52%)", "tonalRamp": ["hsl(258 50% 15%)", "hsl(258 60% 25%)", "hsl(258 68% 38%)", "hsl(258 72% 45%)", "hsl(258 72% 52%)", "hsl(258 72% 68%)", "hsl(258 72% 82%)", "hsl(258 65% 94%)"] },
+      "sticker-sky": { "role": "secondary", "displayName": "Sky", "canonical": "hsl(195 100% 42%)", "tonalRamp": ["hsl(195 60% 12%)", "hsl(195 75% 20%)", "hsl(195 90% 30%)", "hsl(195 100% 36%)", "hsl(195 100% 42%)", "hsl(195 90% 60%)", "hsl(195 85% 78%)", "hsl(195 80% 93%)"] },
+      "graphite-ink": { "role": "neutral", "displayName": "Graphite Ink", "canonical": "#16171a", "tonalRamp": ["#16171a", "#24262b", "#33353b", "#50545b", "#666a72", "#a9adb4", "#d8dade", "#fbfbfa"] },
+      "aluminium-lid": { "role": "neutral", "displayName": "Aluminium Lid", "canonical": "#d8dade" },
+      "sheet-white": { "role": "neutral", "displayName": "Sheet White", "canonical": "#fbfbfa" },
+      "sheet-tint": { "role": "neutral", "displayName": "Sheet Tint", "canonical": "#f0f1f2" },
+      "rail-aluminium": { "role": "neutral", "displayName": "Rail Aluminium", "canonical": "#e4e6e9" },
+      "pewter-muted": { "role": "neutral", "displayName": "Pewter Muted", "canonical": "#50545b" },
+      "pewter-faint": { "role": "neutral", "displayName": "Pewter Faint", "canonical": "#666a72" },
+      "seam": { "role": "neutral", "displayName": "Seam", "canonical": "#d1d4d8" },
+      "seam-strong": { "role": "neutral", "displayName": "Seam Strong", "canonical": "#a9adb4" },
+      "hover-wash": { "role": "neutral", "displayName": "Hover Wash", "canonical": "#ecedef" },
+      "pressed-wash": { "role": "neutral", "displayName": "Pressed Wash", "canonical": "#e2e4e8" },
+      "down-red": { "role": "neutral", "displayName": "Down Red", "canonical": "#b3261e" },
+      "die-white": { "role": "neutral", "displayName": "Die White", "canonical": "#ffffff" },
+      "hinge-graphite": { "role": "neutral", "displayName": "Hinge Graphite", "canonical": "#1b1c20" },
+      "hinge-chalk": { "role": "neutral", "displayName": "Hinge Chalk", "canonical": "#f2f2ee" },
+      "hinge-muted": { "role": "neutral", "displayName": "Hinge Muted", "canonical": "#a7aab1" },
+      "hinge-line": { "role": "neutral", "displayName": "Hinge Line", "canonical": "#34363c" },
+      "terminal-night": { "role": "neutral", "displayName": "Terminal Night", "canonical": "#16171a" },
+      "terminal-chalk": { "role": "neutral", "displayName": "Terminal Chalk", "canonical": "#e9e9e4" },
+      "graphite-lid": { "role": "neutral", "displayName": "Graphite Lid (dark)", "canonical": "#24262b" },
+      "graphite-sheet": { "role": "neutral", "displayName": "Graphite Sheet (dark)", "canonical": "#17181b" },
+      "graphite-sheet-raised": { "role": "neutral", "displayName": "Graphite Sheet Raised (dark)", "canonical": "#26282d" },
+      "graphite-rail": { "role": "neutral", "displayName": "Graphite Rail (dark)", "canonical": "#1e2024" },
+      "chalk-ink": { "role": "neutral", "displayName": "Chalk Ink (dark)", "canonical": "#f2f2ee" },
+      "night-muted": { "role": "neutral", "displayName": "Night Muted (dark)", "canonical": "#a8abb2" },
+      "night-faint": { "role": "neutral", "displayName": "Night Faint (dark)", "canonical": "#8e929a" },
+      "night-seam": { "role": "neutral", "displayName": "Night Seam (dark)", "canonical": "#33353b" },
+      "night-seam-strong": { "role": "neutral", "displayName": "Night Seam Strong (dark)", "canonical": "#4c4f57" },
+      "night-hover": { "role": "neutral", "displayName": "Night Hover (dark)", "canonical": "#2a2c31" },
+      "night-pressed": { "role": "neutral", "displayName": "Night Pressed (dark)", "canonical": "#30333a" },
+      "night-down": { "role": "neutral", "displayName": "Night Down (dark)", "canonical": "#ff8f85" }
     },
     "typographyMeta": {
-      "display": {
-        "displayName": "Display",
-        "purpose": "Sign-in headline only."
-      },
-      "headline": {
-        "displayName": "Headline",
-        "purpose": "Page h1: workspaces band, status page, sign-in sheet."
-      },
-      "title": {
-        "displayName": "Title",
-        "purpose": "Workspace name, session task, dialog and empty-state titles, wordmark."
-      },
-      "body": {
-        "displayName": "Body",
-        "purpose": "All UI text at IDE density."
-      },
-      "label": {
-        "displayName": "Label",
-        "purpose": "Uppercase section labels inside panels (file tree header, session sections)."
-      },
-      "mono": {
-        "displayName": "Mono",
-        "purpose": "Code, paths, commands, IDs, timestamps, status line."
-      }
+      "display": { "displayName": "Display", "purpose": "Page h1, sign-in headline, lid logo sticker." },
+      "headline": { "displayName": "Headline", "purpose": "Dialog titles and the sign-in card title." },
+      "title": { "displayName": "Title", "purpose": "Workspace names (Archivo), session task, empty-state titles." },
+      "body": { "displayName": "Body", "purpose": "All UI text, chat and agent turns." },
+      "label": { "displayName": "Label", "purpose": "State pills, Live pill, metadata; 800 uppercase 0.08em for rail and panel section headings." },
+      "sticker": { "displayName": "Sticker", "purpose": "Archivo wide and heavy: brand, avatars, lane stickers, cursor flags only." },
+      "mono": { "displayName": "Mono", "purpose": "Code, status bar, timestamps, commands, file names." }
     },
     "shadows": [
-      {
-        "name": "shadow-sm",
-        "value": "0 1px 2px rgb(13 26 54 / 0.06), 0 1px 1px rgb(13 26 54 / 0.04)",
-        "dark": "0 1px 2px rgb(0 0 0 / 0.4)",
-        "purpose": "Rest: buttons, cards, avatars, selected segment."
-      },
-      {
-        "name": "shadow-md",
-        "value": "0 6px 18px -6px rgb(13 26 54 / 0.16), 0 2px 4px rgb(13 26 54 / 0.05)",
-        "dark": "0 8px 22px -8px rgb(0 0 0 / 0.6), 0 2px 4px rgb(0 0 0 / 0.3)",
-        "purpose": "Floating sheets: editor, side panel, create form, services list."
-      },
-      {
-        "name": "shadow-lg",
-        "value": "0 24px 60px -18px rgb(13 26 54 / 0.35), 0 6px 14px rgb(13 26 54 / 0.08)",
-        "dark": "0 28px 70px -20px rgb(0 0 0 / 0.75), 0 6px 14px rgb(0 0 0 / 0.35)",
-        "purpose": "Dialogs, sign-in sheet, workspaces band."
-      },
-      {
-        "name": "band-edge",
-        "value": "0 1px 0 rgb(0 0 0 / 0.12), 0 8px 24px -16px rgb(8 23 64 / 0.7)",
-        "purpose": "Edge of the cyanotype top bar."
-      },
-      {
-        "name": "signal-glow",
-        "value": "0 1px 0 rgb(255 255 255 / 0.35) inset, 0 4px 12px -4px color-mix(in srgb, var(--signal) 70%, transparent)",
-        "purpose": "Primary buttons only."
-      },
-      {
-        "name": "ring",
-        "value": "0 0 0 3px rgb(11 111 164 / 0.3)",
-        "dark": "0 0 0 3px rgb(108 198 236 / 0.32)",
-        "purpose": "Focus on every focusable element."
-      }
-    ],
-    "gradients": [
-      {
-        "name": "cyano",
-        "value": "linear-gradient(160deg, #0d3a5f 0%, #0a2f4e 60%, #082842 100%)",
-        "dark": "linear-gradient(160deg, #0b2f4d 0%, #08243c 60%, #061c30 100%)",
-        "purpose": "The cyanotype band: top bar, page head, sign-in story, monograms."
-      }
+      { "name": "lift", "value": "0 6px 14px -5px rgb(22 23 26 / 0.45), 0 1px 2px rgb(22 23 26 / 0.18)", "purpose": "Under every sticker and the active tab, tree row and version. Dark: 0 7px 16px -5px rgb(0 0 0 / 0.75), 0 1px 2px rgb(0 0 0 / 0.5)." },
+      { "name": "sheet", "value": "0 1px 0 rgb(255 255 255 / 0.7) inset, 0 10px 30px -18px rgb(22 23 26 / 0.45)", "purpose": "Cards, lane sheets, create form, services list. Dark: 0 12px 34px -16px rgb(0 0 0 / 0.8)." },
+      { "name": "die-cut", "value": "0 0 0 2.5px var(--die)", "purpose": "White die-cut border composed before lift on every sticker (4px on sign-in stickers)." },
+      { "name": "focus-ring", "value": "0 0 0 2px var(--surface), 0 0 0 4px var(--text)", "purpose": "Every :focus-visible element." },
+      { "name": "input-focus", "value": "0 0 0 3px color-mix(in srgb, var(--signal) 70%, transparent)", "purpose": "Lemon halo on focused inputs, with an ink border." }
     ],
     "motion": [
-      {
-        "name": "ease-out",
-        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
-        "purpose": "All eased transitions and arrivals."
-      },
-      {
-        "name": "state",
-        "value": "150ms",
-        "purpose": "Colour, border and press transitions on controls."
-      },
-      {
-        "name": "dialog-rise",
-        "value": "220ms ease-out from translateY(8px) scale(0.985)",
-        "purpose": "Dialogs opening."
-      },
-      {
-        "name": "avatar-join",
-        "value": "420ms ease-out, 60ms stagger",
-        "purpose": "Presence avatars arriving."
-      },
-      {
-        "name": "live-pulse",
-        "value": "2.4s ease-out infinite (1.6s for running agents)",
-        "purpose": "Live connection and running state."
-      },
-      {
-        "name": "thread-draw",
-        "value": "1.4s ease-out, 110ms stagger",
-        "purpose": "Sign-in thread field drawing in."
-      }
+      { "name": "ease-out", "value": "cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "State transitions, 140 to 220ms: button press, row arrow, tree chevron, dialog rise." },
+      { "name": "ease-slap", "value": "cubic-bezier(0.22, 1, 0.36, 1)", "purpose": "Sticker slap-on: from tilt minus 10deg at 1.35x scale; 380ms in app, 520ms staggered 90ms on sign-in." },
+      { "name": "pulse", "value": "1.8s ease-out infinite", "purpose": "Leading dot on Live and running agents. All motion is gated by prefers-reduced-motion." }
     ],
     "breakpoints": [
-      {
-        "name": "stack",
-        "value": "640px"
-      },
-      {
-        "name": "auth-stack",
-        "value": "860px"
-      },
-      {
-        "name": "panel-below",
-        "value": "1000px"
-      }
+      { "name": "phone", "value": "640px" },
+      { "name": "auth-stack", "value": "860px" },
+      { "name": "tablet", "value": "1000px" }
     ]
   },
   "components": [
     {
+      "name": "Button",
+      "kind": "button",
+      "refersTo": "button",
+      "description": "Default white-sheet button with a strong seam; presses down 1px.",
+      "html": "<button class=\"ds-btn\">Invite</button>",
+      "css": ".ds-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 5px 12px; border: 1.5px solid var(--border-strong, #a9adb4); border-radius: 6px; background: var(--surface, #fbfbfa); color: var(--text, #16171a); font-family: 'Figtree Variable', system-ui, sans-serif; font-size: 14px; font-weight: 600; cursor: pointer; transition: border-color 140ms, transform 140ms cubic-bezier(0.16, 1, 0.3, 1); } .ds-btn:hover { border-color: var(--text, #16171a); } .ds-btn:active { transform: translateY(1px); } .ds-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--surface, #fbfbfa), 0 0 0 4px var(--text, #16171a); }"
+    },
+    {
       "name": "Primary Button",
       "kind": "button",
       "refersTo": "button-primary",
-      "description": "The one marigold action per region.",
+      "description": "Lemon: the one primary action on a view.",
       "html": "<button class=\"ds-btn-primary\">Create workspace</button>",
-      "css": ".ds-btn-primary{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:5px 12px;border:1px solid var(--signal-strong,#f59e0b);border-radius:var(--radius-sm,6px);background:var(--signal,#ffb020);color:var(--signal-ink,#1a1200);font:650 14px/1.45 var(--font-ui, \"Geist Variable\", system-ui, sans-serif);cursor:pointer;box-shadow:0 1px 0 rgb(255 255 255 / .35) inset,0 4px 12px -4px rgb(255 176 32 / .7);transition:background-color 150ms,transform 150ms cubic-bezier(.16,1,.3,1)}.ds-btn-primary:hover{background:var(--signal-strong,#f59e0b)}.ds-btn-primary:active{transform:translateY(1px)}.ds-btn-primary:focus-visible{outline:none;box-shadow:var(--ring, 0 0 0 3px rgb(11 111 164 / .3))}"
-    },
-    {
-      "name": "Secondary Button",
-      "kind": "button",
-      "refersTo": "button-secondary",
-      "description": "Default control: a white sheet with a hairline.",
-      "html": "<button class=\"ds-btn\">Members</button>",
-      "css": ".ds-btn{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:5px 12px;border:1px solid var(--border,#d3dcec);border-radius:var(--radius-sm,6px);background:var(--surface,#fff);color:var(--text,#0d1a36);font:500 14px/1.45 var(--font-ui, \"Geist Variable\", system-ui, sans-serif);cursor:pointer;box-shadow:var(--shadow-sm,0 1px 2px rgb(13 26 54 / .06));transition:background-color 150ms,border-color 150ms,transform 150ms cubic-bezier(.16,1,.3,1)}.ds-btn:hover{background:var(--hover,#edf2fb);border-color:var(--border-strong,#b5c3dc)}.ds-btn:active{transform:translateY(1px)}.ds-btn:focus-visible{outline:none;box-shadow:var(--ring, 0 0 0 3px rgb(11 111 164 / .3))}"
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 5px 12px; border: 1.5px solid #16171a; border-radius: 6px; background: var(--signal, #ffd400); color: #16171a; font-family: 'Figtree Variable', system-ui, sans-serif; font-size: 14px; font-weight: 750; cursor: pointer; transition: background-color 140ms, transform 140ms cubic-bezier(0.16, 1, 0.3, 1); } .ds-btn-primary:hover { background: var(--signal-strong, #ffc700); } .ds-btn-primary:active { transform: translateY(1px); } .ds-btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--surface, #fbfbfa), 0 0 0 4px var(--text, #16171a); }"
     },
     {
       "name": "Ghost Button",
       "kind": "button",
       "refersTo": "button-ghost",
-      "description": "Quiet action in bars and toolbars.",
-      "html": "<button class=\"ds-btn-ghost\">Sign out</button>",
-      "css": ".ds-btn-ghost{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:5px 12px;border:1px solid transparent;border-radius:var(--radius-sm,6px);background:transparent;color:var(--muted,#4c5c7e);font:500 14px/1.45 var(--font-ui, \"Geist Variable\", system-ui, sans-serif);cursor:pointer;transition:background-color 150ms,color 150ms}.ds-btn-ghost:hover{background:var(--hover,#edf2fb);color:var(--text,#0d1a36)}.ds-btn-ghost:focus-visible{outline:none;box-shadow:var(--ring, 0 0 0 3px rgb(11 111 164 / .3))}"
+      "description": "Quiet secondary action; muted until hover.",
+      "html": "<button class=\"ds-btn-ghost\">Cancel</button>",
+      "css": ".ds-btn-ghost { display: inline-flex; align-items: center; min-height: 32px; padding: 5px 12px; border: 1.5px solid transparent; border-radius: 6px; background: transparent; color: var(--muted, #50545b); font-family: 'Figtree Variable', system-ui, sans-serif; font-size: 14px; font-weight: 600; cursor: pointer; transition: background-color 140ms; } .ds-btn-ghost:hover { background: var(--hover, #ecedef); color: var(--text, #16171a); } .ds-btn-ghost:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--surface, #fbfbfa), 0 0 0 4px var(--text, #16171a); }"
     },
     {
-      "name": "Text Input",
+      "name": "Input",
       "kind": "input",
       "refersTo": "input",
-      "description": "36px field; focus turns the border cyan and adds the ring.",
+      "description": "38px field; ink border and lemon halo on focus.",
       "html": "<input class=\"ds-input\" placeholder=\"Workspace name\" />",
-      "css": ".ds-input{width:100%;height:36px;padding:0 11px;border:1px solid var(--border,#d3dcec);border-radius:var(--radius-sm,6px);background:var(--surface,#fff);color:var(--text,#0d1a36);font:400 14px/1.45 var(--font-ui, \"Geist Variable\", system-ui, sans-serif);transition:border-color 150ms,box-shadow 150ms}.ds-input::placeholder{color:var(--faint,#66748f)}.ds-input:hover{border-color:var(--border-strong,#b5c3dc)}.ds-input:focus{outline:none;border-color:var(--accent,#0b6fa4);box-shadow:var(--ring, 0 0 0 3px rgb(11 111 164 / .3))}"
-    },
-    {
-      "name": "Cyanotype Top Bar",
-      "kind": "nav",
-      "refersTo": "topbar",
-      "description": "52px strip of the print with brand mark, workspace name and live pill.",
-      "html": "<header class=\"ds-topbar\"><span class=\"ds-brand\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 32 32\" aria-hidden=\"true\"><path d=\"M3 6c8 0 10 10 15 10h11\" fill=\"none\" stroke=\"hsl(12 85% 58%)\" stroke-width=\"3\" stroke-linecap=\"round\"/><path d=\"M3 16h26\" fill=\"none\" stroke=\"hsl(168 80% 38%)\" stroke-width=\"3\" stroke-linecap=\"round\"/><path d=\"M3 26c8 0 10-10 15-10h11\" fill=\"none\" stroke=\"hsl(252 90% 66%)\" stroke-width=\"3\" stroke-linecap=\"round\"/><circle cx=\"27\" cy=\"16\" r=\"3.2\" fill=\"#ffb020\"/></svg>Converge</span><span class=\"ds-divider\"></span><span class=\"ds-ws\">checkout-service</span><span class=\"ds-live\">Live</span></header>",
-      "css": ".ds-topbar{display:flex;align-items:center;gap:16px;height:52px;padding:0 14px;background:linear-gradient(160deg,#0d3a5f 0%,#0a2f4e 60%,#082842 100%);color:#f3f6ff;box-shadow:0 1px 0 rgb(0 0 0 / .12),0 8px 24px -16px rgb(8 23 64 / .7);font:400 14px var(--font-ui, \"Geist Variable\", system-ui, sans-serif)}.ds-brand{display:inline-flex;align-items:center;gap:8px;font:750 1.12rem var(--font-display, \"Bricolage Grotesque Variable\", sans-serif);letter-spacing:-.03em}.ds-divider{width:1px;height:20px;background:rgb(255 255 255 / .16)}.ds-ws{font:700 1.05rem var(--font-display, \"Bricolage Grotesque Variable\", sans-serif);letter-spacing:-.015em}.ds-live{display:inline-flex;align-items:center;gap:6px;padding:1px 9px 1px 8px;border-radius:999px;background:#ffb020;color:#1a1200;font-size:.75rem;font-weight:600}.ds-live::before{content:\"\";width:7px;height:7px;border-radius:50%;background:currentColor}"
+      "css": ".ds-input { width: 100%; height: 38px; padding: 0 12px; border: 1.5px solid var(--border-strong, #a9adb4); border-radius: 6px; background: var(--surface, #fbfbfa); color: var(--text, #16171a); font-family: 'Figtree Variable', system-ui, sans-serif; font-size: 14px; } .ds-input::placeholder { color: var(--faint, #666a72); } .ds-input:focus { outline: none; border-color: var(--text, #16171a); box-shadow: 0 0 0 3px color-mix(in srgb, #ffd400 70%, transparent); }"
     },
     {
       "name": "State Pills",
       "kind": "chip",
-      "refersTo": "pill-state",
-      "description": "Every state is a pill with its own wash and ink.",
-      "html": "<span class=\"ds-pill\">idle</span> <span class=\"ds-pill ds-warn\">running</span> <span class=\"ds-pill ds-up\">succeeded</span> <span class=\"ds-pill ds-down\">failed</span>",
-      "css": ".ds-pill{display:inline-flex;align-items:center;padding:1px 9px;border-radius:999px;background:var(--surface-2,#f3f6fb);color:var(--muted,#4c5c7e);font:650 .76rem var(--font-ui, \"Geist Variable\", system-ui, sans-serif)}.ds-warn{background:var(--warn-bg,#fff3d6);color:var(--warn-text,#7a4b00)}.ds-up{background:var(--up-bg,#e1f5ec);color:var(--up-text,#11734c)}.ds-down{background:var(--down-bg,#fde8e6);color:var(--down-text,#b42318)}"
+      "refersTo": "state-pill",
+      "description": "State carried by shape: hollow idle, dot running, filled done, dashed failed, dotted struck cancelled.",
+      "html": "<span class=\"ds-pill\">queued</span> <span class=\"ds-pill ds-run\">running</span> <span class=\"ds-pill ds-done\">done</span> <span class=\"ds-pill ds-fail\">failed</span> <span class=\"ds-pill ds-cancel\">cancelled</span>",
+      "css": ".ds-pill { display: inline-flex; align-items: center; gap: 5px; padding: 1px 9px; border: 1.5px solid currentColor; border-radius: 999px; color: var(--muted, #50545b); font-family: 'Figtree Variable', system-ui, sans-serif; font-size: 12px; font-weight: 700; line-height: 1.5; } .ds-run { color: var(--text, #16171a); } .ds-run::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; } .ds-done { border-color: var(--text, #16171a); background: var(--text, #16171a); color: var(--surface, #fbfbfa); } .ds-fail { border-style: dashed; color: var(--down-text, #b3261e); } .ds-cancel { border-style: dotted; text-decoration: line-through; }"
     },
     {
-      "name": "Floating Sheet",
+      "name": "Live Pill",
+      "kind": "chip",
+      "refersTo": "live-pill",
+      "description": "Connection state on the hinge: lemon with a pulsing dot when live, hollow dashed otherwise.",
+      "html": "<span class=\"ds-live\">Live</span>",
+      "css": ".ds-live { display: inline-flex; align-items: center; gap: 6px; padding: 1px 10px; border: 1.5px solid #ffd400; border-radius: 999px; background: #ffd400; color: #16171a; font-family: 'Figtree Variable', system-ui, sans-serif; font-size: 12px; font-weight: 700; } .ds-live::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }"
+    },
+    {
+      "name": "Card",
       "kind": "card",
-      "refersTo": "sheet",
-      "description": "Raised editor or panel sheet on the blueprint ground.",
-      "html": "<div class=\"ds-ground\"><div class=\"ds-sheet\"><p class=\"ds-sheet-title\">Open a file</p><p class=\"ds-muted\">Pick a file from the rail to start editing.</p></div></div>",
-      "css": ".ds-ground{padding:16px;background:var(--ground,#edf1f8)}.ds-sheet{padding:24px;border:1px solid var(--border,#d3dcec);border-radius:var(--radius-lg,14px);background:var(--surface,#fff);box-shadow:var(--shadow-md,0 6px 18px -6px rgb(13 26 54 / .16),0 2px 4px rgb(13 26 54 / .05));color:var(--text,#0d1a36);font:400 14px/1.45 var(--font-ui, \"Geist Variable\", system-ui, sans-serif)}.ds-sheet p{margin:0}.ds-sheet .ds-sheet-title{margin-bottom:6px;font:700 1.35rem var(--font-display, \"Bricolage Grotesque Variable\", sans-serif);letter-spacing:-.02em}.ds-muted{color:var(--muted,#4c5c7e)}"
+      "refersTo": "card",
+      "description": "A white sheet resting on the lid.",
+      "html": "<div class=\"ds-card\"><strong>checkout-service</strong><p>Three people, two agents.</p></div>",
+      "css": ".ds-card { padding: 16px 18px; background: var(--surface, #fbfbfa); color: var(--text, #16171a); border: 1px solid var(--border, #d1d4d8); border-radius: 14px; box-shadow: 0 1px 0 rgb(255 255 255 / 0.7) inset, 0 10px 30px -18px rgb(22 23 26 / 0.45); font-family: 'Figtree Variable', system-ui, sans-serif; font-size: 14px; } .ds-card p { margin: 4px 0 0; color: var(--muted, #50545b); }"
     },
     {
-      "name": "Thread Lane",
-      "kind": "custom",
-      "description": "A session lane and agent turn carrying the sponsor thread hue; agents dotted.",
-      "html": "<div class=\"ds-lane\" style=\"--who:hsl(168 80% 38%)\"><div class=\"ds-lane-label\">Lane</div><p><strong><span class=\"ds-who ds-agent\"></span>Ben&#39;s agent</strong></p><p class=\"ds-tool\">read_file src/checkout.ts</p></div>",
-      "css": ".ds-lane{margin:10px 0;padding:2px 12px 8px;border:1px solid color-mix(in srgb,var(--who) 40%,var(--border,#d3dcec));border-radius:var(--radius,9px);background:color-mix(in srgb,var(--who) 7%,var(--surface,#fff));color:var(--text,#0d1a36);font:400 14px/1.45 var(--font-ui, \"Geist Variable\", system-ui, sans-serif)}.ds-lane p{margin:4px 0 0}.ds-lane-label{margin:10px 0 4px;color:color-mix(in srgb,var(--who) 70%,var(--text,#0d1a36));font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase}.ds-who{display:inline-block;width:9px;height:9px;margin-right:7px;border-radius:50%;background:var(--who)}.ds-agent{width:11px;height:11px;background:transparent;border:2.5px dotted var(--who)}.ds-tool{font:400 .78rem var(--font-mono,\"JetBrains Mono Variable\",monospace);color:var(--muted,#4c5c7e)}"
-    },
-    {
-      "name": "Segmented Side Tabs",
+      "name": "Top Bar",
       "kind": "nav",
-      "description": "Side panel tabs in a tinted well; the active segment inverts.",
-      "html": "<div class=\"ds-tabs\" role=\"tablist\"><button class=\"ds-on\">Chat</button><button>Agents</button><button>Sessions</button></div>",
-      "css": ".ds-tabs{display:flex;gap:2px;padding:3px;border:1px solid var(--border,#d3dcec);border-radius:var(--radius,9px);background:var(--surface-2,#f3f6fb)}.ds-tabs button{flex:1;min-height:28px;padding:3px 8px;border:none;border-radius:7px;background:transparent;color:var(--muted,#4c5c7e);font:550 14px var(--font-ui, \"Geist Variable\", system-ui, sans-serif);cursor:pointer}.ds-tabs button:hover{color:var(--text,#0d1a36)}.ds-tabs button.ds-on{background:var(--text,#0d1a36);color:var(--surface,#fff);font-weight:650;box-shadow:var(--shadow-sm,0 1px 2px rgb(13 26 54 / .06))}.ds-tabs button:focus-visible{outline:none;box-shadow:var(--ring, 0 0 0 3px rgb(11 111 164 / .3))}"
+      "refersTo": "top-bar",
+      "description": "The graphite hinge, identical in both themes, with the tilted lemon brand sticker.",
+      "html": "<header class=\"ds-topbar\"><span class=\"ds-brand\">CONVERGE</span><span class=\"ds-wsname\">checkout-service</span><span class=\"ds-tb-live\">Live</span></header>",
+      "css": ".ds-topbar { display: flex; align-items: center; gap: 14px; height: 56px; padding: 0 16px; background: #1b1c20; color: #f2f2ee; border-bottom: 1px solid #34363c; font-family: 'Figtree Variable', system-ui, sans-serif; } .ds-brand { display: inline-block; padding: 0.18em 0.6em; background: #ffd400; color: #16171a; font-family: 'Archivo Variable', sans-serif; font-stretch: 125%; font-weight: 900; font-size: 15px; border-radius: 8px; box-shadow: 0 0 0 2.5px #f2f2ee, 0 7px 16px -5px rgb(0 0 0 / 0.75); transform: rotate(-2.5deg); } .ds-wsname { flex: 1; font-family: 'Archivo Variable', sans-serif; font-size: 17px; font-weight: 800; } .ds-tb-live { display: inline-flex; align-items: center; gap: 6px; padding: 1px 10px; border-radius: 999px; background: #ffd400; color: #16171a; font-size: 12px; font-weight: 700; } .ds-tb-live::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }"
+    },
+    {
+      "name": "Presence Stickers",
+      "kind": "custom",
+      "refersTo": "avatar-sticker",
+      "description": "People as tilted die-cut stickers in their colour; an agent is hollow with the owner's colour as a dotted inner line.",
+      "html": "<div class=\"ds-presence\"><span class=\"ds-av\" style=\"background: hsl(9 100% 59%); color: #16171a; transform: rotate(-2deg)\">AS</span><span class=\"ds-av\" style=\"background: hsl(230 100% 58%); color: #fff; transform: rotate(3deg)\">BN</span><span class=\"ds-av ds-agent\" style=\"outline-color: hsl(230 100% 58%); transform: rotate(-1deg)\">BN</span></div>",
+      "css": ".ds-presence { display: flex; gap: 8px; padding: 12px; } .ds-av { display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; font-family: 'Archivo Variable', sans-serif; font-stretch: 110%; font-weight: 850; font-size: 12px; box-shadow: 0 0 0 2.5px #ffffff, 0 6px 14px -5px rgb(22 23 26 / 0.45), 0 1px 2px rgb(22 23 26 / 0.18); } .ds-agent { background: var(--surface, #fbfbfa); color: var(--text, #16171a); outline: 2px dotted; outline-offset: -5px; }"
+    },
+    {
+      "name": "Budget Tape",
+      "kind": "custom",
+      "refersTo": "budget-tape",
+      "description": "A member's daily agent budget: a fixed-capacity ticked tape that fills in ink and cannot overflow.",
+      "html": "<div class=\"ds-tape\"><i style=\"width: 42%\"></i></div>",
+      "css": ".ds-tape { position: relative; width: 240px; height: 12px; border-radius: 999px; background: repeating-linear-gradient(90deg, var(--active, #e2e4e8) 0 9px, var(--surface-2, #f0f1f2) 9px 10px); box-shadow: 0 0 0 1.5px var(--border-strong, #a9adb4) inset; overflow: hidden; } .ds-tape i { display: block; height: 100%; background: var(--text, #16171a); border-radius: 999px; }"
     }
   ],
   "narrative": {
-    "northStar": "The Cyanotype Instrument",
-    "overview": "Converge is a working instrument printed in Prussian blue. The ground is blueprint paper in light and Prussian night in dark, and both themes are first-class. Structure is drawn with cool hairlines and a few raised white (or night-blue) sheets; nothing on the chrome competes for colour. A deep cyanotype band, a diagonal gradient from Prussian to near-navy, is the one saturated surface: it runs across the top bar, opens the workspaces page and fills the left two-thirds of sign-in, where the thread field is drawn.\n\nThe colour lives in the threads. Every person and every agent carries one hue from a six-step thread palette, and that hue follows them everywhere they act: cursor, avatar, chat name, agent turn, session lane. Agents are the same hue as their sponsor, drawn dotted where people are drawn solid. Against that calm, one marigold signal marks the single thing to do next (the primary action) and the fact that the room is live (the connection pill, the brand mark's knot). Cyan-blue is reserved for focus, links, selection and the active file.\n\nDensity is IDE density: 14px body, 28px rows, 32px controls, 52px bar. Motion is short and eased (`cubic-bezier(0.16, 1, 0.3, 1)`), used for arrival (avatars join, dialogs rise, threads draw in) and live state (a slow pulse), and fully removed under reduced motion.",
+    "northStar": "The Sticker Lid",
+    "overview": "A Converge workspace is a laptop lid. The shell is the lid itself: brushed aluminium in light, graphite in dark, with a graphite hinge (top bar and status bar) that never changes between themes. The open file sits on it as the flattest, quietest sheet. Everything that is a *who* (a person, an agent, a lane owner, a remote cursor, the brand) is a die-cut vinyl sticker slapped onto that lid: a flat saturated colour, a white die-cut border, a soft lift shadow, and a small tilt that is fixed per identity so the same person always sits on the lid the same way.\n\nColour is owned, not decorative. Six sticker colours belong to people; lemon belongs only to primary actions and Live; everything else is graphite, aluminium and white. State is never carried by borrowing someone's colour: it is carried by shape (filled, hollow, dashed, dotted, struck through). Density is IDE-dense in the working rails and generous only on sign-in, where the lid itself is the brand moment. The system rejects the grey IDE with one blue accent and the gradient-banner SaaS look; it replaced a cyanotype world the owner judged generic.",
     "keyCharacteristics": [
-      "Prussian-blue grounds and blueprint hairlines in both themes; light and dark are equals.",
-      "A cyanotype gradient band as the brand surface: top bar, page head, sign-in story.",
-      "Per-author thread colour carried through every attributed surface; agents dotted, people solid.",
-      "One marigold signal for the primary action and live state only.",
-      "Floating sheets: editor and side panel raised on the ground; the file rail sits flat on it.",
-      "Pills for state; full-tint borders; no side stripes."
+      "A lid, a hinge and sheets: three planes, and stickers on top of them.",
+      "Six person colours, one lemon signal, everything else achromatic.",
+      "State by shape: filled is done, hollow is idle, dot is live, dashed is pending or down, dotted is cancelled or denied.",
+      "One type scale (12 / 14 / 17 / 22 / 30); rank by weight and case, not by new sizes.",
+      "Archivo, wide and heavy, only on stickers, the brand and the workspace name."
     ],
     "rules": [
-      {
-        "name": "The Threads Carry the Colour Rule",
-        "body": "Hue on the chrome is the exception. A colour that is not a thread, the marigold signal, the cyan accent or a status wash does not appear. If you want colour on a surface, ask whose thread it is.",
-        "section": "colors"
-      },
-      {
-        "name": "The One Signal Rule",
-        "body": "Marigold means \"do this\" or \"this is live\". One primary action per region; never a decorative marigold.",
-        "section": "colors"
-      },
-      {
-        "name": "The Equal Themes Rule",
-        "body": "Every token has a light and a dark value; nothing is designed in one theme and inverted for the other.",
-        "section": "colors"
-      },
-      {
-        "name": "The Display Face Is a Voice, Not a Size Rule",
-        "body": "Bricolage marks names and headings (brand, workspace, session, dialog, empty state); controls, pills and body never use it.",
-        "section": "typography"
-      },
-      {
-        "name": "The Mono Means Machine Rule",
-        "body": "Anything a machine produced or will consume (paths, commands, IDs, times, the status line) is set in JetBrains Mono.",
-        "section": "typography"
-      },
-      {
-        "name": "The Rail Sits, Sheets Float Rule",
-        "body": "The file rail and status line belong to the ground; the editor and side panel are the raised sheets. Do not raise navigation.",
-        "section": "elevation"
-      }
+      { "name": "The Owned Colour Rule", "body": "A sticker colour means a person and nothing else. Never use one for a status, a category, a button or a highlight.", "section": "colors" },
+      { "name": "The Lemon Is Rare Rule", "body": "Lemon marks the primary action and Live. If two lemon things compete on one screen that are not the brand sticker and Live, one of them is wrong.", "section": "colors" },
+      { "name": "The Shape Carries State Rule", "body": "Status is told by fill, outline style and strike: filled = done or decided, hollow = idle or waiting, leading dot = running or live (pulsing), dashed = pending, gotcha, warning or down, dotted = cancelled, denied or expired, struck = cancelled or failed tool. Red text may accompany a dashed shape; it never carries state alone.", "section": "colors" },
+      { "name": "The Five Sizes Rule", "body": "12, 14, 17, 22, 30. A new level of emphasis comes from weight (600 / 700 / 750 / 800) or case, never from a new size.", "section": "typography" },
+      { "name": "The Archivo Is Vinyl Rule", "body": "Archivo appears only on stickers, the brand and the workspace name. Body copy and controls never use it.", "section": "typography" },
+      { "name": "The Sticker Or Sheet Rule", "body": "An element lifts only if it is a sticker (an identity) or a sheet (a surface on the lid). Nothing else casts a shadow.", "section": "elevation" }
     ],
     "dos": [
-      "**Do** give every attributed thing (message, turn, lane, cursor, avatar) its author's thread hue via `colorFor`, and draw agents dotted in their sponsor's hue.",
-      "**Do** keep marigold to the primary action, live state and the brand knot, with Marigold Ink text on it.",
-      "**Do** use the cyan accent for focus, links, selection and the active file, and the 3px cyan ring for every focus state.",
-      "**Do** carry state in pills and wash/ink pairs, and recolour the whole border when a card changes state.",
-      "**Do** set paths, commands, IDs, times and the status line in JetBrains Mono.",
-      "**Do** define both light and dark values for any new token, and honour `prefers-reduced-motion` by stopping every animation.",
-      "**Do** float the working sheets (editor, side panel) and keep the rail and status line on the ground."
+      "**Do** give every person and agent a sticker: colour from `colorFor`, ink from `inkFor`, tilt from `tiltFor`, white die cut and Lift.",
+      "**Do** mark agents as hollow stickers with the owner's colour as a dashed or dotted inner line.",
+      "**Do** carry state by shape (filled, hollow, dot, dashed, dotted, struck) so it reads in greyscale.",
+      "**Do** keep the hinge (`hinge-graphite`) identical in light and dark.",
+      "**Do** stay on the 12 / 14 / 17 / 22 / 30 scale and rank by weight.",
+      "**Do** wrap every motion in `prefers-reduced-motion: no-preference`; slaps use `cubic-bezier(0.22, 1, 0.36, 1)`, everything else `cubic-bezier(0.16, 1, 0.3, 1)` at 140 to 220ms."
     ],
     "donts": [
-      "**Don't** fill buttons with the cyan accent or scatter hue across controls; colour belongs to threads and the one signal.",
-      "**Don't** use coloured side stripes to mark cards, lanes or alerts; tint and border the whole shape instead.",
-      "**Don't** put white text on marigold, or Slate Faint text on Blueprint Paper.",
-      "**Don't** add thread hues outside the six-step palette; remote awareness colours must pass the hsl validator.",
-      "**Don't** use the display face for controls, pills or body copy.",
-      "**Don't** raise the file rail or nest sheets inside sheets."
+      "**Don't** use a sticker colour for a status, a category or a button.",
+      "**Don't** use lemon for anything but primary actions, Live, the brand, selection and link underlines.",
+      "**Don't** set body copy or controls in Archivo.",
+      "**Don't** add shadows to anything that is neither a sticker nor a sheet.",
+      "**Don't** rebuild the grey IDE with a single blue accent, or a gradient-banner SaaS header.",
+      "**Don't** tilt sheets, controls or text; only stickers tilt."
     ]
   }
 }

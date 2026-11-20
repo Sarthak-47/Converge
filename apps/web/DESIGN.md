@@ -1,310 +1,326 @@
 ---
 name: Converge
-description: A real-time IDE where people and their agents braid into one live file.
+description: A real-time IDE where every person and every agent is a die-cut sticker on the same laptop lid.
 colors:
-  blueprint-paper: "#edf1f8"
-  sheet-white: "#ffffff"
-  sheet-tint: "#f3f6fb"
-  rail-wash: "#e6ecf6"
-  prussian-ink: "#0d1a36"
-  slate-muted: "#4c5c7e"
-  slate-faint: "#66748f"
-  hairline: "#d3dcec"
-  hairline-strong: "#b5c3dc"
-  cyan-accent: "#0b6fa4"
-  cyan-wash: "#dcf0fa"
-  marigold-signal: "#ffb020"
-  marigold-deep: "#f59e0b"
-  marigold-ink: "#1a1200"
-  hover-wash: "#edf2fb"
-  active-wash: "#dfe8fd"
-  up-wash: "#e1f5ec"
-  up-ink: "#11734c"
-  down-wash: "#fde8e6"
-  down-ink: "#b42318"
-  warn-wash: "#fff3d6"
-  warn-ink: "#7a4b00"
-  unsaved-rust: "#c2410c"
-  terminal-night: "#0a1020"
-  terminal-text: "#dfe7fb"
-  cyanotype-deep: "#0a2f4e"
-  cyanotype-ink: "#f3f6ff"
-  prussian-night: "#06121d"
-  night-sheet: "#0a1a29"
-  night-sheet-raised: "#0e2233"
-  night-rail: "#081724"
-  night-ink: "#e6ecfa"
-  night-muted: "#93acc4"
-  night-faint: "#7f97b0"
-  night-hairline: "#17324a"
-  night-hairline-strong: "#24476a"
-  night-cyan: "#6cc6ec"
-  night-cyan-wash: "#0d2d40"
-  night-marigold: "#ffb627"
-  night-marigold-bright: "#ffc54f"
-  thread-vermilion: "hsl(12 85% 58%)"
-  thread-teal: "hsl(168 80% 38%)"
-  thread-violet: "hsl(252 90% 66%)"
-  thread-magenta: "hsl(330 75% 56%)"
-  thread-azure: "hsl(212 100% 58%)"
-  thread-lime: "hsl(84 70% 42%)"
+  aluminium-lid: "#d8dade"
+  sheet-white: "#fbfbfa"
+  sheet-tint: "#f0f1f2"
+  rail-aluminium: "#e4e6e9"
+  graphite-ink: "#16171a"
+  pewter-muted: "#50545b"
+  pewter-faint: "#666a72"
+  seam: "#d1d4d8"
+  seam-strong: "#a9adb4"
+  hover-wash: "#ecedef"
+  pressed-wash: "#e2e4e8"
+  down-red: "#b3261e"
+  die-white: "#ffffff"
+  hinge-graphite: "#1b1c20"
+  hinge-chalk: "#f2f2ee"
+  hinge-muted: "#a7aab1"
+  hinge-line: "#34363c"
+  lemon-signal: "#ffd400"
+  lemon-deep: "#ffc700"
+  lemon-ink: "#16171a"
+  sticker-tomato: "hsl(9 100% 59%)"
+  sticker-cobalt: "hsl(230 100% 58%)"
+  sticker-mint: "hsl(153 79% 43%)"
+  sticker-bubblegum: "hsl(333 100% 69%)"
+  sticker-violet: "hsl(258 72% 52%)"
+  sticker-sky: "hsl(195 100% 42%)"
+  terminal-night: "#16171a"
+  terminal-chalk: "#e9e9e4"
+  graphite-lid: "#24262b"
+  graphite-sheet: "#17181b"
+  graphite-sheet-raised: "#26282d"
+  graphite-rail: "#1e2024"
+  chalk-ink: "#f2f2ee"
+  night-muted: "#a8abb2"
+  night-faint: "#8e929a"
+  night-seam: "#33353b"
+  night-seam-strong: "#4c4f57"
+  night-hover: "#2a2c31"
+  night-pressed: "#30333a"
+  night-down: "#ff8f85"
 typography:
   display:
-    fontFamily: "'Bricolage Grotesque Variable', 'Geist Variable', ui-sans-serif, system-ui, sans-serif"
-    fontSize: "clamp(2rem, 3.4vw, 3.3rem)"
-    fontWeight: 750
-    lineHeight: 1.02
-    letterSpacing: "-0.035em"
-    fontVariation: "'opsz' 96"
-  headline:
-    fontFamily: "'Bricolage Grotesque Variable', 'Geist Variable', ui-sans-serif, system-ui, sans-serif"
-    fontSize: "2rem"
-    fontWeight: 700
+    fontFamily: "Figtree Variable, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif"
+    fontSize: "30px"
+    fontWeight: 800
     lineHeight: 1.1
-    letterSpacing: "-0.025em"
-    fontVariation: "'opsz' 48"
+    letterSpacing: "-0.02em"
+  headline:
+    fontFamily: "Figtree Variable, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "22px"
+    fontWeight: 800
+    lineHeight: 1.2
+    letterSpacing: "-0.01em"
   title:
-    fontFamily: "'Bricolage Grotesque Variable', 'Geist Variable', ui-sans-serif, system-ui, sans-serif"
-    fontSize: "1.05rem"
-    fontWeight: 700
-    letterSpacing: "-0.015em"
+    fontFamily: "Archivo Variable, Figtree Variable, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "17px"
+    fontWeight: 800
+    lineHeight: 1.3
+    fontVariation: "'wdth' 108"
   body:
-    fontFamily: "'Geist Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
+    fontFamily: "Figtree Variable, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif"
     fontSize: "14px"
     fontWeight: 400
     lineHeight: 1.45
-    fontFeature: "'ss01', 'cv11'"
   label:
-    fontFamily: "'Geist Variable', ui-sans-serif, system-ui, sans-serif"
-    fontSize: "0.72rem"
+    fontFamily: "Figtree Variable, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "12px"
     fontWeight: 700
-    letterSpacing: "0.08em"
+    lineHeight: 1.5
+  sticker:
+    fontFamily: "Archivo Variable, Figtree Variable, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "17px"
+    fontWeight: 900
+    lineHeight: 1.15
+    letterSpacing: "-0.01em"
+    fontVariation: "'wdth' 125"
   mono:
-    fontFamily: "'JetBrains Mono Variable', ui-monospace, SFMono-Regular, Consolas, monospace"
-    fontSize: "0.78rem"
+    fontFamily: "JetBrains Mono Variable, ui-monospace, SFMono-Regular, Consolas, monospace"
+    fontSize: "12px"
     fontWeight: 400
+    lineHeight: 1.5
 rounded:
   sm: "6px"
-  md: "9px"
+  sticker: "8px"
+  md: "10px"
   lg: "14px"
   pill: "999px"
 spacing:
   xs: "4px"
   sm: "8px"
-  sheet-gap: "10px"
-  md: "14px"
+  md: "12px"
   lg: "16px"
+  xl: "24px"
+  page: "48px"
 components:
+  button:
+    backgroundColor: "{colors.sheet-white}"
+    textColor: "{colors.graphite-ink}"
+    rounded: "{rounded.sm}"
+    padding: "5px 12px"
+    height: "32px"
   button-primary:
-    backgroundColor: "{colors.marigold-signal}"
-    textColor: "{colors.marigold-ink}"
+    backgroundColor: "{colors.lemon-signal}"
+    textColor: "{colors.lemon-ink}"
     rounded: "{rounded.sm}"
     padding: "5px 12px"
     height: "32px"
   button-primary-hover:
-    backgroundColor: "{colors.marigold-deep}"
-  button-secondary:
-    backgroundColor: "{colors.sheet-white}"
-    textColor: "{colors.prussian-ink}"
-    rounded: "{rounded.sm}"
-    padding: "5px 12px"
-    height: "32px"
-  button-secondary-hover:
-    backgroundColor: "{colors.hover-wash}"
+    backgroundColor: "{colors.lemon-deep}"
+    textColor: "{colors.lemon-ink}"
   button-ghost:
     backgroundColor: "transparent"
-    textColor: "{colors.slate-muted}"
+    textColor: "{colors.pewter-muted}"
     rounded: "{rounded.sm}"
     padding: "5px 12px"
+  button-ghost-hover:
+    backgroundColor: "{colors.hover-wash}"
+    textColor: "{colors.graphite-ink}"
   input:
     backgroundColor: "{colors.sheet-white}"
-    textColor: "{colors.prussian-ink}"
+    textColor: "{colors.graphite-ink}"
     rounded: "{rounded.sm}"
-    padding: "0 11px"
-    height: "36px"
-  pill-live:
-    backgroundColor: "{colors.marigold-signal}"
-    textColor: "{colors.marigold-ink}"
-    rounded: "{rounded.pill}"
-    padding: "1px 9px 1px 8px"
-  pill-state:
-    backgroundColor: "{colors.sheet-tint}"
-    textColor: "{colors.slate-muted}"
+    padding: "0 12px"
+    height: "38px"
+  state-pill:
+    backgroundColor: "transparent"
+    textColor: "{colors.pewter-muted}"
+    typography: "{typography.label}"
     rounded: "{rounded.pill}"
     padding: "1px 9px"
+  state-pill-done:
+    backgroundColor: "{colors.graphite-ink}"
+    textColor: "{colors.sheet-white}"
+  live-pill:
+    backgroundColor: "{colors.lemon-signal}"
+    textColor: "{colors.lemon-ink}"
+    typography: "{typography.label}"
+    rounded: "{rounded.pill}"
+    padding: "1px 10px"
   card:
     backgroundColor: "{colors.sheet-white}"
     rounded: "{rounded.lg}"
-  sheet:
+  top-bar:
+    backgroundColor: "{colors.hinge-graphite}"
+    textColor: "{colors.hinge-chalk}"
+    height: "56px"
+    padding: "0 16px"
+  brand-sticker:
+    backgroundColor: "{colors.lemon-signal}"
+    textColor: "{colors.lemon-ink}"
+    typography: "{typography.sticker}"
+    rounded: "{rounded.sticker}"
+    padding: "0.18em 0.6em"
+  avatar-sticker:
+    textColor: "{colors.graphite-ink}"
+    rounded: "{rounded.pill}"
+    size: "30px"
+  side-tab-active:
     backgroundColor: "{colors.sheet-white}"
-    rounded: "{rounded.lg}"
-  topbar:
-    backgroundColor: "{colors.cyanotype-deep}"
-    textColor: "{colors.cyanotype-ink}"
-    height: "52px"
-    padding: "0 14px"
+    textColor: "{colors.graphite-ink}"
+    rounded: "{rounded.sticker}"
+    height: "30px"
 ---
 
 # Design System: Converge
 
 ## Overview
 
-**Creative North Star: "The Cyanotype Instrument"**
+**Creative North Star: "The Sticker Lid"**
 
-Converge is a working instrument printed in Prussian blue. The ground is blueprint paper in light and Prussian night in dark, and both themes are first-class. Structure is drawn with cool hairlines and a few raised white (or night-blue) sheets; nothing on the chrome competes for colour. A deep cyanotype band, a diagonal gradient from Prussian to near-navy, is the one saturated surface: it runs across the top bar, opens the workspaces page and fills the left two-thirds of sign-in, where the thread field is drawn.
+A Converge workspace is a laptop lid. The shell is the lid itself: brushed aluminium in light, graphite in dark, with a graphite hinge (top bar and status bar) that never changes between themes. The open file sits on it as the flattest, quietest sheet. Everything that is a *who* (a person, an agent, a lane owner, a remote cursor, the brand) is a die-cut vinyl sticker slapped onto that lid: a flat saturated colour, a white die-cut border, a soft lift shadow, and a small tilt that is fixed per identity so the same person always sits on the lid the same way.
 
-The colour lives in the threads. Every person and every agent carries one hue from a six-step thread palette, and that hue follows them everywhere they act: cursor, avatar, chat name, agent turn, session lane. Agents are the same hue as their sponsor, drawn dotted where people are drawn solid. Against that calm, one marigold signal marks the single thing to do next (the primary action) and the fact that the room is live (the connection pill, the brand mark's knot). Cyan-blue is reserved for focus, links, selection and the active file.
-
-Density is IDE density: 14px body, 28px rows, 32px controls, 52px bar. Motion is short and eased (`cubic-bezier(0.16, 1, 0.3, 1)`), used for arrival (avatars join, dialogs rise, threads draw in) and live state (a slow pulse), and fully removed under reduced motion.
+Colour is owned, not decorative. Six sticker colours belong to people; lemon belongs only to primary actions and Live; everything else is graphite, aluminium and white. State is never carried by borrowing someone's colour: it is carried by shape (filled, hollow, dashed, dotted, struck through). Density is IDE-dense in the working rails and generous only on sign-in, where the lid itself is the brand moment. The system rejects the grey IDE with one blue accent and the gradient-banner SaaS look; it replaced a cyanotype world the owner judged generic.
 
 **Key Characteristics:**
-- Prussian-blue grounds and blueprint hairlines in both themes; light and dark are equals.
-- A cyanotype gradient band as the brand surface: top bar, page head, sign-in story.
-- Per-author thread colour carried through every attributed surface; agents dotted, people solid.
-- One marigold signal for the primary action and live state only.
-- Floating sheets: editor and side panel raised on the ground; the file rail sits flat on it.
-- Pills for state; full-tint borders; no side stripes.
+- A lid, a hinge and sheets: three planes, and stickers on top of them.
+- Six person colours, one lemon signal, everything else achromatic.
+- State by shape: filled is done, hollow is idle, dot is live, dashed is pending or down, dotted is cancelled or denied.
+- One type scale (12 / 14 / 17 / 22 / 30); rank by weight and case, not by new sizes.
+- Archivo, wide and heavy, only on stickers, the brand and the workspace name.
 
 ## Colors
 
-A cool, nearly monochrome blueprint palette where hue is spent on people and one warm signal.
+An achromatic metal-and-paper shell with saturated sticker vinyl and a single lemon signal on top.
 
 ### Primary
-- **Marigold Signal** (marigold-signal; night-marigold in dark): the one warm voice. Fill of primary buttons, the connected pill, the selected theme in the top bar, and the knot where threads meet in the brand mark and the sign-in field. Text on it is always Marigold Ink, never white.
-- **Marigold Deep** (marigold-deep): border and hover fill of the primary button.
+- **Lemon Signal** (`lemon-signal`): the one action colour. Primary buttons, the Live connection pill, the CONVERGE brand sticker, text selection, link underlines and the comment-range wash. Always paired with **Lemon Ink** (graphite) text, never white.
+- **Lemon Deep** (`lemon-deep`): primary-button hover and the resting link underline.
 
-### Secondary
-- **Cyan Accent** (cyan-accent; night-cyan in dark): focus ring (3px at 30% alpha), focused input border, links, `button.link`, the active file's icon, workspace-memory decision chips, dotted memory underlines, and Monaco keywords. Never a button fill.
-- **Cyan Wash** (cyan-wash; night-cyan-wash): background of the active file row and decision chips.
-- **Cyanotype Band** (gradient `160deg, #0d3a5f → #0a2f4e → #082842`; dark `#0b2f4d → #08243c → #061c30`; cyanotype-deep is its midpoint): top bar, workspaces page head, sign-in story panel, workspace monograms. Text on it is Cyanotype Ink, secondary text Cyanotype Ink at 72%, hairlines white at 16%.
-
-### Tertiary
-- **The Thread Palette** (thread-vermilion, thread-teal, thread-violet, thread-magenta, thread-azure, thread-lime): six hsl hues that read on both grounds and stay clear of marigold and cyan. `colorFor(userId)` hashes a user to one hue; it is set as `--who` on chat messages, agent turns and lanes, and drives cursors and avatars. Lanes tint to 7% of the hue with a 40% border; your own chat bubble tints to 12%; names mix to 62% hue with ink. The brand mark draws threads 1-3; the sign-in field draws all five people/agents.
+### Secondary (the six person stickers)
+Assigned per user id by `colorFor`; text on each is chosen by `inkFor` (graphite or white, whichever contrasts more). They are identity, nothing else.
+- **Tomato** (`sticker-tomato`), **Cobalt** (`sticker-cobalt`), **Mint** (`sticker-mint`), **Bubblegum** (`sticker-bubblegum`), **Violet** (`sticker-violet`), **Sky** (`sticker-sky`): avatars, lane stickers, remote-cursor flags, chat who-dots, the owner's dashed die line on an agent sticker. Kept as `hsl()` strings because collaboration awareness only accepts that form from other clients.
 
 ### Neutral
-- **Blueprint Paper** (blueprint-paper) / **Prussian Night** (prussian-night): the page ground.
-- **Sheet White** (sheet-white) / **Night Sheet** (night-sheet): raised sheets, cards, inputs, the editor.
-- **Sheet Tint** (sheet-tint) / **Night Sheet Raised**: pills, segmented-control wells, lanes, composer trays.
-- **Rail Wash** (rail-wash) / **Night Rail**: history rail and other recessed lists.
-- **Prussian Ink** (prussian-ink) / **Night Ink**: body text.
-- **Slate Muted** (slate-muted) / **Night Muted**: secondary text, ghost buttons, section labels.
-- **Slate Faint** (slate-faint) / **Night Faint**: placeholders, idle icons, row arrows. Use on sheets, not on Blueprint Paper (4.2:1 there).
-- **Hairline** / **Hairline Strong** (and night pair): all borders; strong for hover and dashed empty states.
-- **Status pairs**: up (succeeded, approved, saved), down (failed, refused, errors), warn (running, gotcha, awaiting takeover). Always a wash background with its own ink, never ink on ground alone.
-- **Unsaved Rust** (unsaved-rust; `#ff8a5c` in dark): the dirty dot, "unsaved" in the status line, comment ranges, awaiting-takeover card border.
-- **Terminal Night** / **Terminal Text**: command chips and sandbox output, the same in both themes.
+- **Aluminium Lid / Graphite Lid** (`aluminium-lid` / `graphite-lid`): the page background in light / dark; the surface stickers are slapped onto.
+- **Sheet White / Graphite Sheet** (`sheet-white` / `graphite-sheet`): the editor, cards, inputs and the active tab. The quietest plane.
+- **Sheet Tint** (`sheet-tint` / `graphite-sheet-raised`): banners, comment quotes, file-comment strips.
+- **Rail Aluminium / Graphite Rail** (`rail-aluminium` / `graphite-rail`): file rail, side panel, history list. Recedes behind the sheet.
+- **Graphite Ink / Chalk Ink** (`graphite-ink` / `chalk-ink`): body text, focus rings, filled state pills.
+- **Pewter Muted / Faint** (`pewter-muted`, `pewter-faint`; dark `night-muted`, `night-faint`): secondary text, idle pills, placeholders and row chevrons.
+- **Seam / Seam Strong** (`seam`, `seam-strong`; dark `night-seam`, `night-seam-strong`): 1px dividers and the 1.5px control borders.
+- **Hover / Pressed Wash** (`hover-wash`, `pressed-wash`; dark `night-hover`, `night-pressed`): row hover, selected tree row, the segmented-tab track.
+- **Down Red** (`down-red` / `night-down`): failure text only, always with a dashed or struck shape beside it.
+- **Die White** (`die-white`; `chalk-ink` in dark and on the hinge): the die-cut border around every sticker.
+- **Hinge Graphite / Chalk / Muted / Line** (`hinge-*`): top bar and status bar, identical in both themes.
+- **Terminal Night / Chalk** (`terminal-night`, `terminal-chalk`): approval commands and job output, in both themes.
 
 ### Named Rules
-**The Threads Carry the Colour Rule.** Hue on the chrome is the exception. A colour that is not a thread, the marigold signal, the cyan accent or a status wash does not appear. If you want colour on a surface, ask whose thread it is.
+**The Owned Colour Rule.** A sticker colour means a person and nothing else. Never use one for a status, a category, a button or a highlight.
 
-**The One Signal Rule.** Marigold means "do this" or "this is live". One primary action per region; never a decorative marigold.
+**The Lemon Is Rare Rule.** Lemon marks the primary action and Live. If two lemon things compete on one screen that are not the brand sticker and Live, one of them is wrong.
 
-**The Equal Themes Rule.** Every token has a light and a dark value; nothing is designed in one theme and inverted for the other.
+**The Shape Carries State Rule.** Status is told by fill, outline style and strike: filled = done or decided, hollow = idle or waiting, leading dot = running or live (pulsing), dashed = pending, gotcha, warning or down, dotted = cancelled, denied or expired, struck = cancelled or failed tool. Red text may accompany a dashed shape; it never carries state alone.
 
 ## Typography
 
-**Display Font:** Bricolage Grotesque Variable (with Geist, system sans)
-**Body Font:** Geist Variable (with system-ui, Segoe UI)
-**Label/Mono Font:** JetBrains Mono Variable (with ui-monospace, Consolas)
+**Display Font:** Figtree Variable (UI sans fallback stack)
+**Sticker Font:** Archivo Variable, width axis 108 to 125%, weights 800 to 900
+**Mono Font:** JetBrains Mono Variable
 
-**Character:** A characterful, optically-sized grotesque for the brand and headings set tight and heavy, over a quiet, precise UI sans with stylistic set 01. Mono is a working face: code, IDs, file paths, commands, timestamps and the status line.
+**Character:** Figtree is a friendly, neutral working face for every control and paragraph; Archivo stretched wide and heavy is the printed vinyl on the stickers, so a word set in it reads as an identity, not a heading.
 
 ### Hierarchy
-- **Display** (750, clamp(2rem, 3.4vw, 3.3rem), 1.02, opsz 96, -0.035em): the sign-in headline only.
-- **Headline** (700, 2rem, 1.1, opsz 48, -0.025em, balanced): page h1; 2.4rem in the workspaces band, 2.2rem on status, 1.85rem on the sign-in sheet.
-- **Title** (700, 1.05-1.35rem, -0.01 to -0.02em): workspace name in the bar, session task, dialog h2 (1.3rem), empty-state titles (1.2-1.35rem). The wordmark is the same face at 750, -0.03em.
-- **Body** (400, 14px, 1.45): all UI. Emphasis at 550-650; the variable axis is used in between standard weights.
-- **Label** (700, 0.72rem, 0.08em, uppercase): section labels inside panels only: the file tree header and session sections (Plan, Lanes, Comments).
-- **Mono** (0.72-0.88rem): status line (0.74rem, +0.01em), chat timestamps, tool calls, file lists, command chips, service names.
+- **Display** (800, 30px, 1.1, -0.02em): page h1 (Workspaces, status), sign-in headline, the lid logo sticker.
+- **Headline** (800, 22px): dialog titles, the sign-in card title, lid stickers on sign-in.
+- **Title** (Archivo 800, 17px, width 108%): workspace names in the list and top bar, session task, empty-state titles (those in Figtree 800).
+- **Body** (400, 14px, 1.45): all UI text, chat and turns. Sign-in sub copy steps up to 17px, capped at 32rem.
+- **Label** (700, 12px): state pills, connection pill, metadata. Rail and panel section headings (Files, Plan, Notes, Comments) are 12px 800 uppercase at 0.08em tracking; they title real sections and are the only uppercase in the working UI.
+- **Mono** (12px to 14px): code, file names on stickers, the status bar, timestamps, commands, service names.
 
 ### Named Rules
-**The Display Face Is a Voice, Not a Size Rule.** Bricolage marks names and headings (brand, workspace, session, dialog, empty state); controls, pills and body never use it.
+**The Five Sizes Rule.** 12, 14, 17, 22, 30. A new level of emphasis comes from weight (600 / 700 / 750 / 800) or case, never from a new size.
 
-**The Mono Means Machine Rule.** Anything a machine produced or will consume (paths, commands, IDs, times, the status line) is set in JetBrains Mono.
+**The Archivo Is Vinyl Rule.** Archivo appears only on stickers, the brand and the workspace name. Body copy and controls never use it.
 
 ## Layout
 
-The IDE is a three-column grid (file rail 260px, editor flexible, side panel 340px) under a full-width 52px bar and over a status line. Sheets float with a 10px gutter on the ground; the bar sits 10px above them. At 1000px the side panel drops beneath the editor (rail 220px, panel min 260px / 38vh). At 640px everything stacks into one column, sheets lose their radius, borders and shadow, the wordmark, theme switch and role badge hide, and the bar's middle and the editor toolbar scroll sideways instead of widening the page.
+The IDE is a three-column grid on the lid: a 248px file rail, a flexible editor stage, and a 360px side panel, between a 56px hinge top bar and a 30px hinge status bar. The open file owns the stage; rails sit on the darker rail colour and recede. At 1000px and below the side panel drops to its own full-width row (min 260px, 38vh) so chat never disappears; at 640px everything stacks into one column and the top bar wraps, hiding the theme switch, role badge and name.
 
-Pages (workspaces, status) centre a single column: 760px for workspaces, 520px for status, 16px side gutters, 48px top. Sign-in is a 2fr / minmax(380px, 1fr) split that collapses to one column at 860px.
+Content pages (workspaces) are a single 760px column with 48px top padding (32px on phones). The status page is 520px. Sign-in is a 1.6fr / 1fr split: the lid with stickers on the left, the form card centred on the right; it collapses to one column at 860px.
 
-Spacing runs on a tight rhythm of 4, 6, 8, 10 and 14px inside panels, with 16-28px padding on sheets and cards. Rows are 28px in trees and tabs, controls 32px, inputs 36px, primary sign-in submit 40px; coarse pointers get 40px theme-switch targets.
+Spacing is a tight 4px-based rhythm: 4 / 6 / 8 / 12 / 16 in rails and rows, 24 to 48 only on page margins and the sign-in story.
 
 ## Elevation & Depth
 
-A hybrid: tonal layering does most of the work (ground, rail, sheet, tint), and a three-step cool shadow scale says how far a sheet sits off the ground. Shadows are tinted with Prussian ink in light and pure black in dark. Inside sheets, selection is shown by tint or a 1px hairline ring, not by lift.
+Depth is physical and limited to two jobs: sheets rest on the lid, stickers lift off it. Sheets carry a soft, long, low-opacity shadow; stickers carry a short tight lift plus their die-cut ring. Flat everywhere else: rows, banners and pills have no shadow.
 
 ### Shadow Vocabulary
-- **Rest** (`--shadow-sm`; light `0 1px 2px rgb(13 26 54 / 0.06), 0 1px 1px rgb(13 26 54 / 0.04)`): buttons, cards, avatars, the selected segment.
-- **Sheet** (`--shadow-md`; light `0 6px 18px -6px rgb(13 26 54 / 0.16), 0 2px 4px rgb(13 26 54 / 0.05)`): editor and side panel sheets, the create form, the services list.
-- **Lifted** (`--shadow-lg`; light `0 24px 60px -18px rgb(13 26 54 / 0.35), 0 6px 14px rgb(13 26 54 / 0.08)`): dialogs, the sign-in sheet, the workspaces band.
-- **Band** (`0 1px 0 rgb(0 0 0 / 0.12), 0 8px 24px -16px rgb(8 23 64 / 0.7)`): the cyanotype top bar's edge.
-- **Signal glow** (`0 1px 0 rgb(255 255 255 / 0.35) inset, 0 4px 12px -4px` marigold at 70%): primary buttons only.
-- **Focus** (`--ring`, `0 0 0 3px` cyan at 30-32%): every focusable element, as a box-shadow, never an outline.
+- **Lift** (`0 6px 14px -5px rgb(22 23 26 / 0.45), 0 1px 2px rgb(22 23 26 / 0.18)`; dark `0 7px 16px -5px rgb(0 0 0 / 0.75), 0 1px 2px rgb(0 0 0 / 0.5)`): under every sticker, and under the active tab, active tree row and active history version, which read as a sheet peeled up.
+- **Sheet** (`0 1px 0 rgb(255 255 255 / 0.7) inset, 0 10px 30px -18px rgb(22 23 26 / 0.45)`; dark `0 12px 34px -16px rgb(0 0 0 / 0.8)`): cards, lane sheets, the create form, the services list.
+- **Die cut** (`0 0 0 2.5px` die colour, 4px on sign-in stickers): the white border every sticker wears, composed before Lift.
+- **Focus ring** (`0 0 0 2px` surface, `0 0 0 4px` ink): every focusable element; inputs instead get an ink border with a 3px lemon halo.
 
 ### Named Rules
-**The Rail Sits, Sheets Float Rule.** The file rail and status line belong to the ground; the editor and side panel are the raised sheets. Do not raise navigation.
+**The Sticker Or Sheet Rule.** An element lifts only if it is a sticker (an identity) or a sheet (a surface on the lid). Nothing else casts a shadow.
 
 ## Shapes
 
-Gently rounded and consistent: 6px on controls, inputs and code chips; 9px on segmented wells, session cards, lanes and approval cards; 14px on sheets, cards and empty states. Rows and segments inside a well use 7px so they nest under 9px. Pills (999px) carry every state: role, connection, agent status, step status, memory kind, badges. Avatars and presence dots are circles; agent dots are dotted rings. Borders are always full 1px hairlines around a shape; empty states use a dashed strong hairline; held ranges use a 135deg hatch.
-
-The brand mark is three round-capped threads converging into one line with a marigold knot; the 24-unit icon set is drawn at 1.6 stroke with round caps and joins to match.
+Gently rounded and never sharp: 6px on controls, 8px on stickers and segmented tabs, 10px on lane sheets and session cards, 14px on cards, full pills for state and avatars. Stickers are tilted with `--tilt`, a deterministic angle between -3deg and +3deg derived from the identity's id (sign-in stickers are hand-placed up to 8deg; the brand sticker sits at -2.5deg). Outline style is part of the vocabulary: 1.5px solid for controls, 2px dashed for pending and warnings, dotted for cancelled and denied, and a dashed or dotted inner outline in the owner's colour marks an agent.
 
 ## Components
 
 ### Buttons
-Calm, tactile and small; the press is a 1px drop.
-- **Shape:** gently rounded (6px), min height 32px, 5px 12px padding, 500 weight, 6px icon gap.
-- **Primary:** Marigold Signal fill, Marigold Deep border, Marigold Ink text at 650, signal glow. Hover fills Marigold Deep.
-- **Secondary (default):** Sheet White with a hairline border and rest shadow; hover goes to Hover Wash with a strong hairline.
-- **Ghost:** transparent, Slate Muted text; hover gets Hover Wash and ink. In the top bar, ghost text is Cyanotype Ink at 72% and hover is white at 10%.
-- **Icon:** 26px square, borderless, muted; 16px drawn icon.
-- **Link:** cyan, underlined at 3px offset, no chrome.
-- **Active / Disabled:** `translateY(1px)` on press; disabled at 55% opacity.
+Tactile and plain: a white sheet button with a strong seam, pressing down 1px.
+- **Shape:** gently rounded (6px), 1.5px border in `seam-strong`, 32px minimum height, 600 weight.
+- **Primary:** lemon fill, graphite border and text, 750 weight; hover deepens to Lemon Deep.
+- **Hover / Focus / Active:** border darkens to ink on hover; 2px+2px ink focus ring; `translateY(1px)` on press; disabled at 50% opacity.
+- **Ghost:** transparent and muted, hover wash. On the hinge it uses `hinge-muted` with an 8% white hover.
+- **Icon:** borderless 28px square, muted until hover. **Link:** ink text with a 2px lemon underline.
 
-### Chips / Pills
-- **Style:** 999px radius, 1px 9px padding, 0.72-0.78rem at 550-650, Sheet Tint with Slate Muted by default.
-- **State:** status pills switch to their wash/ink pair (warn for running and in-progress, up for done/succeeded, down for failed/refused/budget). The connection pill turns marigold when connected and pulses its dot (2.4s); a running agent pulses at 1.6s.
+### Chips (state pills)
+- **Style:** full pill, 1.5px `currentColor` outline, transparent, 12px 700 label, muted by default.
+- **State:** follows the Shape Carries State Rule. Running gets a leading dot that pulses; done and decision memories are filled ink; failed is dashed in Down Red; cancelled is dotted and struck.
 
 ### Cards / Containers
-- **Corner Style:** 14px for cards and sheets, 9px for session and approval cards and lanes.
-- **Background:** Sheet White; lanes and trays Sheet Tint; approval cards mix warn wash into the sheet (approved mixes up wash, denied/expired fall back to Sheet Tint).
-- **Shadow Strategy:** rest for cards, sheet for the floating editor and panel, lifted for dialogs.
-- **Border:** full 1px hairline; state changes recolour the whole border (cyan on hover for session cards, rust for awaiting takeover).
-- **Internal Padding:** 10-12px for cards in panels, 22px for dialogs, 26-32px for the sign-in sheet.
+- **Corner Style:** 14px (cards), 10px (lane sheets, session cards, approvals).
+- **Background:** Sheet White / Graphite Sheet.
+- **Shadow Strategy:** Sheet shadow; session and approval cards use a border instead.
+- **Border:** 1px seam on cards; approval cards 2px dashed ink while pending, solid when approved, 1.5px dotted seam when denied or expired; a session awaiting takeover is 2px dashed ink.
+- **Internal Padding:** 12 to 16px; auth card 32px 28px.
 
 ### Inputs / Fields
-- **Style:** 36px high, 0 11px padding, 6px radius, Sheet White, hairline border; placeholder Slate Faint.
-- **Focus:** border turns cyan and the 3px cyan ring appears. A composed field (the create-workspace form) moves the ring to its container via `:focus-within`.
-- **Hover:** strong hairline.
+- **Style:** 38px tall, 1.5px `seam-strong` border, 6px radius, sheet background, faint placeholder.
+- **Focus:** border goes to ink plus a 3px lemon halo at 70%.
+- **Create form:** the input sits borderless inside a 6px-padded sheet; the whole sheet takes a 2px ink ring when focused.
 
 ### Navigation
-- **Top bar:** a 52px strip of the cyanotype band in both themes: brand mark and wordmark, a 1px white-16% divider, the workspace name in the display face, the live pill, presence avatars ringed in band blue, and the theme switch whose selected segment is marigold.
-- **Side tabs:** a segmented well (Sheet Tint, 9px, hairline) of 28px segments; the active segment inverts to ink on surface.
-- **File tree:** 28px rows with 7px radius inside a 6px inset; hover Hover Wash; the open file gets Cyan Wash with a cyan icon; folder chevrons rotate 90deg; row actions appear on hover or focus.
+- **Top bar (the hinge):** 56px, hinge graphite in both themes, brand sticker, workspace name in Archivo 17px 800, role pill, Live pill, presence stickers, theme switch.
+- **Side tabs:** a segmented track in Pressed Wash with 3px padding; the active tab is a white sheet with Lift and 750 weight.
+- **File rail:** 30px rows, 7px radius, muted until hover; the open file is a lifted white sheet in bold; unsaved is a hollow 9px ring.
+- **Status bar:** 30px hinge strip in mono 12px; unsaved shows a hollow ring.
 
-### Thread Presence (signature)
-The thread is the system's signature. Each author's hue (`--who`) colours a 9px solid dot before a person's name and an 11px dotted ring before an agent's, the author name, the tint of your own chat bubble (10px 10px 10px 3px), and the border and wash of a session lane. Presence avatars are 28px circles filled with the hue, overlapping by 6px with a 2px surface ring, and arrive with a staggered 420ms rise. Remote cursors in Monaco carry the same hue with a name flag.
+### Stickers (signature)
+- **Person avatar:** 30px circle (24px in rows) in the person's colour, initials in Archivo 850 at 110% width, ink from `inkFor`, white die cut, Lift, per-id tilt. Slaps on at join (380ms: from -10deg and 1.35x scale).
+- **Agent avatar:** the same circle in white with a 2px dotted inner outline in the owner's colour: hollow, because an agent acts for someone.
+- **Lane sticker:** the lane's heading pinned over the top edge of its sheet in the owner's colour, Archivo at 112% width, tilted.
+- **Cursor flag:** a 6px-rounded tag above the remote caret in the person's colour, tilted -3deg.
+- **Brand sticker:** CONVERGE in Archivo 900 at 125% width on lemon, tilted -2.5deg.
 
-### Thread Field (signature)
-On sign-in, a drawn SVG on the cyanotype band: coloured threads (people solid at 5px, agents dotted `2 9` at 3px) flow in over a 40px blueprint grid at 9% white, braid into one line and meet at a marigold knot labelled with a file name in mono. People's threads draw in staggered by 110ms; agent threads flow continuously; all of it is static under reduced motion.
+### Budget Tape (signature)
+A 12px pill track of 9px ticks (Pressed Wash on Sheet Tint) inside a 1.5px seam; the fill is solid ink. Fixed capacity: it fills and cannot overflow.
+
+### Terminal blocks
+Approval commands and job output are Terminal Night with Terminal Chalk mono at 12px, 6px radius, in both themes.
 
 ## Do's and Don'ts
 
 ### Do:
-- **Do** give every attributed thing (message, turn, lane, cursor, avatar) its author's thread hue via `colorFor`, and draw agents dotted in their sponsor's hue.
-- **Do** keep marigold to the primary action, live state and the brand knot, with Marigold Ink text on it.
-- **Do** use the cyan accent for focus, links, selection and the active file, and the 3px cyan ring for every focus state.
-- **Do** carry state in pills and wash/ink pairs, and recolour the whole border when a card changes state.
-- **Do** set paths, commands, IDs, times and the status line in JetBrains Mono.
-- **Do** define both light and dark values for any new token, and honour `prefers-reduced-motion` by stopping every animation.
-- **Do** float the working sheets (editor, side panel) and keep the rail and status line on the ground.
+- **Do** give every person and agent a sticker: colour from `colorFor`, ink from `inkFor`, tilt from `tiltFor`, white die cut and Lift.
+- **Do** mark agents as hollow stickers with the owner's colour as a dashed or dotted inner line.
+- **Do** carry state by shape (filled, hollow, dot, dashed, dotted, struck) so it reads in greyscale.
+- **Do** keep the hinge (`hinge-graphite`) identical in light and dark.
+- **Do** stay on the 12 / 14 / 17 / 22 / 30 scale and rank by weight.
+- **Do** wrap every motion in `prefers-reduced-motion: no-preference`; slaps use `cubic-bezier(0.22, 1, 0.36, 1)`, everything else `cubic-bezier(0.16, 1, 0.3, 1)` at 140 to 220ms.
 
 ### Don't:
-- **Don't** fill buttons with the cyan accent or scatter hue across controls; colour belongs to threads and the one signal.
-- **Don't** use coloured side stripes to mark cards, lanes or alerts; tint and border the whole shape instead.
-- **Don't** put white text on marigold, or Slate Faint text on Blueprint Paper.
-- **Don't** add thread hues outside the six-step palette; remote awareness colours must pass the hsl validator.
-- **Don't** use the display face for controls, pills or body copy.
-- **Don't** raise the file rail or nest sheets inside sheets.
+- **Don't** use a sticker colour for a status, a category or a button.
+- **Don't** use lemon for anything but primary actions, Live, the brand, selection and link underlines.
+- **Don't** set body copy or controls in Archivo.
+- **Don't** add shadows to anything that is neither a sticker nor a sheet.
+- **Don't** rebuild the grey IDE with a single blue accent, or a gradient-banner SaaS header.
+- **Don't** tilt sheets, controls or text; only stickers tilt.

@@ -612,7 +612,7 @@ button.link {
   width: 24px;
   height: 24px;
   margin-right: 9px;
-  font-size: 10px;
+  font-size: var(--t-xs);
   letter-spacing: 0.02em;
   flex: none;
 }
