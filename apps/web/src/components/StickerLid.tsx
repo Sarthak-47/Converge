@@ -6,15 +6,15 @@ import type { CSSProperties } from 'react'
 type Sticker = { label: string; kind: 'logo' | 'person' | 'agent' | 'file' | 'live' | 'approval'; x: number; y: number; tilt: number; color?: string; ink?: string }
 
 const STICKERS: Sticker[] = [
-  { label: 'CONVERGE', kind: 'logo', x: 8, y: 10, tilt: -4 },
-  { label: 'Asha', kind: 'person', x: 52, y: 8, tilt: 5, color: 'var(--sticker-1)', ink: '#16171a' },
-  { label: 'Ben', kind: 'person', x: 70, y: 26, tilt: -6, color: 'var(--sticker-2)', ink: '#ffffff' },
-  { label: 'Cara', kind: 'person', x: 14, y: 52, tilt: 3, color: 'var(--sticker-3)', ink: '#16171a' },
-  { label: "Asha's agent", kind: 'agent', x: 40, y: 38, tilt: -3, color: 'var(--sticker-1)' },
-  { label: "Ben's agent", kind: 'agent', x: 60, y: 62, tilt: 4, color: 'var(--sticker-2)' },
-  { label: 'checkout.ts', kind: 'file', x: 24, y: 72, tilt: -2 },
-  { label: 'Live', kind: 'live', x: 76, y: 6, tilt: 8 },
-  { label: 'approved · CL', kind: 'approval', x: 6, y: 32, tilt: -7 },
+  { label: 'approved · CL', kind: 'approval', x: 4, y: 46, tilt: -8 },
+  { label: 'Cara', kind: 'person', x: 16, y: 60, tilt: 3, color: 'var(--sticker-3)', ink: '#16171a' },
+  { label: "Asha's agent", kind: 'agent', x: 34, y: 50, tilt: -3, color: 'var(--sticker-1)' },
+  { label: 'Asha', kind: 'person', x: 44, y: 10, tilt: 7, color: 'var(--sticker-1)', ink: '#16171a' },
+  { label: 'CONVERGE', kind: 'logo', x: 18, y: 28, tilt: -4 },
+  { label: "Ben's agent", kind: 'agent', x: 50, y: 66, tilt: 6, color: 'var(--sticker-2)' },
+  { label: 'Ben', kind: 'person', x: 52, y: 40, tilt: -5, color: 'var(--sticker-2)', ink: '#ffffff' },
+  { label: 'checkout.ts', kind: 'file', x: 30, y: 72, tilt: -2 },
+  { label: 'Live', kind: 'live', x: 64, y: 20, tilt: 11 },
 ]
 
 export function StickerLid() {

@@ -16,7 +16,7 @@ import { TopBar } from '../components/TopBar.tsx'
 import { CollabDocument, type Peer, type SyncState } from '../editor/collabDocument.ts'
 import { monaco } from '../editor/monaco.ts'
 import { useWorkspaceChannel, type ChatMessage, type WorkspaceEvent } from '../realtime/workspaceChannel.ts'
-import { BrandMark, Icon } from '../components/Icon.tsx'
+import { Icon } from '../components/Icon.tsx'
 
 const CodeEditor = lazy(() => import('../editor/CodeEditor.tsx'))
 const HistoryView = lazy(() => import('../editor/HistoryView.tsx'))
@@ -525,11 +525,7 @@ export default function WorkspacePage() {
           </div>
         ) : (
           <div className="center editor-empty">
-            <div className="editor-empty-inner">
-              <BrandMark size={26} />
-              <p className="editor-empty-title">{files.length ? 'Select a file to start editing.' : 'Create a file to start editing.'}</p>
-              <p className="muted small">Everyone here types into the same file. Cursors, lanes and turns carry each person's colour.</p>
-            </div>
+            <p className="editor-empty-title">{files.length ? 'Select a file to start editing.' : 'Create a file to start editing.'}</p>
           </div>
         )}
       </section>

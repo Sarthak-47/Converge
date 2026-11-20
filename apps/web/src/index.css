@@ -21,7 +21,7 @@
   --down-text: #b3261e;
   --die: #ffffff;
   --lift: 0 6px 14px -5px rgb(22 23 26 / 0.45), 0 1px 2px rgb(22 23 26 / 0.18);
-  --shadow-sheet: 0 1px 0 rgb(255 255 255 / 0.7) inset, 0 10px 30px -18px rgb(22 23 26 / 0.45);
+  --shadow-sheet: none;
   --ring: 0 0 0 2px var(--surface), 0 0 0 4px var(--text);
 
   /* Constants in both themes */
@@ -79,7 +79,7 @@
     --down-text: #ff8f85;
     --die: #f2f2ee;
     --lift: 0 7px 16px -5px rgb(0 0 0 / 0.75), 0 1px 2px rgb(0 0 0 / 0.5);
-    --shadow-sheet: 0 12px 34px -16px rgb(0 0 0 / 0.8);
+    --shadow-sheet: none;
     color-scheme: dark;
   }
 }
@@ -99,7 +99,7 @@
   --down-text: #ff8f85;
   --die: #f2f2ee;
   --lift: 0 7px 16px -5px rgb(0 0 0 / 0.75), 0 1px 2px rgb(0 0 0 / 0.5);
-  --shadow-sheet: 0 12px 34px -16px rgb(0 0 0 / 0.8);
+  --shadow-sheet: none;
   color-scheme: dark;
 }
 
@@ -195,7 +195,6 @@ pre {
 
 /* Stickers: die-cut vinyl. Anything that is a person or agent wears this. */
 .avatar,
-.monogram,
 .logo-sticker,
 .lane > .session-section,
 .yRemoteSelectionHead::after {
@@ -339,7 +338,6 @@ button.link {
 
 /* State pills: shape carries the state. Hollow = idle or waiting, dot = live or running, filled = done. */
 .pill,
-.role-badge,
 .agent-status,
 .step-status,
 .memory-kind,
@@ -483,6 +481,12 @@ button.link {
   white-space: nowrap;
 }
 
+.role-badge {
+  color: var(--muted);
+  font-size: var(--t-xs);
+  font-weight: 650;
+}
+
 .topbar .role-badge {
   color: var(--hinge-muted);
 }
@@ -594,8 +598,7 @@ button.link {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .avatar,
-  .monogram,
+  .presence .avatar,
   .lane > .session-section {
     animation: slap 380ms var(--ease-slap) both;
   }
@@ -606,6 +609,11 @@ button.link {
     opacity: 0;
     transform: rotate(calc(var(--tilt, 0deg) - 10deg)) scale(1.35);
   }
+}
+
+.chat-meta .avatar,
+.agent-turn .avatar {
+  transform: none;
 }
 
 .avatar-sm {
@@ -639,8 +647,8 @@ button.link {
 .auth-story {
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  gap: 28px;
+  justify-content: center;
+  gap: 8px;
   padding: 40px 48px 48px;
   background: var(--lid);
   color: var(--text);
@@ -649,8 +657,8 @@ button.link {
 
 .lid {
   position: relative;
-  flex: 1;
-  min-height: 300px;
+  flex: none;
+  height: min(460px, 56vh);
 }
 
 .lid-sticker {
@@ -659,7 +667,7 @@ button.link {
   align-items: center;
   gap: 10px;
   padding: 10px 18px;
-  border-radius: 12px;
+  border-radius: var(--radius);
   background: var(--who, var(--surface));
   color: var(--ink, var(--text));
   font-family: var(--font-sticker);
@@ -667,7 +675,7 @@ button.link {
   font-stretch: 115%;
   font-weight: 850;
   white-space: nowrap;
-  box-shadow: 0 0 0 4px var(--die), var(--lift), 0 18px 30px -16px rgb(0 0 0 / 0.5);
+  box-shadow: 0 0 0 4px var(--die), var(--lift);
   transform: rotate(var(--tilt));
 }
 
@@ -691,7 +699,7 @@ button.link {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: rgb(0 0 0 / 0.18);
+  background: color-mix(in srgb, var(--text) 18%, transparent);
 }
 
 /* Agents: hollow stickers, the owner's colour as a dashed die line. */
@@ -735,7 +743,7 @@ button.link {
 }
 
 .auth-copy {
-  max-width: 36rem;
+  max-width: 26rem;
 }
 
 .auth-headline {
@@ -745,14 +753,6 @@ button.link {
   letter-spacing: -0.02em;
   line-height: 1.12;
   text-wrap: balance;
-}
-
-.auth-sub {
-  margin: 0;
-  max-width: 32rem;
-  color: var(--muted);
-  font-size: var(--t-md);
-  text-wrap: pretty;
 }
 
 .auth-side {
@@ -774,6 +774,7 @@ button.link {
 }
 
 .auth-card {
+  border-color: var(--border-strong);
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -818,7 +819,7 @@ button.link {
   }
 
   .lid {
-    min-height: 230px;
+    height: 250px;
   }
 
   .lid-sticker {
@@ -850,10 +851,6 @@ button.link {
     font-size: var(--t-lg);
   }
 
-  .auth-sub {
-    font-size: var(--t-sm);
-  }
-
   .auth-side {
     padding: 56px 16px 40px;
   }
@@ -865,52 +862,28 @@ button.link {
 }
 
 .content {
-  max-width: 760px;
+  max-width: 920px;
   margin: 0 auto;
-  padding: 48px 16px 64px;
+  padding: 44px 24px 64px;
 }
 
 .page-head {
-  margin-bottom: 20px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
 }
 
 .page-head h1 {
-  margin-bottom: 6px;
-}
-
-.page-head p {
   margin: 0;
-  max-width: 34rem;
-}
-
-.inline-form {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 16px;
 }
 
 .create-form {
-  padding: 6px;
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--shadow-sheet);
-}
-
-.create-form input {
-  border-color: transparent;
-}
-
-.create-form input:focus {
-  border-color: transparent;
-  box-shadow: none;
-}
-
-.create-form:focus-within {
-  box-shadow: 0 0 0 2px var(--text), var(--shadow-sheet);
-}
-
-.create-form button {
-  min-height: 38px;
+  display: flex;
+  gap: 8px;
+  width: min(420px, 100%);
 }
 
 .list {
@@ -931,26 +904,35 @@ button.link {
 }
 
 .workspace-list {
-  overflow: hidden;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 2px solid var(--text);
 }
 
 .workspace-list li {
   position: relative;
-  padding: 0;
-  transition: background-color 140ms;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border-bottom: 1px solid var(--border-strong);
 }
 
 .workspace-list li:hover {
   background: var(--hover);
 }
 
+.workspace-list li[data-archived] {
+  opacity: 0.6;
+}
+
 .workspace-link {
   display: flex;
   flex: 1;
   align-items: center;
-  gap: 16px;
+  gap: 14px;
   min-width: 0;
-  padding: 16px 18px;
+  padding: 12px 4px;
   color: var(--text);
   text-decoration: none;
 }
@@ -973,12 +955,13 @@ button.link {
   display: inline-grid;
   flex: none;
   place-items: center;
-  width: 40px;
-  height: 40px;
-  background: var(--hinge);
-  color: var(--hinge-text);
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: var(--text);
+  color: var(--surface);
   font-family: var(--font-sticker);
-  font-size: var(--t-sm);
+  font-size: var(--t-xs);
   font-stretch: 120%;
   font-weight: 900;
 }
@@ -994,32 +977,22 @@ button.link {
 }
 
 .workspace-meta {
-  display: inline-flex;
   flex: none;
-  align-items: center;
-  gap: 8px;
-  padding-right: 18px;
-}
-
-.row-arrow {
-  color: var(--faint);
-  transition: transform 200ms var(--ease-out), color 140ms;
-}
-
-.workspace-list li:hover .row-arrow {
-  color: var(--text);
-  transform: translateX(3px);
+  padding-right: 8px;
+  color: var(--muted);
+  font-size: var(--t-xs);
+  font-weight: 650;
 }
 
 .skeleton-row {
-  height: 72px;
+  height: 59px;
 }
 
 .skeleton {
   display: block;
-  width: 55%;
+  width: 40%;
   height: 14px;
-  margin-left: 18px;
+  margin: 22px 4px;
   border-radius: 6px;
   background: linear-gradient(90deg, var(--surface-2), var(--hover), var(--surface-2)) 0 0 / 200% 100%;
   animation: shimmer 1.4s linear infinite;
@@ -1031,22 +1004,10 @@ button.link {
   }
 }
 
-.empty-state {
-  padding: 36px 24px;
-  border: 2px dashed var(--border-strong);
-  border-radius: var(--radius-lg);
-  text-align: center;
-}
-
-.empty-state p {
-  margin: 0 auto;
-  max-width: 28rem;
-}
-
-.empty-title {
-  margin-bottom: 6px !important;
-  font-size: var(--t-md);
-  font-weight: 800;
+.empty-line {
+  padding: 20px 4px;
+  border-top: 2px solid var(--text);
+  color: var(--muted);
 }
 
 /* IDE: the open file owns the stage; the rails recede onto the lid */
@@ -1086,20 +1047,9 @@ button.link {
   min-height: 0;
 }
 
-.editor-empty-inner {
-  display: grid;
-  justify-items: center;
-  gap: 14px;
-  max-width: 26rem;
-  padding: 24px;
-  text-align: center;
-}
-
-.editor-empty-inner p {
-  margin: 0;
-}
-
 .editor-empty-title {
+  margin: 0;
+  color: var(--muted);
   font-size: var(--t-md);
   font-weight: 800;
 }
@@ -1209,7 +1159,7 @@ button.link {
 
 /* Remote cursors carry a sticker flag in the person's colour (colours injected by CodeEditor). */
 .yRemoteSelection {
-  background-color: rgb(127 127 127 / 0.25);
+  background-color: color-mix(in srgb, var(--muted) 25%, transparent);
 }
 
 .yRemoteSelectionHead {
@@ -1266,10 +1216,9 @@ button.link {
 }
 
 .side-tabs button.active {
-  background: var(--surface);
-  color: var(--text);
+  background: var(--text);
+  color: var(--surface);
   font-weight: 750;
-  box-shadow: var(--lift);
 }
 
 .chat,
@@ -1321,7 +1270,7 @@ button.link {
 .chat-messages li.mine p {
   display: inline-block;
   padding: 7px 11px;
-  border-radius: 12px 12px 12px 3px;
+  border-radius: var(--radius);
   background: var(--surface);
   box-shadow: 0 0 0 1.5px var(--who, var(--border-strong));
 }
@@ -1381,7 +1330,7 @@ button.link {
   height: 30px;
   margin: 0 8px;
   padding-right: 6px;
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   color: var(--muted);
   cursor: pointer;
   user-select: none;
@@ -1400,7 +1349,7 @@ button.link {
   background: var(--surface);
   color: var(--text);
   font-weight: 700;
-  box-shadow: var(--lift);
+  box-shadow: inset 0 0 0 1.5px var(--text);
 }
 
 .tree-row.editing input {
@@ -1602,14 +1551,14 @@ select {
   gap: 2px;
   width: 100%;
   border: none;
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   background: transparent;
   text-align: left;
 }
 
 .version.active {
   background: var(--surface);
-  box-shadow: var(--lift);
+  box-shadow: inset 0 0 0 1.5px var(--text);
 }
 
 .history-diff {
@@ -1861,9 +1810,9 @@ select {
 .lane {
   margin: 18px 0 14px;
   padding: 16px 12px 6px;
+  border: 1.5px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
-  box-shadow: var(--shadow-sheet);
 }
 
 .lane > .session-section {
@@ -2193,23 +2142,14 @@ select {
     display: none;
   }
 
-  /* A short workspace name never truncates: pills wrap under it instead. */
-  .workspace-list li {
-    flex-wrap: wrap;
-  }
-
-  .workspace-link {
-    flex-basis: 100%;
-    padding-bottom: 6px;
-  }
-
+  /* A short workspace name never truncates. */
   .workspace-title {
     overflow: visible;
     white-space: normal;
   }
 
-  .workspace-meta {
-    padding: 0 18px 14px 74px;
+  .content {
+    padding: 28px 16px 48px;
   }
 
   .statusbar > * {
@@ -2250,9 +2190,6 @@ select {
     justify-content: flex-start;
   }
 
-  .content {
-    padding-top: 32px;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

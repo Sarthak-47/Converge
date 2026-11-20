@@ -39,8 +39,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
       <section className="auth-story">
         <StickerLid />
         <div className="auth-copy">
-          <p className="auth-headline">Your team and its agents, typing in one live file.</p>
-          <p className="auth-sub">Edit together, run tests behind named approvals, and open pull requests from shared sessions. Every change says who made it.</p>
+          <p className="auth-headline">People and their agents edit the same file, live.</p>
         </div>
       </section>
       <section className="auth-side">
