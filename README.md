@@ -1,10 +1,10 @@
 # Converge
 
-A real-time, multi-user development environment: a browser IDE with collaborative editing, presence, version history and (later) Git and isolated code execution.
+A real-time, multi-user development environment where a team and its coding agents edit, test and ship code together: a browser IDE and a desktop app with live local sync, collaborative editing, version history, agents that type in the same files as people, sandboxed test runs behind approvals, and pull requests from sessions.
 
 The full design — architecture, protocols, roadmap and decision log — is in [docs/Converge_System_Design.docx](docs/Converge_System_Design.docx) (Revision 4).
 
-**Status:** live collaborative editing, version history, a desktop app that keeps a local folder in two-way sync, and coding agents that work in the same live files as people (each turn paid with its sponsor's own API key, and revertible). See [docs/WORKLOG.md](docs/WORKLOG.md) for the decisions behind each step.
+**Status:** every phase of the roadmap through production hardening is built and tested (see [docs/WORKLOG.md](docs/WORKLOG.md) for the decisions behind each step and [docs/BASELINE.md](docs/BASELINE.md) for measured latency and recovery). Not yet done: pulling a repository into a workspace, tracing across services, and signed desktop builds.
 
 ## Architecture at a glance
 
@@ -14,6 +14,8 @@ The full design — architecture, protocols, roadmap and decision log — is in 
 | API | `apps/api` | Spring Boot 4.1, Java 21, Maven | Identity, workspaces, files, history, Git and job orchestration |
 | Collab | `apps/collab` | Node 24 + Hocuspocus (Yjs) | Document synchronization: ticket auth, persistence, merging external changes |
 | Agent runner | `apps/agent-runner` | Node 24 + Anthropic SDK | Agent turns on the Claude API; agents edit live documents as their own Yjs clients |
+| Executor | `apps/executor` | Node 24 + Docker + Git | Approved jobs in sandbox containers and server-side Git; the only holder of the Docker socket |
+| Desktop | `apps/desktop` | Electron | The web app plus a sync bridge that mirrors a workspace into a local Git checkout |
 | nginx | `infra/nginx` | nginx | Single origin: `/` web, `/api` and `/ws` API, `/collab` collaboration socket; `/internal` is never routed |
 | PostgreSQL 18, Redis 8 | `infra/compose.yaml` | | Durable state; transient fan-out and rate limits |
 
@@ -67,6 +69,14 @@ npm run dev:web
 
 The Vite dev server (http://localhost:5173) proxies `/api`, `/ws` and `/collab` the same way nginx does. The API needs JDK 21 or newer.
 
+## Pull requests
+
+An owner connects a GitHub repository under **Repository** (a token that can push branches and open pull requests; stored encrypted). A session's driver then uses **Finish and open pull request**: the worker commits the workspace on a `converge/…` branch and opens the pull request. Desktop members can also **Commit & push** from their own checkout with their own credentials.
+
+## Monitoring
+
+The API (`/api/actuator/prometheus`) and the collaboration service (`/metrics`) expose Prometheus metrics to holders of the internal token; nginx never routes them. Rate limits live in Redis; `RATE_LIMIT_SCALE` multiplies them (raise it for the end-to-end suite and load runs).
+
 ## Checks
 
 ```bash
@@ -87,12 +97,30 @@ End-to-end tests run against the full Compose stack (start it first):
 npm run e2e
 ```
 
+The browser tests use the scripted fake model and fake GitHub, so start the stack with them:
+
+```bash
+COMPOSE_PROFILES=fake-model,fake-github AGENT_MODEL_URL=http://fake-model:9100 GIT_ALLOW_INSECURE_REMOTES=true CONVERGE_GITHUB_API_URL=http://fake-github:9200/api RATE_LIMIT_SCALE=50 docker compose up -d --build
+```
+
+The baseline load and chaos run (same stack; `CHAOS=1` restarts the collaboration service mid-run):
+
+```bash
+CHAOS=1 node tests/load/baseline.mjs
+```
+
 ## Repository layout
 
 ```
-apps/web        Vite + React client
-apps/api        Spring Boot API
-apps/collab     Hocuspocus collaboration service
-infra/          Compose file and nginx config
-docs/           Design document (ADRs will live in docs/adr)
+apps/web           Vite + React client
+apps/api           Spring Boot API
+apps/collab        Hocuspocus collaboration service
+apps/agent-runner  Agent turns on the Claude API (and the scripted fake model)
+apps/executor      Sandbox jobs and server-side Git (and the fake GitHub)
+apps/desktop       Electron shell
+packages/sync-bridge  Live two-way sync between a workspace and a local folder
+tests/e2e          Playwright tests (browsers and the desktop app)
+tests/load         Baseline load and chaos run
+infra/             Compose file and nginx config
+docs/              Design document, work log and baseline report
 ```

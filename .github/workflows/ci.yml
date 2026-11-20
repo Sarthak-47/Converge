@@ -70,7 +70,8 @@ jobs:
       AGENT_MODEL_URL: http://fake-model:9100
       # Git runs against the fake GitHub: real git smart HTTP and a fake pull-request API.
       GIT_ALLOW_INSECURE_REMOTES: "true"
-      GITHUB_API_URL: http://fake-github:9200/api
+      # Not GITHUB_API_URL: Actions defines that itself and a workflow cannot override it.
+      CONVERGE_GITHUB_API_URL: http://fake-github:9200/api
       # Every end-to-end user signs up from the same address; scale the per-address limits up for the suite.
       RATE_LIMIT_SCALE: "50"
     steps:

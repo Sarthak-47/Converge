@@ -93,7 +93,7 @@ services:
       SANDBOX_RUNTIME: ${SANDBOX_RUNTIME:-}
       # Server-side Git (design §10): the stored credential is opened with the API's secrets key.
       SECRETS_KEY: ${SECRETS_KEY:-ZGV2ZWxvcG1lbnQtb25seS1zZWNyZXRzLWtleS0zMiE=}
-      GITHUB_API_URL: ${GITHUB_API_URL:-https://api.github.com}
+      GITHUB_API_URL: ${CONVERGE_GITHUB_API_URL:-https://api.github.com}
       GIT_ROOT: /var/lib/converge-git
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
@@ -121,7 +121,7 @@ services:
       retries: 10
 
   # Stand-in for GitHub (git smart HTTP + the pull-request API), for tests only:
-  #   COMPOSE_PROFILES=fake-github GIT_ALLOW_INSECURE_REMOTES=true GITHUB_API_URL=http://fake-github:9200/api
+  #   COMPOSE_PROFILES=fake-github GIT_ALLOW_INSECURE_REMOTES=true CONVERGE_GITHUB_API_URL=http://fake-github:9200/api
   fake-github:
     profiles: [fake-github]
     build:
