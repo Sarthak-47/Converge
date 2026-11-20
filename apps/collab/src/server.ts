@@ -8,6 +8,7 @@ import { handleInternal } from './internal.js'
 import { checkMemories, type MemoryCheck } from './memory.js'
 import { ConnectionLimiter, metrics, registry } from './metrics.js'
 import { timingSafeEqual } from 'node:crypto'
+import { childHeader, fromHeader } from './trace.js'
 import { loadDocument, storeDocument } from './persistence.js'
 
 const db = new pg.Pool({ connectionString: config.databaseUrl, max: 10 })
@@ -19,14 +20,15 @@ function log(level: 'INFO' | 'WARN' | 'ERROR', event: string, fields: Record<str
 }
 
 async function reportMemoryChecks(checks: MemoryCheck[]) {
+  const trace = fromHeader(undefined)
   const response = await fetch(`${config.apiUrl}/internal/memories/checked`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Internal-Token': config.internalToken },
+    headers: { 'Content-Type': 'application/json', 'X-Internal-Token': config.internalToken, traceparent: childHeader(trace) },
     body: JSON.stringify({ checks }),
     signal: AbortSignal.timeout(5000),
   })
   if (!response.ok) throw new Error(`Reporting memory checks failed with ${response.status}`)
-  log('INFO', 'MEMORIES_CHECKED', { changed: checks.length, stale: checks.filter((c) => c.status === 'STALE').length })
+  log('INFO', 'MEMORIES_CHECKED', { changed: checks.length, stale: checks.filter((c) => c.status === 'STALE').length, traceId: trace.traceId })
 }
 
 const limiter = new ConnectionLimiter()

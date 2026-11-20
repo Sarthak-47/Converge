@@ -8,6 +8,7 @@ import { openSealed } from './secrets.js'
 import { Reporter } from './reporter.js'
 import { Sandbox } from './sandbox.js'
 import { argv } from './templates.js'
+import { childHeader, fromHeader, type TraceContext } from './trace.js'
 
 function log(level: 'INFO' | 'WARN' | 'ERROR', event: string, fields: Record<string, unknown> = {}) {
   console.log(JSON.stringify({ timestamp: new Date().toISOString(), level, service: 'executor', event, ...fields }))
@@ -30,17 +31,17 @@ async function run(job: Job) {
       exitCode: result.exitCode,
       error: result.timedOut ? `Timed out after ${Math.round(config.timeoutMs / 1000)} s` : undefined,
     })
-    log('INFO', 'JOB_FINISHED', { jobId: job.id, status, exitCode: result.exitCode, timedOut: result.timedOut })
+    log('INFO', 'JOB_FINISHED', { jobId: job.id, status, exitCode: result.exitCode, timedOut: result.timedOut, traceId: reporter.trace.traceId })
   } catch (error) {
     log('ERROR', 'JOB_FAILED', { jobId: job.id, message: (error as Error).message })
     await reporter.status('FAILED', { error: 'The job could not be run in the sandbox.' }).catch(() => undefined)
   }
 }
 
-async function notifyGit(id: string) {
+async function notifyGit(id: string, trace: TraceContext = fromHeader(undefined)) {
   await fetch(`${config.apiUrl.replace(/\/$/, '')}/internal/git/operations/${id}/notify`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Internal-Token': config.internalToken },
+    headers: { 'Content-Type': 'application/json', 'X-Internal-Token': config.internalToken, traceparent: childHeader(trace) },
     body: '{}',
     signal: AbortSignal.timeout(10_000),
   }).catch(() => undefined)

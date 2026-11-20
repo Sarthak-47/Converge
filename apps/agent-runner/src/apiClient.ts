@@ -1,4 +1,5 @@
 import type { UndoRecord } from './edits.js'
+import { childHeader, type TraceContext } from './trace.js'
 import type { Usage } from './pricing.js'
 import type { TurnEvent, TurnLedger, TurnStatus } from './turn.js'
 import type { Anchor, ApprovalState, FileEntry, HeldRange, JobState, MemoryKind, MemoryNote, PlanStep, SearchHit, StepStatus } from './workspace.js'
@@ -10,7 +11,7 @@ import type { Anchor, ApprovalState, FileEntry, HeldRange, JobState, MemoryKind,
 export class TurnApi implements TurnLedger {
   private readonly base: string
 
-  constructor(apiUrl: string, private readonly token: string, readonly turnId: string) {
+  constructor(apiUrl: string, private readonly token: string, readonly turnId: string, readonly trace?: TraceContext) {
     this.base = `${apiUrl.replace(/\/$/, '')}/internal/agent/turns/${encodeURIComponent(turnId)}`
   }
 
@@ -99,6 +100,7 @@ export class TurnApi implements TurnLedger {
       method,
       headers: {
         'X-Internal-Token': this.token,
+        ...(this.trace ? { traceparent: childHeader(this.trace) } : {}),
         ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
       },
       body: body === undefined ? undefined : JSON.stringify(body),

@@ -37,6 +37,9 @@ import tools.jackson.databind.json.JsonMapper;
 @Service
 public class AgentTurns {
 
+    /** Log lines carry the trace ID, which the runner continues (design §16.3). */
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(AgentTurns.class);
+
     public record Turn(UUID id, UUID sessionId, UUID laneUserId, UUID sponsorId, String sponsorName, String model, String status,
             String error, long costMicros, long costCapMicros, Instant startedAt, Instant endedAt, String revertStatus,
             boolean revertible, List<Map<String, Object>> events) {
@@ -140,6 +143,7 @@ public class AgentTurns {
             throw ApiException.conflict("Your agent is already working on a turn; stop it or wait for it to finish");
         }
         try {
+            log.info("Agent turn {} started in workspace {} on the sponsor's key", turnId, workspaceId);
             runner.start(new StartTurn(turnId, workspaceId, new Sponsor(userId, displayName), apiKey, model, effort,
                     prompt, history, turnCap, sessionId == null ? null : new SessionContext(sessionId, task),
                     context.text().isBlank() ? null : context.text()));
@@ -150,7 +154,7 @@ public class AgentTurns {
         return turn(workspaceId, turnId);
     }
 
-    /** Refuses early when a member has no key, before anything else changes (for example a takeover). */
+    /** What the member's agents spent in the last 24 hours, against their caps. */
     public Spend spend(UUID userId) {
         return new Spend(spentToday(userId), dailyCapMicros, costCapMicros);
     }
@@ -160,6 +164,7 @@ public class AgentTurns {
                 .param(userId).query(Long.class).single();
     }
 
+    /** Refuses early when a member has no key, before anything else changes (for example a takeover). */
     public void requireKey(UUID userId) {
         if (keys.reveal(userId).isEmpty()) {
             throw ApiException.conflict("Add your Anthropic API key before prompting your agent");

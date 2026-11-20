@@ -40,7 +40,8 @@ public class AgentRunnerClient {
 
     private final RestClient client;
 
-    public AgentRunnerClient(@Value("${converge.agent.runner-url}") String baseUrl,
+    /** Built from Spring's RestClient.Builder, so a turn's trace continues into the runner (design §16.3). */
+    public AgentRunnerClient(RestClient.Builder builder, @Value("${converge.agent.runner-url}") String baseUrl,
             @Value("${converge.internal-token:}") String internalToken) {
         HttpClient http = HttpClient.newBuilder()
                 .version(HttpClient.Version.HTTP_1_1)
@@ -49,7 +50,7 @@ public class AgentRunnerClient {
         JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(http);
         // A revert opens every file the turn touched, so it gets more time than a start or cancel.
         factory.setReadTimeout(Duration.ofSeconds(60));
-        this.client = RestClient.builder()
+        this.client = builder
                 .baseUrl(baseUrl)
                 .requestFactory(factory)
                 .defaultHeader(InternalTokenFilter.HEADER, internalToken)

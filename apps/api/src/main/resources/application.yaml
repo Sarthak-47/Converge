@@ -63,6 +63,22 @@ converge:
       enabled: true
 
 management:
+  # W3C trace context on every request and every call between services (design §16.3); trace IDs appear in
+  # log lines. Spans are exported over OTLP only when TRACING_EXPORT=true and an endpoint is set.
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLING:1.0}
+    export:
+      enabled: ${TRACING_EXPORT:false}
+  opentelemetry:
+    tracing:
+      export:
+        otlp:
+          endpoint: ${OTLP_TRACES_ENDPOINT:http://localhost:4318/v1/traces}
+  logging:
+    export:
+      otlp:
+        enabled: false
   endpoints:
     web:
       base-path: /api/actuator

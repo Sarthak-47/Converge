@@ -1,4 +1,5 @@
 import type { Stream } from './sandbox.js'
+import { childHeader, fromHeader, type TraceContext } from './trace.js'
 
 type Chunk = { stream: Stream; chunk: string }
 
@@ -10,6 +11,9 @@ export class Reporter {
   private pending: Chunk[] = []
   private timer: NodeJS.Timeout | null = null
   private sending: Promise<void> = Promise.resolve()
+
+  /** One trace per job: every report about it, and its log lines, share the trace ID (design §16.3). */
+  readonly trace: TraceContext = fromHeader(undefined)
 
   constructor(private readonly apiUrl: string, private readonly token: string, readonly jobId: string) {}
 
@@ -49,7 +53,7 @@ export class Reporter {
   private async post(path: string, body: unknown) {
     const response = await fetch(`${this.apiUrl.replace(/\/$/, '')}/internal/jobs/${this.jobId}${path}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Internal-Token': this.token },
+      headers: { 'Content-Type': 'application/json', 'X-Internal-Token': this.token, traceparent: childHeader(this.trace) },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(10_000),
     })

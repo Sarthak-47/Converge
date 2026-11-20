@@ -1,5 +1,6 @@
 import type { onAuthenticatePayload, onConnectPayload } from '@hocuspocus/server'
 import { config } from './config.js'
+import { childHeader, fromHeader } from './trace.js'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -33,7 +34,7 @@ export async function authenticate(data: onAuthenticatePayload): Promise<Connect
   if (!isFileId(data.documentName)) throw new Error('Unknown document')
   const response = await fetch(`${config.apiUrl}/internal/collab/authorize`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Internal-Token': config.internalToken },
+    headers: { 'Content-Type': 'application/json', 'X-Internal-Token': config.internalToken, traceparent: childHeader(fromHeader(undefined)) },
     body: JSON.stringify({ ticket: data.token, documentName: data.documentName }),
     signal: AbortSignal.timeout(5000),
   })

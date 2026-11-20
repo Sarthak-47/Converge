@@ -1,4 +1,5 @@
 import { metrics } from './metrics.js'
+import { fromHeader } from './trace.js'
 import { timingSafeEqual } from 'node:crypto'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Hocuspocus } from '@hocuspocus/server'
@@ -93,6 +94,11 @@ export async function handleInternal(
     } finally {
       await connection.disconnect()
     }
+    // Continues the API's trace, so a restore or import can be followed across services (design §16.3).
+    console.log(JSON.stringify({
+      timestamp: new Date().toISOString(), level: 'INFO', service: 'collab', event: 'EXTERNAL_CHANGE_APPLIED',
+      fileId, origin: String(body.origin ?? 'api'), changed, traceId: fromHeader(request.headers.traceparent).traceId,
+    }))
     return reply(response, 200, { changed })
   } catch (error) {
     if (error instanceof DocumentNotFoundError) return reply(response, 404, { error: 'Unknown document' })

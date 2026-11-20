@@ -5,6 +5,7 @@ import { TurnApi } from './apiClient.js'
 import { CollabWorkspace } from './collabWorkspace.js'
 import { config } from './config.js'
 import { revertTurn } from './edits.js'
+import { fromHeader, type TraceContext } from './trace.js'
 import { runTurn } from './turn.js'
 import { TEXT_FIELD } from './workspace.js'
 
@@ -64,15 +65,17 @@ function reply(response: ServerResponse, status: number, body?: unknown) {
   response.end(body === undefined ? undefined : JSON.stringify(body))
 }
 
-function startTurn(input: z.infer<typeof TurnStart>) {
+function startTurn(input: z.infer<typeof TurnStart>, trace: TraceContext) {
   const controller = new AbortController()
   running.set(input.turnId, controller)
-  const api = new TurnApi(config.apiUrl, config.internalToken, input.turnId)
+  // The whole turn continues the API's trace: its log lines and its calls back to the API share one trace ID.
+  const api = new TurnApi(config.apiUrl, config.internalToken, input.turnId, trace)
+  const traced = { traceId: trace.traceId }
   const workspace = new CollabWorkspace(api, `${input.sponsor.name}'s agent`, {
     collabUrl: config.collabUrl,
     origin: config.collabOrigin,
   })
-  log('INFO', 'TURN_STARTED', { turnId: input.turnId, workspaceId: input.workspaceId, model: input.model })
+  log('INFO', 'TURN_STARTED', { turnId: input.turnId, workspaceId: input.workspaceId, model: input.model, ...traced })
   void runTurn(input, {
     workspace,
     ledger: api,
@@ -86,9 +89,9 @@ function startTurn(input: z.infer<typeof TurnStart>) {
       return queued
     },
   })
-    .then((status) => log('INFO', 'TURN_ENDED', { turnId: input.turnId, status }))
+    .then((status) => log('INFO', 'TURN_ENDED', { turnId: input.turnId, status, ...traced }))
     .catch((error: Error) => {
-      log('ERROR', 'TURN_REPORT_FAILED', { turnId: input.turnId, message: error.message })
+      log('ERROR', 'TURN_REPORT_FAILED', { turnId: input.turnId, message: error.message, ...traced })
       return api.finish('FAILED', 'The agent runner could not complete the turn.').catch(() => undefined)
     })
     .finally(() => {
@@ -101,8 +104,8 @@ function startTurn(input: z.infer<typeof TurnStart>) {
  * Reverts a finished turn (design §13.2): each document is loaded from the state saved at the end of the
  * turn, synced with the live document, and the turn's own changes are undone as one new edit.
  */
-async function revert(turnId: string, input: z.infer<typeof RevertRequest>): Promise<number> {
-  const api = new TurnApi(config.apiUrl, config.internalToken, turnId)
+async function revert(turnId: string, input: z.infer<typeof RevertRequest>, trace: TraceContext): Promise<number> {
+  const api = new TurnApi(config.apiUrl, config.internalToken, turnId, trace)
   const workspace = new CollabWorkspace(api, `${input.actorName} (reverting an agent turn)`, {
     collabUrl: config.collabUrl,
     origin: config.collabOrigin,
@@ -133,7 +136,7 @@ const server = createServer((request, response) => {
       const parsed = TurnStart.safeParse(await readJson(request))
       if (!parsed.success) return reply(response, 400, { message: 'Invalid turn request' })
       if (running.has(parsed.data.turnId)) return reply(response, 409, { message: 'Turn already running' })
-      startTurn(parsed.data)
+      startTurn(parsed.data, fromHeader(request.headers.traceparent))
       return reply(response, 202, { accepted: true })
     }
     const cancel = /^\/internal\/turns\/([0-9a-f-]{36})\/cancel$/i.exec(url.pathname)
@@ -155,8 +158,9 @@ const server = createServer((request, response) => {
     if (request.method === 'POST' && revertMatch) {
       const parsed = RevertRequest.safeParse(await readJson(request))
       if (!parsed.success) return reply(response, 400, { message: 'Invalid revert request' })
-      const reverted = await revert(revertMatch[1]!, parsed.data)
-      log('INFO', 'TURN_REVERTED', { turnId: revertMatch[1], files: reverted })
+      const trace = fromHeader(request.headers.traceparent)
+      const reverted = await revert(revertMatch[1]!, parsed.data, trace)
+      log('INFO', 'TURN_REVERTED', { turnId: revertMatch[1], files: reverted, traceId: trace.traceId })
       return reply(response, 200, { revertedFiles: reverted })
     }
     return reply(response, 404)

@@ -23,7 +23,8 @@ public class CollabClient {
 
     private final RestClient client;
 
-    public CollabClient(@Value("${converge.collab.base-url}") String baseUrl,
+    /** Built from Spring's RestClient.Builder, so every call carries the current trace (design §16.3). */
+    public CollabClient(RestClient.Builder builder, @Value("${converge.collab.base-url}") String baseUrl,
             @Value("${converge.internal-token:}") String internalToken) {
         HttpClient http = HttpClient.newBuilder()
                 .version(HttpClient.Version.HTTP_1_1) // see CollabHealthIndicator: no h2c upgrade header
@@ -31,7 +32,7 @@ public class CollabClient {
                 .build();
         JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(http);
         factory.setReadTimeout(Duration.ofSeconds(10));
-        this.client = RestClient.builder()
+        this.client = builder
                 .baseUrl(baseUrl)
                 .requestFactory(factory)
                 .defaultHeader(InternalTokenFilter.HEADER, internalToken)
