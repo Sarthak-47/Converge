@@ -1,0 +1,74 @@
+name: Load and chaos run
+
+# Started by hand: the design's full scenario (design §22.4) is heavier than the per-push baseline, which
+# runs 40 clients for 60 s inside the CI job.
+on:
+  workflow_dispatch:
+    inputs:
+      clients:
+        description: Concurrent editors
+        default: "100"
+      workspaces:
+        description: Workspaces
+        default: "10"
+      files_per_workspace:
+        description: Files per workspace
+        default: "2"
+      duration_seconds:
+        description: Seconds of typing
+        default: "180"
+      chaos:
+        description: Restart the collaboration service mid-run (1 or 0)
+        default: "1"
+
+permissions:
+  contents: read
+
+env:
+  ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+  COMPOSE_PROFILES: fake-model
+  AGENT_MODEL_URL: http://fake-model:9100
+  RATE_LIMIT_SCALE: "100"
+
+jobs:
+  load:
+    name: Load and chaos run
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - run: docker compose up -d --build
+      - name: Wait for the whole stack to report UP
+        run: |
+          for i in $(seq 1 60); do
+            curl -fsS http://localhost:8000/api/actuator/health | grep -q '"status":"UP"' && exit 0
+            sleep 3
+          done
+          docker compose logs --tail=100; exit 1
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+      - run: npm ci
+      - name: Run the scenario
+        env:
+          CLIENTS: ${{ inputs.clients }}
+          WORKSPACES: ${{ inputs.workspaces }}
+          FILES_PER_WORKSPACE: ${{ inputs.files_per_workspace }}
+          CHAOS: ${{ inputs.chaos }}
+          # Inputs reach the script only as environment variables, never spliced into it.
+          DURATION_SECONDS: ${{ inputs.duration_seconds }}
+        run: |
+          DURATION_MS=$(( DURATION_SECONDS * 1000 )) node tests/load/baseline.mjs | tee .tmp/baseline.md
+          cat .tmp/baseline.md >> "$GITHUB_STEP_SUMMARY"
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: load-run
+          path: |
+            .tmp/baseline.json
+            .tmp/baseline.md
+          if-no-files-found: ignore
+      - if: failure()
+        run: docker compose logs --tail=200
+      - if: always()
+        run: docker compose down -v
