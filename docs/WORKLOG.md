@@ -283,3 +283,4 @@ Decisions made while working autonomously, newest last. Each entry says what was
 
   The baseline and fault scripts share their session helpers (`tests/load/stack.mjs`).
 - **Desktop branch check, found by CI**: `git rev-parse --abbrev-ref HEAD` fails on a branch with no commits, so a freshly initialised checkout looked like "not Git" and never paused. The app now uses `git symbolic-ref`.
+- **Caught by the stack, missed by the API tests**: in Spring Boot 4 the `RestClient.Builder` bean comes from its own module (`spring-boot-starter-restclient`), so the API failed to start once the service clients took the builder. The integration tests mock those clients and never ran their constructors. Added the module, and `WiringTest`, which builds the real clients from the context.
