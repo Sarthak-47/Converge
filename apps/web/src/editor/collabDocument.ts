@@ -16,7 +16,24 @@ function collabUrl() {
 /** A stable, readable colour per user, so the same person looks the same in every tab. */
 // The sticker palette (index.css --sticker-1..6): one die-cut colour per person, all clear of lemon, which belongs to
 // primary actions and Live. Kept as hsl() strings, the only form awareness validation accepts from other clients.
-const THREADS = ['hsl(9 100% 59%)', 'hsl(230 100% 58%)', 'hsl(153 79% 43%)', 'hsl(333 100% 69%)', 'hsl(258 90% 66%)', 'hsl(195 100% 42%)']
+const THREADS = ['hsl(9 100% 59%)', 'hsl(230 100% 58%)', 'hsl(153 79% 43%)', 'hsl(333 100% 69%)', 'hsl(258 72% 52%)', 'hsl(195 100% 42%)']
+
+/** Ink that stays readable on a sticker of `color` (an hsl() string): near-black or white, whichever contrasts more. */
+export function inkFor(color: string): string {
+  const match = /^hsl\((\d{1,3}) (\d{1,3})% (\d{1,3})%\)$/.exec(color)
+  if (!match) return '#16171a'
+  const [h, s, l] = [Number(match[1]) % 360, Number(match[2]) / 100, Number(match[3]) / 100]
+  const k = (n: number) => (n + h / 30) % 12
+  const a = s * Math.min(l, 1 - l)
+  const channel = (n: number) => {
+    const v = l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)))
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4
+  }
+  const lum = 0.2126 * channel(0) + 0.7152 * channel(8) + 0.0722 * channel(4)
+  const onWhite = 1.05 / (lum + 0.05)
+  const onInk = (lum + 0.05) / 0.0587
+  return onInk >= onWhite ? '#16171a' : '#ffffff'
+}
 
 export function colorFor(userId: string) {
   let hash = 0

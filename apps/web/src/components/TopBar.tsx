@@ -1,9 +1,10 @@
 import type { ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { useAuth } from '../auth.tsx'
-import { colorFor } from '../editor/collabDocument.ts'
+import { colorFor, inkFor } from '../editor/collabDocument.ts'
 import { BrandMark } from './Icon.tsx'
 import { ThemeSwitch } from './ThemeSwitch.tsx'
+import { initials, stickerStyle } from './sticker.ts'
 
 export function TopBar({ children }: { children?: ReactNode }) {
   const { user, logout } = useAuth()
@@ -25,7 +26,7 @@ export function TopBar({ children }: { children?: ReactNode }) {
         {user && (
           <>
             <span className="me" title={user.displayName}>
-              <span className="me-dot" style={{ background: colorFor(user.id) }} aria-hidden="true" />
+              <span className="avatar avatar-sm" style={{ ...stickerStyle(user.id), background: colorFor(user.id), color: inkFor(colorFor(user.id)) }} aria-hidden="true">{initials(user.displayName)}</span>
               <span className="me-name">{user.displayName}</span>
             </span>
             <button type="button" className="ghost" onClick={signOut}>Sign out</button>

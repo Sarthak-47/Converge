@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { api, type GitOperation, type GitRepository, type Workspace } from '../api.ts'
 import { errorMessage } from './agentKit.ts'
+import { Icon } from './Icon.tsx'
 
 type Props = { workspace: Workspace; onClose: () => void; refreshSignal?: number }
 
@@ -69,7 +70,7 @@ export function GitDialog({ workspace, onClose, refreshSignal = 0 }: Props) {
     <dialog ref={dialog} className="dialog card" onClose={onClose} aria-labelledby="git-title">
       <header className="dialog-header">
         <h2 id="git-title">Repository</h2>
-        <button type="button" className="ghost" onClick={onClose} aria-label="Close">✕</button>
+        <button type="button" className="ghost" onClick={onClose} aria-label="Close"><Icon name="close" /></button>
       </header>
         {!loaded && <p className="muted small">Loading…</p>}
         {loaded && repository && (

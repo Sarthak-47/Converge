@@ -1,4 +1,4 @@
-import { colorFor } from '../editor/collabDocument.ts'
+import { colorFor, inkFor } from '../editor/collabDocument.ts'
 import { stickerStyle } from './sticker.ts'
 import type { OnlineUser } from '../realtime/workspaceChannel.ts'
 
@@ -14,7 +14,7 @@ export function PresenceAvatars({ online }: { online: OnlineUser[] }) {
   return (
     <span className="presence" aria-label={`Online: ${names.join(', ')}`} title={`Online: ${names.join(', ')}`}>
       {online.slice(0, 5).map((u) => (
-        <span key={u.userId} className="avatar" style={{ ...stickerStyle(u.userId), background: colorFor(u.userId) }}>
+        <span key={u.userId} className="avatar" style={{ ...stickerStyle(u.userId), background: colorFor(u.userId), color: inkFor(colorFor(u.userId)) }}>
           {initials(u.displayName)}
         </span>
       ))}

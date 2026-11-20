@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import type { ChatMessage } from '../realtime/workspaceChannel.ts'
 import type { CSSProperties } from 'react'
-import { colorFor } from '../editor/collabDocument.ts'
+import { colorFor, inkFor } from '../editor/collabDocument.ts'
+import { initials, stickerStyle } from './sticker.ts'
 
 type Props = {
   messages: ChatMessage[]
@@ -36,7 +37,7 @@ export function ChatPanel({ messages, currentUserId, canPost, connected, onSend 
         {messages.map((m) => (
           <li key={m.id} className={m.userId === currentUserId ? 'mine' : ''} style={{ '--who': colorFor(m.userId) } as CSSProperties}>
             <div className="chat-meta">
-              <strong><span className="who-dot" aria-hidden="true" />{m.displayName}</strong>
+              <strong><span className="avatar avatar-sm" style={{ ...stickerStyle(m.userId), background: colorFor(m.userId), color: inkFor(colorFor(m.userId)) }} aria-hidden="true">{initials(m.displayName)}</span>{m.displayName}</strong>
               <time className="muted small" dateTime={m.createdAt}>{time.format(new Date(m.createdAt))}</time>
             </div>
             <p>{m.body}</p>

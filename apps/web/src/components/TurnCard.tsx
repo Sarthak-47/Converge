@@ -5,6 +5,7 @@ import { dollars, errorMessage } from './agentKit.ts'
 import { Icon } from './Icon.tsx'
 import type { CSSProperties } from 'react'
 import { colorFor } from '../editor/collabDocument.ts'
+import { initials, stickerStyle } from './sticker.ts'
 
 const STATUS_LABEL: Record<AgentTurnStatus, string> = {
   RUNNING: 'Working…',
@@ -31,7 +32,7 @@ export function TurnCard({ turn, currentUserId, canEdit, busy, onStop, onRevert,
   return (
     <li className="agent-turn" data-status={turn.status} aria-label={`${turn.sponsorName}'s agent turn`} style={{ '--who': colorFor(turn.sponsorId) } as CSSProperties}>
       <div className="agent-turn-head">
-        <strong className="turn-who"><span className="who-dot agent" aria-hidden="true" />{turn.sponsorName}'s agent</strong>
+        <strong className="turn-who"><span className="avatar avatar-sm agent" style={stickerStyle(turn.sponsorId)} aria-hidden="true">{initials(turn.sponsorName)}</span>{turn.sponsorName}'s agent</strong>
         <span className={`agent-status status-${turn.status.toLowerCase()}`}>{STATUS_LABEL[turn.status]}</span>
       </div>
       {turn.events.map((e) => {

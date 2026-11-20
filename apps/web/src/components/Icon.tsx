@@ -14,6 +14,7 @@ const PATHS = {
   monitor: 'M3 5h18v11H3zM8 20h8M12 16v4',
   arrow: 'M5 12h14M13 6l6 6-6 6',
   plus: 'M12 5v14M5 12h14',
+  back: 'M19 12H5M11 6l-6 6 6 6',
   pencil: 'M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4',
 } as const
 

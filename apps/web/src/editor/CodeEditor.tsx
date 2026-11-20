@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { MonacoBinding } from 'y-monaco'
 import type { CollabDocument, Peer } from './collabDocument.ts'
 import { editorFont, monaco, monacoTheme } from './monaco.ts'
+import { inkFor } from './collabDocument.ts'
 
 /** A highlighted range, as offsets into the current text. */
 export type Highlight = { start: number; end: number; title: string; className?: string }
@@ -39,7 +40,7 @@ function cursorStyles(peers: Peer[]) {
       ({ clientId, name, color }) => `
 .yRemoteSelection-${clientId} { background-color: color-mix(in srgb, ${color} 30%, transparent); }
 .yRemoteSelectionHead-${clientId} { border-left-color: ${color}; }
-.yRemoteSelectionHead-${clientId}::after { content: ${cssString(name)}; background: ${color}; }`,
+.yRemoteSelectionHead-${clientId}::after { content: ${cssString(name)}; background: ${color}; color: ${inkFor(color)}; }`,
     )
     .join('\n')
 }
