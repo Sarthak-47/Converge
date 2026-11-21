@@ -8,7 +8,8 @@ import { defineConfig } from 'vite'
 // Origin rewritten to the stack's own, so the API's and the collaboration service's origin checks accept it. Used to
 // iterate on the UI against real data.
 const STACK = 'http://localhost:8000'
-const viaStack = { target: STACK, changeOrigin: true, headers: { Origin: STACK } }
+// Connects over IPv4: on Windows, localhost may resolve to ::1 first, where Docker Desktop's port can hang.
+const viaStack = { target: 'http://127.0.0.1:8000', headers: { Origin: STACK, Host: 'localhost:8000' } }
 
 export default defineConfig(({ mode }) => ({
   plugins: [react()],
