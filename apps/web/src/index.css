@@ -2562,3 +2562,9 @@ select {
   flex: none;
   font-family: var(--font-mono);
 }
+
+/* A settings row's action keeps its label on one line however long the explanation beside it is. */
+.settings-row > button {
+  flex: none;
+  white-space: nowrap;
+}
