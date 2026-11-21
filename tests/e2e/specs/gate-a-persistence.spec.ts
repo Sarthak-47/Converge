@@ -6,7 +6,6 @@ import {
   openFile,
   register,
   restart,
-  signIn,
   typeAtEnd,
   uniqueEmail,
   waitForStack,
@@ -14,7 +13,7 @@ import {
 } from './helpers.ts'
 
 /** Gate A (design §19.2): a restart must leave the workspace usable and lose no saved work. */
-test('saved work survives restarting the API and the collaboration service', async ({ page }) => {
+test('saved work and the sign-in survive restarting the API and the collaboration service', async ({ page }) => {
   const email = uniqueEmail('gate-a')
   await register(page, email)
   await createWorkspace(page, 'Persistence check')
@@ -27,8 +26,8 @@ test('saved work survives restarting the API and the collaboration service', asy
   restart('api')
   await waitForStack(page)
 
-  // Sessions are held in memory for now, so a restart signs people out; the data must still be there.
-  await signIn(page, email)
+  // Sessions live in PostgreSQL, so the restart signs no one out; the data must still be there too.
+  await page.goto('/')
   await page.getByRole('link', { name: 'Persistence check' }).click()
   await openFile(page, 'hello.ts')
   await expect.poll(() => editorText(page), { timeout: 30_000 }).toContain('export const greeting = 42')
