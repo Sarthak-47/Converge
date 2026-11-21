@@ -173,4 +173,25 @@ class FileApiTest extends IntegrationTest {
         perform(asha, org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/v1/files/" + first + "/undelete"), "{}")
                 .andExpect(status().isConflict());
     }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    DeletedFilePurge purge;
+
+    @Test
+    void filesDeletedLongerThanThirtyDaysAgoAreRemovedForGood() throws Exception {
+        String docs = id(createFile(asha, workspace, null, "docs", "FOLDER"));
+        String old = id(createFile(asha, workspace, docs, "old.md", "FILE"));
+        String recent = id(createFile(asha, workspace, null, "recent.md", "FILE"));
+        perform(asha, delete("/api/v1/files/" + docs + "?rowVersion=0"), "{}").andExpect(status().isNoContent());
+        perform(asha, delete("/api/v1/files/" + recent + "?rowVersion=0"), "{}").andExpect(status().isNoContent());
+        jdbc.sql("update files set deleted_at = now() - interval '31 days' where id in (?::uuid, ?::uuid)").params(docs, old).update();
+
+        purge.purge();
+
+        assertThat(jdbc.sql("select count(*) from files where id in (?::uuid, ?::uuid)").params(docs, old).query(Integer.class).single()).isZero();
+        assertThat(jdbc.sql("select count(*) from documents where file_id = ?::uuid").param(old).query(Integer.class).single()).isZero();
+        getAs(asha, "/api/v1/workspaces/{w}/deleted-files", workspace)
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value(recent));
+    }
 }
