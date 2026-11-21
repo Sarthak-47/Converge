@@ -98,6 +98,22 @@ describe('mirroring', () => {
     expect(await read(a, 'doc.txt')).toBe('ALPHA\nbeta\ngamma\n')
   })
 
+  it('never takes a save caught halfway as deleting the file', async () => {
+    const id = server.addFile('doc.txt', 'alpha\nbeta\n')
+    const a = await started('a')
+
+    // An editor's save truncates the file, then writes it; a teammate's edit lands in between.
+    await writeFile(path.join(a.root, 'doc.txt'), '')
+    server.edit(id, (t) => t.insert(t.length, 'gamma\n'))
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    await writeFile(path.join(a.root, 'doc.txt'), 'ALPHA\nbeta\n')
+    await a.bridge.diskChanged('doc.txt')
+    await settle()
+
+    expect(server.text(id)).toBe('ALPHA\nbeta\ngamma\n')
+    expect(await read(a, 'doc.txt')).toBe('ALPHA\nbeta\ngamma\n')
+  })
+
   it('keeps two machines identical', async () => {
     const id = server.addFile('shared.md', 'start')
     const a = await started('a')

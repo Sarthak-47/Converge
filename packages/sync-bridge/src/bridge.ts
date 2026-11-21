@@ -9,6 +9,9 @@ import { TEXT_FIELD, type RemoteEntry, type RemoteWorkspace } from './remote.js'
 import { StateStore } from './stateStore.js'
 import { applyTextChange, detectEol, looksBinary, MAX_SYNC_BYTES, toLf, withEol, type Eol } from './text.js'
 
+/** How long a differing file must hold still before its text is taken as a local edit (see readSettled). */
+const SETTLE_MS = 30
+
 export type BridgeEvent =
   | { type: 'written'; path: string }
   | { type: 'sent'; path: string }
@@ -278,7 +281,7 @@ export class SyncBridge {
       return
     }
     const hot = this.attach(tracked, doc)
-    const disk = await this.readDisk(hot.absolute)
+    const disk = await this.readSettled(hot.absolute, hot.baseText)
     if (disk.kind === 'skip') return this.emit({ type: 'skipped', path: hot.path, reason: disk.reason })
     if (disk.kind === 'text' && toLf(disk.raw) !== hot.baseText) this.mergeLocal(hot, disk.raw)
     if (disk.kind === 'text' && toLf(disk.raw) === hot.text.toString()) this.setBase(hot, hot.text.toString(), Y.encodeStateAsUpdate(hot.doc))
@@ -319,7 +322,7 @@ export class SyncBridge {
 
   private async writeFromRemote(tracked: Tracked): Promise<void> {
     if (this.files.get(tracked.path) !== tracked || !isHot(tracked)) return
-    const disk = await this.readDisk(tracked.absolute)
+    const disk = await this.readSettled(tracked.absolute, tracked.baseText)
     if (disk.kind === 'skip') return this.emit({ type: 'skipped', path: tracked.path, reason: disk.reason })
     if (disk.kind === 'text') {
       // Unsynced local edits: merge them in first, so writing the merged text cannot overwrite them.
@@ -397,7 +400,7 @@ export class SyncBridge {
       return
     }
     const tracked = this.files.get(workspacePath)
-    const disk = await this.readDisk(absolute)
+    const disk = tracked ? await this.readSettled(absolute, tracked.baseText) : await this.readDisk(absolute)
     if (disk.kind === 'skip') return this.emit({ type: 'skipped', path: workspacePath, reason: disk.reason })
     if (disk.kind === 'missing') {
       if (!tracked) return
@@ -451,6 +454,25 @@ export class SyncBridge {
   }
 
   // ---- Helpers ---------------------------------------------------------------------------------------------
+
+  /**
+   * Reads a file whose text differs from its base until two reads, a moment apart, agree. Editors save by
+   * truncating and rewriting (or by deleting and recreating), so a read can land halfway through a save and
+   * see an empty or missing file; merged as it is, that would delete everything. Only text that holds still
+   * is taken as the edit.
+   */
+  private async readSettled(absolute: string, base: string | null): Promise<DiskRead> {
+    let read = await this.readDisk(absolute)
+    for (let attempt = 0; attempt < 8; attempt++) {
+      if (read.kind === 'skip' || (read.kind === 'text' && toLf(read.raw) === base)) return read
+      await new Promise((resolve) => setTimeout(resolve, SETTLE_MS))
+      const again = await this.readDisk(absolute)
+      const same = again.kind === read.kind && (again.kind !== 'text' || (read.kind === 'text' && again.raw === read.raw))
+      if (same) return again
+      read = again
+    }
+    return read
+  }
 
   private async readDisk(absolute: string): Promise<DiskRead> {
     let bytes: Buffer

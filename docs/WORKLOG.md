@@ -359,3 +359,9 @@ A pass over the design's functional requirements (§3.1) against the app found f
 - **What is stored:** the security context only, and its principal is the user without the password hash (`withoutPassword()`, as before). The test checks that neither the hash nor the password is in the stored bytes.
 - **Tests:** the existing integration tests pass `MockHttpSession` objects around, which a cookie-based session store ignores, so they keep container sessions by excluding the two session auto-configurations. `SharedSessionTest` runs with the real store and only the cookie, the way a browser does: the session is a row keyed to the person, the cookie alone opens it, and signing out deletes the row.
 - **Remaining known limit:** desktop builds are unsigned. Sarthak confirmed signing will not happen, because the certificates cost money.
+
+## 2026-11-22: A save caught halfway is no longer merged
+
+- **A real bug behind a "flaky" test.** A sync-bridge test failed once in CI, with only a teammate's appended line left. When a remote edit arrives, the bridge first reads the local file, to merge in any edits not yet sent. Editors save by truncating and rewriting, so that read can land halfway through a save, see an empty file, and merge "delete everything". Unchanged, this could wipe a file in real use whenever a teammate typed while you saved.
+- **Fix:** whenever the disk text differs from the last synced text, the bridge reads again until two reads 30 ms apart agree, and only then merges. This applies to remote writes, local changes and warming a cold file. A file that matches its base, the usual case, costs nothing extra. A missing file is treated the same way, so a delete-and-recreate save is not taken as a deletion.
+- **Test:** truncates the file, lands a remote edit, then completes the save. Before the fix it lost the teammate's line every time; after it, both edits survive.
