@@ -109,6 +109,13 @@ The baseline load and chaos run (same stack; `CHAOS=1` restarts the collaboratio
 CHAOS=1 node tests/load/baseline.mjs
 ```
 
+A visual check of the web app needs no stack: it serves the built app and answers the API from fixtures, then screenshots sign-in, workspaces, the editor, sessions, lanes, approvals and memory in light and dark, on desktop and phone (into `.impeccable/review/`, which is not committed):
+
+```bash
+npm run build -w @converge/web
+PLAYWRIGHT_BROWSERS_PATH=.cache/ms-playwright node tests/visual/capture.mjs
+```
+
 ## Repository layout
 
 ```
