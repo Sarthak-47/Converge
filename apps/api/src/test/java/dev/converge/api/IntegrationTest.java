@@ -37,6 +37,8 @@ import dev.converge.api.realtime.CollabClient;
 @SpringBootTest(properties = {
         "converge.collab.health.enabled=false",
         "management.health.redis.enabled=false",
+        // One instance and no Redis: ClusterBusTest covers sharing events between instances.
+        "converge.cluster.enabled=false",
         "converge.internal-token=" + IntegrationTest.INTERNAL_TOKEN,
         "converge.secrets-key=" + IntegrationTest.SECRETS_KEY,
         // Tests sign up many users from one address; RateLimitTest checks the limits on their own.

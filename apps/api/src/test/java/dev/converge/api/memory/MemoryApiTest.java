@@ -24,7 +24,6 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
-import dev.converge.api.realtime.WorkspaceEvent;
 
 import dev.converge.api.IntegrationTest;
 import dev.converge.api.agent.AgentRunnerClient.StartTurn;
@@ -84,9 +83,12 @@ class MemoryApiTest extends IntegrationTest {
         internal(post("/internal/memories/checked"), "{'checks':[{'id':'%s','currentText':'return fetchAll()','similarity':0.2,'status':'STALE'}]}", id)
                 .andExpect(status().isNoContent());
         // Reported outside any transaction, yet it must reach the workspace (it used to be dropped).
-        ArgumentCaptor<Object> sent = ArgumentCaptor.forClass(Object.class);
-        verify(messaging, atLeastOnce()).convertAndSend(org.mockito.ArgumentMatchers.eq("/topic/workspace/" + workspace + "/events"), sent.capture());
-        assertThat(sent.getAllValues()).anySatisfy(e -> assertThat(((WorkspaceEvent) e).type()).isEqualTo("MEMORY_CHANGED"));
+        // Events go out as ready-made JSON (the same bytes every API instance sends).
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<org.springframework.messaging.Message<?>> sent = ArgumentCaptor.forClass(org.springframework.messaging.Message.class);
+        verify(messaging, atLeastOnce()).send(org.mockito.ArgumentMatchers.eq("/topic/workspace/" + workspace + "/events"), sent.capture());
+        assertThat(sent.getAllValues()).anySatisfy(m ->
+                assertThat(new String((byte[]) m.getPayload(), java.nio.charset.StandardCharsets.UTF_8)).contains("\"type\":\"MEMORY_CHANGED\""));
         getAs(vic, "/api/v1/workspaces/{w}/memories?fileId={f}", workspace, file)
                 .andExpect(jsonPath("$[0].status").value("STALE"))
                 .andExpect(jsonPath("$[0].currentText").value("return fetchAll()"))

@@ -1,6 +1,5 @@
 package dev.converge.api.realtime;
 
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -13,14 +12,14 @@ import org.springframework.transaction.event.TransactionalEventListener;
 @Component
 public class WorkspaceEventPublisher {
 
-    private final SimpMessagingTemplate messaging;
+    private final ClusterBus bus;
 
-    public WorkspaceEventPublisher(SimpMessagingTemplate messaging) {
-        this.messaging = messaging;
+    public WorkspaceEventPublisher(ClusterBus bus) {
+        this.bus = bus;
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     void afterCommit(WorkspaceEvent event) {
-        messaging.convertAndSend(event.topic(), event);
+        bus.send(event.topic(), event);
     }
 }

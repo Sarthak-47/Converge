@@ -6,9 +6,9 @@ The full design — architecture, protocols, roadmap and decision log — is in 
 
 **Status:** every functional requirement in the design (§3.1) is built and tested, along with the stretch goals: agents, sessions, approvals, workspace memory, Git (including import and push webhooks) and the desktop app with live local sync. See [docs/WORKLOG.md](docs/WORKLOG.md) for the decisions behind each step and [docs/BASELINE.md](docs/BASELINE.md) for measured latency, load and fault recovery.
 
-**Known limits:**
-- Desktop builds are unsigned, because signing needs paid code-signing certificates.
-- The API runs as one instance. Sign-ins, rate limits and data are shared through PostgreSQL and Redis, but the workspace channel (chat, presence, live events) uses an in-memory broker, so a second instance would need a STOMP broker relay or Redis fan-out (design §7.5).
+**Known limit:** desktop builds are unsigned, because signing needs paid code-signing certificates.
+
+**Scaling the API:** run several instances behind nginx with `docker compose up -d --scale api=2` (start nginx after them, or restart it). Sign-ins live in PostgreSQL, rate limits and presence in Redis, and every workspace-channel message is shared between instances through Redis, so a person may land on any instance. CI runs the end-to-end suite against two.
 
 ## Architecture at a glance
 

@@ -43,7 +43,8 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry registry) {
-        // In-memory broker: enough for one API instance. Multi-instance needs a STOMP broker relay (design §7.5).
+        // Each instance has its own in-memory broker for its own sockets; ClusterBus repeats every message on the
+        // other instances through Redis, so any number of API instances serve one channel (design §7.5).
         registry.enableSimpleBroker("/topic", "/queue");
         registry.setApplicationDestinationPrefixes("/app");
         registry.setUserDestinationPrefix("/user");

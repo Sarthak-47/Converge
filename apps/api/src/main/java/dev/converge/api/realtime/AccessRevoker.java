@@ -24,10 +24,10 @@ class AccessRevoker {
     static final CloseStatus ACCESS_REMOVED = new CloseStatus(4403, "Workspace access removed");
 
     private final CollabClient collab;
-    private final WebSocketSessions sessions;
+    private final ClusterBus sessions;
     private final JdbcClient jdbc;
 
-    AccessRevoker(CollabClient collab, WebSocketSessions sessions, JdbcClient jdbc) {
+    AccessRevoker(CollabClient collab, ClusterBus sessions, JdbcClient jdbc) {
         this.collab = collab;
         this.sessions = sessions;
         this.jdbc = jdbc;
@@ -64,7 +64,8 @@ class AccessRevoker {
                     change.userId(), change.workspaceId(), e);
         }
         if (change.role() == null) {
-            sessions.closeAll(change.userId(), ACCESS_REMOVED);
+            // On every instance: the person's sockets may be connected to any of them.
+            sessions.closeUser(change.userId(), ACCESS_REMOVED);
         }
     }
 }

@@ -6,11 +6,11 @@ import java.util.List;
 import java.util.UUID;
 
 import org.springframework.jdbc.core.simple.JdbcClient;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 import dev.converge.api.auth.AppUser;
 import dev.converge.api.common.ApiException;
+import dev.converge.api.realtime.ClusterBus;
 import dev.converge.api.workspace.Role;
 import dev.converge.api.workspace.WorkspaceAccess;
 
@@ -25,9 +25,9 @@ public class ChatService {
 
     private final JdbcClient jdbc;
     private final WorkspaceAccess access;
-    private final SimpMessagingTemplate messaging;
+    private final ClusterBus messaging;
 
-    public ChatService(JdbcClient jdbc, WorkspaceAccess access, SimpMessagingTemplate messaging) {
+    public ChatService(JdbcClient jdbc, WorkspaceAccess access, ClusterBus messaging) {
         this.jdbc = jdbc;
         this.access = access;
         this.messaging = messaging;
@@ -47,7 +47,7 @@ public class ChatService {
                 .single()
                 .toInstant();
         ChatMessage message = new ChatMessage(id, workspaceId, author.id(), author.displayName(), body, createdAt);
-        messaging.convertAndSend("/topic/workspace/" + workspaceId + "/chat", message);
+        messaging.send("/topic/workspace/" + workspaceId + "/chat", message);
         return message;
     }
 
