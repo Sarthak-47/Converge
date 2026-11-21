@@ -48,7 +48,7 @@ Default database credentials are development-only values from `.env.example`; co
 
 ## Agents
 
-Open a workspace, switch the right-hand panel to **Agents**, and save your own Anthropic API key. It is stored encrypted and only a hint is shown back. Every turn runs on the key of the member who prompts it.
+Open a workspace, switch the right-hand panel to **Sessions**, and save your own Anthropic API key. It is stored encrypted and only a hint is shown back. Every turn runs on the key of the member who prompts it, on the model they pick beside **Send to agent**: Claude Opus 5.5 by default, or Sonnet 5.5 or Haiku 5.5 for quicker, cheaper turns (`AGENT_MODELS` sets the list).
 
 To try agents without a key or any cost, start the stack with the scripted fake model:
 
