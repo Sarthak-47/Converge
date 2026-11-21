@@ -34,19 +34,23 @@ export async function loadDocument(db: Pool, fileId: string, doc: Y.Doc): Promis
  * Stores the Yjs state and its materialized text (design §6.4). The content version only advances when the
  * text actually changed, so readers can use it to detect stale reads.
  */
-export async function storeDocument(db: Pool, fileId: string, doc: Y.Doc): Promise<void> {
+/** Returns whether the stored text changed (so the API can tell clients that do not hold the live document). */
+export async function storeDocument(db: Pool, fileId: string, doc: Y.Doc): Promise<boolean> {
   const state = Buffer.from(Y.encodeStateAsUpdate(doc))
   const text = doc.getText(TEXT_FIELD).toString()
   const hash = createHash('sha256').update(text, 'utf8').digest('hex')
-  await db.query(
-    `update documents
+  const result = await db.query<{ changed: boolean }>(
+    `update documents d
         set yjs_state = $2,
             text_content = $3,
-            content_version = content_version + case when content_hash = $4 then 0 else 1 end,
+            content_version = d.content_version + case when d.content_hash = $4 then 0 else 1 end,
             content_hash = $4,
-            updated_at = case when content_hash = $4 then updated_at else now() end,
+            updated_at = case when d.content_hash = $4 then d.updated_at else now() end,
             state_updated_at = now()
-      where file_id = $1`,
+       from (select content_hash as previous from documents where file_id = $1) prior_row
+      where d.file_id = $1
+      returning prior_row.previous is distinct from $4 as changed`,
     [fileId, state, text, hash],
   )
+  return result.rows[0]?.changed ?? false
 }

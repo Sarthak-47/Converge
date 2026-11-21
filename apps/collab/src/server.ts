@@ -24,6 +24,16 @@ function log(level: 'INFO' | 'WARN' | 'ERROR', event: string, fields: Record<str
   console.log(JSON.stringify({ timestamp: new Date().toISOString(), level, service: 'collab', event, ...fields }))
 }
 
+async function reportStored(fileId: string) {
+  const trace = fromHeader(undefined)
+  const response = await fetch(`${config.apiUrl}/internal/files/${fileId}/stored`, {
+    method: 'POST',
+    headers: { 'X-Internal-Token': config.internalToken, traceparent: childHeader(trace) },
+    signal: AbortSignal.timeout(5000),
+  })
+  if (!response.ok) throw new Error(`Reporting a stored change failed with ${response.status}`)
+}
+
 async function reportMemoryChecks(checks: MemoryCheck[]) {
   const trace = fromHeader(undefined)
   const response = await fetch(`${config.apiUrl}/internal/memories/checked`, {
@@ -40,15 +50,21 @@ const limiter = new ConnectionLimiter()
 
 async function store(documentName: string, document: Y.Doc) {
   const started = performance.now()
+  let changed: boolean
   try {
-    await storeDocument(db, documentName, document)
+    changed = await storeDocument(db, documentName, document)
   } catch (error) {
     metrics.storeFailures.inc()
     throw error
   }
   const durationMs = performance.now() - started
   metrics.storeDuration.observe(durationMs)
-  log('INFO', 'DOCUMENT_STORED', { fileId: documentName, durationMs: Math.round(durationMs) })
+  log('INFO', 'DOCUMENT_STORED', { fileId: documentName, durationMs: Math.round(durationMs), changed })
+  // Clients without the live document (a desktop mirror's cold files) learn about the change from the API.
+  if (changed) {
+    reportStored(documentName).catch((error: Error) =>
+      log('WARN', 'STORE_REPORT_FAILED', { fileId: documentName, message: error.message }))
+  }
   // Notes pinned to this file are re-checked against what was just stored (design §13.10). Context, not
   // authority: a failure is logged and never blocks storing.
   checkMemories(db, documentName, document, reportMemoryChecks)

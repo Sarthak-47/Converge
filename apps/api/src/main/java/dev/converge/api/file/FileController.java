@@ -63,6 +63,13 @@ public class FileController {
                 user.id());
     }
 
+    /** The collaboration service, after storing changed text (internal token; never routed by nginx). */
+    @PostMapping("/internal/files/{id}/stored")
+    ResponseEntity<Void> stored(@PathVariable UUID id) {
+        files.stored(id);
+        return ResponseEntity.noContent().build();
+    }
+
     @DeleteMapping("/api/v1/files/{id}")
     ResponseEntity<Void> delete(@AuthenticationPrincipal AppUser user, @PathVariable UUID id,
             @RequestParam int rowVersion) {

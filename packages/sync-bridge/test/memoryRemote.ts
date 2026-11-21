@@ -10,11 +10,14 @@ export class MemoryServer {
   readonly docs = new Map<string, Y.Doc>()
   readonly entries = new Map<string, RemoteEntry>()
   private readonly treeListeners = new Set<() => void>()
+  private readonly contentListeners = new Set<(fileId: string) => void>()
 
   addFile(path: string, text = ''): string {
     const id = randomUUID()
     const doc = new Y.Doc()
     if (text) doc.getText(TEXT_FIELD).insert(0, text)
+    // Like the collaboration service storing and the API announcing it: every change to the stored text is reported.
+    doc.on('update', () => queueMicrotask(() => this.contentListeners.forEach((l) => l(id))))
     this.docs.set(id, doc)
     this.entries.set(id, { id, path, kind: 'FILE' })
     this.treeChanged()
@@ -56,6 +59,11 @@ export class MemoryServer {
   onTreeChanged(listener: () => void) {
     this.treeListeners.add(listener)
     return () => this.treeListeners.delete(listener)
+  }
+
+  onContentChanged(listener: (fileId: string) => void) {
+    this.contentListeners.add(listener)
+    return () => this.contentListeners.delete(listener)
   }
 
   connect(): MemoryClient {
@@ -123,6 +131,15 @@ export class MemoryClient implements RemoteWorkspace {
 
   onTreeChanged(listener: () => void) {
     return this.server.onTreeChanged(listener)
+  }
+
+  onContentChanged(listener: (fileId: string) => void) {
+    return this.server.onContentChanged(listener)
+  }
+
+  /** How many live replicas this client holds open. */
+  get openCount() {
+    return this.replicas.size
   }
 
   goOffline() {

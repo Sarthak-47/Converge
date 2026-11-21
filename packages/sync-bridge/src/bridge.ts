@@ -26,6 +26,12 @@ export type BridgeOptions = {
   onEvent?: (event: BridgeEvent) => void
   /** Watch the folder for changes (default true). Tests drive changes explicitly instead. */
   watch?: boolean
+  /**
+   * A file with no local or remote edits for this long goes cold: its live replica is closed and only its base
+   * is kept, so a large checkout does not hold one open document per file (design §12.3). Default 5 minutes;
+   * 0 keeps every file hot.
+   */
+  coolAfterMs?: number
 }
 
 /**
@@ -37,13 +43,22 @@ type Tracked = {
   id: string
   path: string
   absolute: string
-  doc: Y.Doc
-  text: Y.Text
+  /** The live replica while the file is hot; null while it is cold (design §12.3). */
+  doc: Y.Doc | null
+  text: Y.Text | null
   baseText: string | null
   baseState: Uint8Array | null
   eol: Eol
   stopObserving: () => void
+  coolTimer: ReturnType<typeof setTimeout> | null
 }
+
+/** A tracked file whose replica is open. */
+type Hot = Tracked & { doc: Y.Doc; text: Y.Text }
+
+const isHot = (tracked: Tracked): tracked is Hot => tracked.doc !== null
+
+const DEFAULT_COOL_AFTER_MS = 5 * 60_000
 
 type DiskRead = { kind: 'text'; raw: string } | { kind: 'missing' } | { kind: 'skip'; reason: string }
 
@@ -65,6 +80,7 @@ export class SyncBridge {
   private ignored: Ignore = ignore().add(ALWAYS_IGNORED)
   private watcher: FSWatcher | null = null
   private stopTree: (() => void) | null = null
+  private stopContent: (() => void) | null = null
   private stopped = false
   private readonly state: StateStore
 
@@ -86,12 +102,18 @@ export class SyncBridge {
     }
     await this.enqueue('*tree', () => this.reconcile())
     this.stopTree = this.options.remote.onTreeChanged(() => void this.enqueue('*tree', () => this.reconcile()))
+    // A cold file changed on the server: open its replica again, which writes the change (merging local edits).
+    this.stopContent = this.options.remote.onContentChanged((fileId) => {
+      const tracked = [...this.files.values()].find((t) => t.id === fileId)
+      if (tracked && !isHot(tracked)) void this.enqueue(tracked.path, () => this.warm(tracked))
+    })
     if (this.options.watch !== false) this.startWatching()
   }
 
   async stop(): Promise<void> {
     this.stopped = true
     this.stopTree?.()
+    this.stopContent?.()
     await this.watcher?.close()
     await this.idle()
     // Stopping keeps the saved bases: they are what lets the next start merge offline edits.
@@ -194,16 +216,12 @@ export class SyncBridge {
       return null
     }
     const doc = await this.options.remote.open(entry.id)
-    const text = doc.getText(TEXT_FIELD)
     const tracked: Tracked = {
-      id: entry.id, path: entry.path, absolute, doc, text,
-      baseText: null, baseState: null, eol: '\n', stopObserving: () => undefined,
+      id: entry.id, path: entry.path, absolute, doc: null, text: null,
+      baseText: null, baseState: null, eol: '\n', stopObserving: () => undefined, coolTimer: null,
     }
-    const observer = (_event: Y.YTextEvent, transaction: Y.Transaction) => {
-      if (transaction.origin !== this.origin) void this.enqueue(tracked.path, () => this.writeFromRemote(tracked))
-    }
-    text.observe(observer)
-    tracked.stopObserving = () => text.unobserve(observer)
+    const hot = this.attach(tracked, doc)
+    const text = hot.text
     this.files.set(entry.path, tracked)
 
     const disk = await this.readDisk(absolute)
@@ -212,7 +230,7 @@ export class SyncBridge {
       this.emit({ type: 'skipped', path: entry.path, reason: disk.reason })
     } else if (disk.kind === 'text' && preferLocal) {
       this.setBase(tracked, text.toString(), Y.encodeStateAsUpdate(doc))
-      this.mergeLocal(tracked, disk.raw)
+      this.mergeLocal(hot, disk.raw)
     } else if (disk.kind === 'text' && toLf(disk.raw) === text.toString()) {
       tracked.eol = detectEol(disk.raw)
       this.setBase(tracked, text.toString(), Y.encodeStateAsUpdate(doc))
@@ -220,19 +238,87 @@ export class SyncBridge {
       // Known base from the last run: merge edits made on disk while the app was closed (design §12.6).
       tracked.eol = saved.eol
       this.setBase(tracked, saved.baseText, saved.baseState)
-      if (toLf(disk.raw) !== saved.baseText) this.mergeLocal(tracked, disk.raw)
+      if (toLf(disk.raw) !== saved.baseText) this.mergeLocal(hot, disk.raw)
       if (toLf(disk.raw) === text.toString()) this.setBase(tracked, text.toString(), Y.encodeStateAsUpdate(doc))
-      else await this.writeToDisk(tracked)
+      else await this.writeToDisk(hot)
     } else {
       // First bind: the live document wins (design §12.9). A differing local copy is kept in the trash.
       if (disk.kind === 'text') await this.moveToTrash(tracked)
-      await this.writeToDisk(tracked)
+      await this.writeToDisk(hot)
     }
+    this.touch(tracked)
     return tracked
   }
 
+  /** Opens a replica for a tracked file and starts writing remote edits from it. */
+  private attach(tracked: Tracked, doc: Y.Doc): Hot {
+    const text = doc.getText(TEXT_FIELD)
+    tracked.doc = doc
+    tracked.text = text
+    const observer = (_event: Y.YTextEvent, transaction: Y.Transaction) => {
+      if (transaction.origin === this.origin) return
+      this.touch(tracked)
+      void this.enqueue(tracked.path, () => this.writeFromRemote(tracked))
+    }
+    text.observe(observer)
+    tracked.stopObserving = () => text.unobserve(observer)
+    return tracked as Hot
+  }
+
+  /**
+   * Makes a cold file hot again and catches up both ways from its base: local edits made while it was cold
+   * are merged in, remote edits are written, exactly as when the app starts with a saved base (design §12.6).
+   */
+  private async warm(tracked: Tracked): Promise<void> {
+    if (this.stopped || this.files.get(tracked.path) !== tracked) return
+    if (isHot(tracked)) return this.touch(tracked)
+    const doc = await this.options.remote.open(tracked.id)
+    if (this.stopped || this.files.get(tracked.path) !== tracked) {
+      this.options.remote.close(tracked.id)
+      return
+    }
+    const hot = this.attach(tracked, doc)
+    const disk = await this.readDisk(hot.absolute)
+    if (disk.kind === 'skip') return this.emit({ type: 'skipped', path: hot.path, reason: disk.reason })
+    if (disk.kind === 'text' && toLf(disk.raw) !== hot.baseText) this.mergeLocal(hot, disk.raw)
+    if (disk.kind === 'text' && toLf(disk.raw) === hot.text.toString()) this.setBase(hot, hot.text.toString(), Y.encodeStateAsUpdate(hot.doc))
+    else await this.writeToDisk(hot)
+    this.touch(tracked)
+  }
+
+  /** Closes a quiet file's replica; its base stays, so warming it later merges anything that changed meanwhile. */
+  private cool(tracked: Tracked) {
+    if (!isHot(tracked)) return
+    tracked.stopObserving()
+    tracked.stopObserving = () => undefined
+    this.options.remote.close(tracked.id)
+    const cold: Tracked = tracked
+    cold.doc = null
+    cold.text = null
+  }
+
+  /** Notes activity on a file and restarts its countdown to going cold. */
+  private touch(tracked: Tracked) {
+    if (tracked.coolTimer) clearTimeout(tracked.coolTimer)
+    tracked.coolTimer = null
+    const after = this.options.coolAfterMs ?? DEFAULT_COOL_AFTER_MS
+    if (after <= 0 || this.stopped) return
+    tracked.coolTimer = setTimeout(() => {
+      tracked.coolTimer = null
+      void this.enqueue(tracked.path, async () => {
+        if (this.files.get(tracked.path) === tracked) this.cool(tracked)
+      })
+    }, after)
+    tracked.coolTimer.unref?.()
+  }
+
+  /** Whether any file currently holds an open replica; for tests and diagnostics. */
+  hotCount(): number {
+    return [...this.files.values()].filter(isHot).length
+  }
+
   private async writeFromRemote(tracked: Tracked): Promise<void> {
-    if (this.files.get(tracked.path) !== tracked) return
+    if (this.files.get(tracked.path) !== tracked || !isHot(tracked)) return
     const disk = await this.readDisk(tracked.absolute)
     if (disk.kind === 'skip') return this.emit({ type: 'skipped', path: tracked.path, reason: disk.reason })
     if (disk.kind === 'text') {
@@ -246,7 +332,7 @@ export class SyncBridge {
     await this.writeToDisk(tracked)
   }
 
-  private async writeToDisk(tracked: Tracked): Promise<void> {
+  private async writeToDisk(tracked: Hot): Promise<void> {
     const live = tracked.text.toString()
     await mkdir(path.dirname(tracked.absolute), { recursive: true })
     await assertNoLinks(this.root, tracked.absolute)
@@ -277,7 +363,8 @@ export class SyncBridge {
     tracked.path = entry.path
     tracked.absolute = target
     this.files.set(entry.path, tracked)
-    await this.writeFromRemote(tracked)
+    // A cold file's content did not change with the move; a hot one may have, so catch up.
+    if (isHot(tracked)) await this.writeFromRemote(tracked)
   }
 
   /** A remote delete never destroys local work: the file is moved to the bridge's trash (design §12.7). */
@@ -322,7 +409,12 @@ export class SyncBridge {
     if (tracked) {
       // Equal text means our own echo, or only the line endings changed: keep the new style for later writes.
       if (toLf(disk.raw) === tracked.baseText) tracked.eol = detectEol(disk.raw)
-      else this.mergeLocal(tracked, disk.raw)
+      // A local edit to a cold file warms it, and warming merges the edit.
+      else if (!isHot(tracked)) await this.warm(tracked)
+      else {
+        this.mergeLocal(tracked, disk.raw)
+        this.touch(tracked)
+      }
       return
     }
     const entry = await this.options.remote.createFile(workspacePath)
@@ -335,7 +427,7 @@ export class SyncBridge {
    * base state, and send only the fork's new operations. Yjs merges them with any remote edits made since the
    * base, exactly as it merges two people typing.
    */
-  private mergeLocal(tracked: Tracked, raw: string) {
+  private mergeLocal(tracked: Hot, raw: string) {
     const local = toLf(raw)
     tracked.eol = detectEol(raw)
     if (tracked.baseState === null || tracked.baseText === null) {
@@ -378,6 +470,8 @@ export class SyncBridge {
   /** Stops mirroring a file; `forget` also drops its saved base (deleted files have nothing to resume). */
   private untrack(tracked: Tracked, forget = true) {
     if (forget) this.state.remove(tracked.id)
+    if (tracked.coolTimer) clearTimeout(tracked.coolTimer)
+    tracked.coolTimer = null
     tracked.stopObserving()
     this.options.remote.close(tracked.id)
     if (this.files.get(tracked.path) === tracked) this.files.delete(tracked.path)

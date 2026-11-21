@@ -16,19 +16,19 @@ type Machine = { bridge: SyncBridge; client: MemoryClient; root: string; events:
 let server: MemoryServer
 let machines: Machine[]
 
-async function machine(name: string): Promise<Machine> {
+async function machine(name: string, coolAfterMs?: number): Promise<Machine> {
   const root = path.join(SCRATCH, `${name}-${Math.random().toString(36).slice(2)}`)
   await mkdir(root, { recursive: true })
   const client = server.connect()
   const events: BridgeEvent[] = []
-  const bridge = new SyncBridge({ root, remote: client, watch: false, onEvent: (e) => events.push(e) })
+  const bridge = new SyncBridge({ root, remote: client, watch: false, coolAfterMs, onEvent: (e) => events.push(e) })
   const m = { bridge, client, root, events }
   machines.push(m)
   return m
 }
 
-async function started(name: string) {
-  const m = await machine(name)
+async function started(name: string, coolAfterMs?: number) {
+  const m = await machine(name, coolAfterMs)
   await m.bridge.start()
   await m.bridge.idle()
   return m
@@ -58,7 +58,9 @@ beforeEach(() => {
 
 afterEach(async () => {
   await Promise.all(machines.map((m) => m.bridge.stop()))
-  await Promise.all(machines.map((m) => rm(m.root, { recursive: true, force: true })))
+  // Two machines may share a folder (a restart test); deleting it twice in parallel races on Windows.
+  const roots = [...new Set(machines.map((m) => m.root))]
+  await Promise.all(roots.map((root) => rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 })))
 })
 
 describe('mirroring', () => {
@@ -270,5 +272,50 @@ describe('safety (Gate F)', () => {
 
     expect(await read(a, 'renamed/new-name.txt')).toBe('content')
     expect((await readdir(a.root)).includes('old-name.txt')).toBe(false)
+  })
+})
+
+describe('hot and cold files (design §12.3)', () => {
+  const cooled = () => new Promise((resolve) => setTimeout(resolve, 400))
+
+  it("closes a quiet file and still writes a teammate's later edit", async () => {
+    const id = server.addFile('notes.md', 'one\n')
+    const m = await started('cold-remote', 200)
+    expect(m.client.openCount).toBe(1)
+    await cooled()
+    await m.bridge.idle()
+    expect(m.client.openCount).toBe(0)
+
+    server.edit(id, (t) => t.insert(t.length, 'two\n'))
+    await settle()
+    expect(await read(m, 'notes.md')).toBe('one\ntwo\n')
+    expect(m.client.openCount).toBe(1)
+  })
+
+  it('merges a local edit to a cold file with remote edits, without overwriting either', async () => {
+    const id = server.addFile('plan.md', 'alpha\nbeta\n')
+    const m = await started('cold-merge', 200)
+    await cooled()
+    await m.bridge.idle()
+    expect(m.client.openCount).toBe(0)
+
+    // A local edit warms the file; a teammate's edit lands while that is under way.
+    await writeFile(path.join(m.root, 'plan.md'), 'alpha\nbeta\nlocal\n')
+    const local = m.bridge.diskChanged('plan.md')
+    server.edit(id, (t) => t.insert(0, 'remote\n'))
+    await local
+    await settle()
+    expect(server.text(id)).toBe('remote\nalpha\nbeta\nlocal\n')
+    expect(await read(m, 'plan.md')).toBe('remote\nalpha\nbeta\nlocal\n')
+  })
+
+  it('does not warm a cold file for its own echo', async () => {
+    server.addFile('readme.md', 'same\n')
+    const m = await started('cold-echo', 200)
+    await cooled()
+    await m.bridge.idle()
+    await m.bridge.diskChanged('readme.md')
+    await settle()
+    expect(m.client.openCount).toBe(0)
   })
 })

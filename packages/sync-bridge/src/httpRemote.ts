@@ -25,6 +25,7 @@ export class HttpRemoteWorkspace implements RemoteWorkspace {
   private readonly socket: HocuspocusProviderWebsocket
   private readonly providers = new Map<string, { provider: HocuspocusProvider; doc: Y.Doc }>()
   private readonly treeListeners = new Set<() => void>()
+  private readonly contentListeners = new Set<(fileId: string) => void>()
   private readonly stomp: Client
 
   constructor(private readonly options: HttpRemoteOptions) {
@@ -49,10 +50,18 @@ export class HttpRemoteWorkspace implements RemoteWorkspace {
         this.stomp.subscribe(`/topic/workspace/${options.workspaceId}/events`, (message) => {
           // Agent, session and comment traffic never changes the tree.
           let type = ''
+          let fileId: unknown
           try {
-            type = String((JSON.parse(message.body) as { type?: unknown }).type ?? '')
+            const event = JSON.parse(message.body) as { type?: unknown; payload?: { fileId?: unknown } }
+            type = String(event.type ?? '')
+            fileId = event.payload?.fileId
           } catch {
             // an unparseable event still triggers a refresh below
+          }
+          // A stored content change lets a cold file catch up; it never changes the tree.
+          if (type === 'FILE_SAVED') {
+            if (typeof fileId === 'string') this.contentListeners.forEach((l) => l(fileId as string))
+            return
           }
           if (!/^(AGENT|SESSION|COMMENT)_/.test(type)) this.treeChanged()
         })
@@ -60,6 +69,11 @@ export class HttpRemoteWorkspace implements RemoteWorkspace {
       },
     })
     this.stomp.activate()
+  }
+
+  onContentChanged(listener: (fileId: string) => void): () => void {
+    this.contentListeners.add(listener)
+    return () => this.contentListeners.delete(listener)
   }
 
   async list(): Promise<RemoteEntry[]> {

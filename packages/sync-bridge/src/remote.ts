@@ -18,6 +18,8 @@ export interface RemoteWorkspace {
   deleteFile(fileId: string): Promise<void>
   /** Called whenever the file tree may have changed (created, moved or deleted entries). */
   onTreeChanged(listener: () => void): () => void
+  /** Called when a file's stored content changed on the server, so a cold file (no open replica) can catch up. */
+  onContentChanged(listener: (fileId: string) => void): () => void
 }
 
 /** Name of the Y.Text holding a file's content; shared with the server and the web client. */

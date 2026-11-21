@@ -80,6 +80,37 @@ class WorkspaceApiTest extends IntegrationTest {
     }
 
     @Test
+    void anArchivedWorkspaceHandsOutReadOnlyTicketsEvenToEditors() throws Exception {
+        var asha = signUp("Asha");
+        String id = createWorkspace(asha, "Frozen");
+        String file = id(createFile(asha, id, null, "notes.txt", "FILE").andExpect(status().isCreated()));
+        perform(asha, patch("/api/v1/workspaces/" + id), "{'status':'ARCHIVED'}").andExpect(status().isOk());
+
+        String ticket = read(perform(asha, org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/v1/realtime/tickets"),
+                "{'fileId':'%s'}", file).andExpect(status().isCreated()), "$.ticket");
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/internal/collab/authorize")
+                        .header("X-Internal-Token", INTERNAL_TOKEN)
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content(json("{'ticket':'%s','documentName':'%s'}", ticket, file)))
+                .andExpect(jsonPath("$.readOnly").value(true));
+    }
+
+    @Test
+    void aStoredChangeIsReportedOnlyByTheCollaborationService() throws Exception {
+        var asha = signUp("Asha");
+        String id = createWorkspace(asha, "Reports");
+        String file = id(createFile(asha, id, null, "notes.txt", "FILE").andExpect(status().isCreated()));
+        var stored = org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/internal/files/" + file + "/stored");
+
+        mvc.perform(stored).andExpect(status().isUnauthorized());
+        mvc.perform(stored.header("X-Internal-Token", INTERNAL_TOKEN)).andExpect(status().isNoContent());
+        // A file deleted in the meantime has nobody left to tell; still a quiet success.
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .post("/internal/files/" + java.util.UUID.randomUUID() + "/stored").header("X-Internal-Token", INTERNAL_TOKEN))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
     void slugifyHandlesAccentsAndSymbols() {
         org.assertj.core.api.Assertions.assertThat(WorkspaceService.slugify("Café  Déjà-vu!!")).isEqualTo("cafe-deja-vu");
         org.assertj.core.api.Assertions.assertThat(WorkspaceService.slugify("***")).isEqualTo("workspace");

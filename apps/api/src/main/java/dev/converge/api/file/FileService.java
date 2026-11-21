@@ -249,6 +249,26 @@ public class FileService {
         return saved;
     }
 
+    /**
+     * The collaboration service stored new text for a file (typing, an agent, an external change): tell the
+     * workspace, so clients that do not hold the live document, such as a desktop mirror's cold files
+     * (design §12.3), can catch up. A deleted file has nobody left to tell.
+     */
+    public void stored(UUID fileId) {
+        record Stored(UUID workspaceId, int version, String hash) {
+        }
+        jdbc.sql("""
+                select f.workspace_id, d.content_version, d.content_hash
+                from documents d join files f on f.id = d.file_id
+                where d.file_id = ? and f.deleted_at is null
+                """)
+                .param(fileId)
+                .query((rs, n) -> new Stored(rs.getObject(1, UUID.class), rs.getInt(2), rs.getString(3)))
+                .optional()
+                .ifPresent((s) -> events.publishEvent(WorkspaceEvent.of("FILE_SAVED", s.workspaceId(), null,
+                        Map.of("fileId", fileId, "version", s.version(), "contentHash", s.hash() == null ? "" : s.hash()))));
+    }
+
     private FileNode liveFile(UUID fileId) {
         FileNode node = liveNode(fileId);
         if (node.kind() != Kind.FILE) {
