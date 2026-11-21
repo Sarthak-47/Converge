@@ -121,8 +121,11 @@ jobs:
       RATE_LIMIT_SCALE: "50"
     steps:
       - uses: actions/checkout@v7
-      # Two API instances behind nginx, so every realtime test also crosses instances (design §7.5).
-      - run: docker compose up -d --build --scale api=2
+      # Two API and two collaboration-service instances behind nginx, so every realtime and editing test also
+      # crosses instances (design §7.5).
+      - run: docker compose up -d --build --scale api=2 --scale collab=2
+        env:
+          COLLAB_CLUSTER: "true"
       - name: Wait for the whole stack to report UP
         run: |
           for i in $(seq 1 60); do

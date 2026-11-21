@@ -129,8 +129,18 @@ export function restart(service: 'api' | 'collab') {
   execSync(`docker compose restart ${service}`, { stdio: 'inherit', cwd: '../..' })
 }
 
+/**
+ * Waits until the stack answers healthy six times in a row. nginx spreads requests over every API and
+ * collaboration-service instance, so one healthy answer can come from an instance while another is still
+ * starting; six in a row reach each of them.
+ */
 export async function waitForStack(page: Page) {
+  let streak = 0
   await expect
-    .poll(async () => (await page.request.get('/api/actuator/health')).status(), { timeout: 120_000, intervals: [1000] })
-    .toBe(200)
+    .poll(async () => {
+      const ok = (await page.request.get('/api/actuator/health').catch(() => null))?.status() === 200
+      streak = ok ? streak + 1 : 0
+      return streak
+    }, { timeout: 120_000, intervals: [500] })
+    .toBeGreaterThanOrEqual(6)
 }

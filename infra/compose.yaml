@@ -36,6 +36,9 @@ services:
       API_URL: http://api:8080
       INTERNAL_TOKEN: ${INTERNAL_TOKEN:-dev-internal-token}
       COLLAB_ALLOWED_ORIGINS: ${PUBLIC_ORIGIN:-http://localhost:8000}
+      # true when running several instances (docker compose up --scale collab=2): documents and commands are
+      # shared through Redis.
+      COLLAB_CLUSTER: ${COLLAB_CLUSTER:-false}
       # Spans go to this OTLP/HTTP endpoint when set (design §16.3); see the tracing profile below.
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
     depends_on:

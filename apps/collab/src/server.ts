@@ -5,7 +5,8 @@ import type * as Y from 'yjs'
 import { authenticate, checkOrigin, type ConnectionContext } from './auth.js'
 import { config } from './config.js'
 import { checkHealth } from './health.js'
-import { handleInternal } from './internal.js'
+import { closeDocument, handleInternal, revokeLocal } from './internal.js'
+import { CommandBus, documentSync, instanceId } from './cluster.js'
 import { checkMemories, type MemoryCheck } from './memory.js'
 import { ConnectionLimiter, metrics, registry } from './metrics.js'
 import { timingSafeEqual } from 'node:crypto'
@@ -61,7 +62,7 @@ async function storeTraced(documentName: string, document: Y.Doc, trace: TraceCo
   const started = performance.now()
   let changed: boolean
   try {
-    changed = await storeDocument(db, documentName, document)
+    changed = await storeDocument(db, documentName, document, config.cluster)
   } catch (error) {
     metrics.storeFailures.inc()
     throw error
@@ -114,7 +115,10 @@ function internalCaller(headers: Record<string, string | string[] | undefined>) 
   return expected.length > 0 && presented.length === expected.length && timingSafeEqual(presented, expected)
 }
 
+const sync = documentSync()
+
 const server = new Server<ConnectionContext>({
+  extensions: sync ? [sync] : [],
   port: config.port,
   quiet: true,
   stopOnSignals: false,
@@ -218,19 +222,33 @@ const server = new Server<ConnectionContext>({
       throw null
     }
     if (request.url?.startsWith('/internal/')) traceRequest(request, response)
-    if (await handleInternal(request, response, instance, db)) {
+    if (await handleInternal(request, response, instance, db, commands)) {
       throw null
     }
   },
 })
 
+// Commands from the other instances act on this instance's connections.
+const commands: CommandBus = new CommandBus(redis, async (command) => {
+  if (command.type === 'close') closeDocument(server.hocuspocus, command.fileId)
+  else if (command.type === 'revoke') revokeLocal(server.hocuspocus, command.userId, command.workspaceId, command.action)
+  else if (command.type === 'flush') {
+    const document = server.hocuspocus.documents.get(command.fileId)
+    if (!document) return
+    await storeDocument(db, command.fileId, document, true)
+    commands.flushed(command.requestId, command.replyTo)
+  }
+}, log.bind(null, 'WARN'))
+
 await redis.connect().catch(() => undefined)
+await commands.start().catch((error: Error) => log('ERROR', 'COMMAND_BUS_FAILED', { message: error.message }))
 await server.listen()
-log('INFO', 'COLLAB_STARTED', { port: config.port, originCheck: config.allowedOrigins.length > 0, exportingSpans: startSpanExport('converge-collab') })
+log('INFO', 'COLLAB_STARTED', { port: config.port, originCheck: config.allowedOrigins.length > 0, exportingSpans: startSpanExport('converge-collab'), cluster: config.cluster, instanceId })
 
 const shutdown = async () => {
   // destroy() stores every loaded document before closing, so a clean stop loses nothing.
   await server.destroy()
+  await commands.stop()
   await Promise.allSettled([db.end(), redis.quit(), flushSpans()])
   process.exit(0)
 }

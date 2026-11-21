@@ -8,7 +8,18 @@ The full design — architecture, protocols, roadmap and decision log — is in 
 
 **Known limit:** desktop builds are unsigned, because signing needs paid code-signing certificates.
 
-**Scaling the API:** run several instances behind nginx with `docker compose up -d --scale api=2` (start nginx after them, or restart it). Sign-ins live in PostgreSQL, rate limits and presence in Redis, and every workspace-channel message is shared between instances through Redis, so a person may land on any instance. CI runs the end-to-end suite against two.
+**Scaling out:** the API and the collaboration service both run as several instances behind nginx:
+
+```powershell
+$env:COLLAB_CLUSTER="true"; docker compose up -d --scale api=2 --scale collab=2
+```
+
+- **API:** sign-ins live in PostgreSQL, rate limits and presence in Redis, and every workspace-channel message is shared between instances through Redis, so a person may land on any instance.
+- **Collaboration service** (with `COLLAB_CLUSTER=true`): instances keep each document in step through Redis, an instance opening a document live elsewhere first catches up with it, stores merge with what is already stored so none can take back another's edits, and closing, access changes and "store now" reach every instance.
+- **nginx** looks up the instances when it starts, so restart it after changing their number.
+- **Still one instance each:** the agent runner, which keeps running agent turns in memory (a stop or steer must reach the instance running the turn), and the executor, by design: a job interrupted by a crash is marked for a person to check, never re-run, which assumes a single executor.
+
+CI runs the whole end-to-end suite against two API and two collaboration-service instances.
 
 ## Architecture at a glance
 

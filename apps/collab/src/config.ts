@@ -23,4 +23,6 @@ export const config = {
   internalToken: process.env.INTERNAL_TOKEN ?? '',
   /** Origins allowed to open document sockets; empty means "do not check" (local development). */
   allowedOrigins: list('COLLAB_ALLOWED_ORIGINS'),
+  /** Several instances share documents and commands through Redis (see cluster.ts). */
+  cluster: process.env.COLLAB_CLUSTER === 'true',
 }

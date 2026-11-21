@@ -32,12 +32,41 @@ export async function loadDocument(db: Pool, fileId: string, doc: Y.Doc): Promis
 
 /**
  * Stores the Yjs state and its materialized text (design §6.4). The content version only advances when the
- * text actually changed, so readers can use it to detect stale reads.
+ * text actually changed, so readers can use it to detect stale reads. Returns whether the stored text changed
+ * (so the API can tell clients that do not hold the live document).
+ *
+ * With several instances (`merge`), each holds its own copy of a live document, and one may be a few
+ * milliseconds behind another. So the state is merged with what is already stored, under a row lock: a store
+ * can only ever add to the document, never take back edits another instance has stored.
  */
-/** Returns whether the stored text changed (so the API can tell clients that do not hold the live document). */
-export async function storeDocument(db: Pool, fileId: string, doc: Y.Doc): Promise<boolean> {
-  const state = Buffer.from(Y.encodeStateAsUpdate(doc))
-  const text = doc.getText(TEXT_FIELD).toString()
+export async function storeDocument(db: Pool, fileId: string, doc: Y.Doc, merge = false): Promise<boolean> {
+  if (!merge) return writeState(db, fileId, Y.encodeStateAsUpdate(doc), doc.getText(TEXT_FIELD).toString())
+  const client = await db.connect()
+  try {
+    await client.query('begin')
+    const stored = await client.query<{ yjs_state: Buffer | null }>('select yjs_state from documents where file_id = $1 for update', [fileId])
+    let state = Y.encodeStateAsUpdate(doc)
+    let text = doc.getText(TEXT_FIELD).toString()
+    const previous = stored.rows[0]?.yjs_state
+    if (previous) {
+      state = Y.mergeUpdates([new Uint8Array(previous), state])
+      const merged = new Y.Doc()
+      Y.applyUpdate(merged, state)
+      text = merged.getText(TEXT_FIELD).toString()
+      merged.destroy()
+    }
+    const changed = await writeState(client, fileId, state, text)
+    await client.query('commit')
+    return changed
+  } catch (error) {
+    await client.query('rollback').catch(() => undefined)
+    throw error
+  } finally {
+    client.release()
+  }
+}
+
+async function writeState(db: Pick<Pool, 'query'>, fileId: string, state: Uint8Array, text: string): Promise<boolean> {
   const hash = createHash('sha256').update(text, 'utf8').digest('hex')
   const result = await db.query<{ changed: boolean }>(
     `update documents d
@@ -50,7 +79,7 @@ export async function storeDocument(db: Pool, fileId: string, doc: Y.Doc): Promi
        from (select content_hash as previous from documents where file_id = $1) prior_row
       where d.file_id = $1
       returning prior_row.previous is distinct from $4 as changed`,
-    [fileId, state, text, hash],
+    [fileId, Buffer.from(state), text, hash],
   )
   return result.rows[0]?.changed ?? false
 }

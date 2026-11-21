@@ -9,6 +9,7 @@ import { config } from './config.js'
 import { DocumentNotFoundError, storeDocument, TEXT_FIELD } from './persistence.js'
 import { REVOKE_ACTIONS, revokeConnections, type LiveConnection, type RevokeAction } from './revoke.js'
 import { applyTextChange } from './textDiff.js'
+import { SOLO, type ClusterPort } from './cluster.js'
 
 const ROUTE = /^\/internal\/documents\/([^/]+)\/(apply-text|flush|close)$/
 const REVOKE_ROUTE = '/internal/connections/revoke'
@@ -49,6 +50,7 @@ export async function handleInternal(
   response: ServerResponse,
   hocuspocus: Hocuspocus,
   db: Pool,
+  cluster: ClusterPort = SOLO,
 ): Promise<boolean> {
   const match = ROUTE.exec(request.url ?? '')
   const isRevoke = request.url === REVOKE_ROUTE
@@ -57,25 +59,23 @@ export async function handleInternal(
   if (!tokenMatches(request.headers['x-internal-token'] as string | undefined)) {
     return reply(response, 401, { error: 'Unauthorized' })
   }
-  if (isRevoke) return revoke(request, response, hocuspocus)
+  if (isRevoke) return revoke(request, response, hocuspocus, cluster)
   if (!match) return false
   const [, fileId, action] = match
   if (!isFileId(fileId)) return reply(response, 404, { error: 'Unknown document' })
 
   try {
     if (action === 'close') {
-      const document = hocuspocus.documents.get(fileId)
-      let closed = 0
-      document?.connections.forEach((_clients, connection) => {
-        connection.close(FILE_DELETED)
-        closed++
-      })
-      return reply(response, 200, { closed })
+      // Connections to this file may be held by any instance.
+      cluster.share({ type: 'close', fileId })
+      return reply(response, 200, { closed: closeDocument(hocuspocus, fileId) })
     }
 
     if (action === 'flush') {
+      // Every instance holding the document stores its copy; stores merge, so together they hold every edit.
       const document = hocuspocus.documents.get(fileId)
-      if (document) await storeDocument(db, fileId, document)
+      if (document) await storeDocument(db, fileId, document, config.cluster)
+      await cluster.flushPeers(fileId, Boolean(document))
       return reply(response, 200, { stored: Boolean(document) })
     }
 
@@ -90,7 +90,7 @@ export async function handleInternal(
         changed = applyTextChange(document.getText(TEXT_FIELD), target)
       })
       const document = hocuspocus.documents.get(fileId)
-      if (document) await storeDocument(db, fileId, document)
+      if (document) await storeDocument(db, fileId, document, config.cluster)
     } finally {
       await connection.disconnect()
     }
@@ -107,16 +107,34 @@ export async function handleInternal(
   }
 }
 
-/** Applies a workspace role change to the person's open document connections (design §5.3, FR-18). */
-async function revoke(request: IncomingMessage, response: ServerResponse, hocuspocus: Hocuspocus): Promise<true> {
-  const body = (await readJson(request).catch(() => ({}))) as { userId?: unknown; workspaceId?: unknown; action?: unknown }
-  if (typeof body.userId !== 'string' || typeof body.workspaceId !== 'string' || !REVOKE_ACTIONS.includes(body.action as RevokeAction)) {
-    return reply(response, 400, { error: 'userId, workspaceId and a valid action are required' })
-  }
+/** Closes this instance's connections to a deleted file; returns how many. */
+export function closeDocument(hocuspocus: Hocuspocus, fileId: string): number {
+  let closed = 0
+  hocuspocus.documents.get(fileId)?.connections.forEach((_clients, connection) => {
+    connection.close(FILE_DELETED)
+    closed++
+  })
+  return closed
+}
+
+/** Applies a role change to one person's connections on this instance; returns how many were affected. */
+export function revokeLocal(hocuspocus: Hocuspocus, userId: string, workspaceId: string, action: RevokeAction): number {
   const connections: LiveConnection[] = []
   for (const document of hocuspocus.documents.values()) {
     for (const connection of document.connections.keys()) connections.push(connection as unknown as LiveConnection)
   }
-  const affected = revokeConnections(connections, body.userId, body.workspaceId, body.action as RevokeAction)
-  return reply(response, 200, { affected })
+  return revokeConnections(connections, userId, workspaceId, action)
+}
+
+/** Applies a workspace role change to the person's open document connections (design §5.3, FR-18). */
+async function revoke(request: IncomingMessage, response: ServerResponse, hocuspocus: Hocuspocus,
+  cluster: ClusterPort): Promise<true> {
+  const body = (await readJson(request).catch(() => ({}))) as { userId?: unknown; workspaceId?: unknown; action?: unknown }
+  if (typeof body.userId !== 'string' || typeof body.workspaceId !== 'string' || !REVOKE_ACTIONS.includes(body.action as RevokeAction)) {
+    return reply(response, 400, { error: 'userId, workspaceId and a valid action are required' })
+  }
+  const action = body.action as RevokeAction
+  // The person's connections may be held by any instance.
+  cluster.share({ type: 'revoke', userId: body.userId, workspaceId: body.workspaceId, action })
+  return reply(response, 200, { affected: revokeLocal(hocuspocus, body.userId, body.workspaceId, action) })
 }
