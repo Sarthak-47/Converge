@@ -2,7 +2,7 @@ import Docker from 'dockerode'
 import pg from 'pg'
 import { config } from './config.js'
 import { GitError, GitWorker } from './git.js'
-import { claimGitOperation, failInterruptedGitOperations, finishGitOperation, type GitOperation } from './gitQueue.js'
+import { addKnownPaths, claimGitOperation, failInterruptedGitOperations, finishGitOperation, knownPaths, setKnownPaths, type GitOperation } from './gitQueue.js'
 import { claimNext, markInterrupted, workspaceFiles, type Job } from './queue.js'
 import { openSealed } from './secrets.js'
 import { Reporter } from './reporter.js'
@@ -63,6 +63,7 @@ async function runGit(op: GitOperation) {
       return
     }
     const files = await workspaceFiles(db, op.workspaceId, config.maxFilesBytes)
+    const deleted = (await knownPaths(db, op.workspaceId)).filter((file) => !files.has(file))
     const result = await git.run(op.workspaceId, { ...op.repository, token }, {
       type: op.type,
       branch: op.params.branch,
@@ -72,8 +73,11 @@ async function runGit(op: GitOperation) {
       // The person who asked is the author; a no-reply address keeps their email out of the remote.
       author: { name: op.requester.name, email: `${op.requester.id}@users.noreply.converge.dev` },
       files,
+      deleted,
     })
-    await finishGitOperation(db, op.id, { status: 'SUCCEEDED', result, log: '' })
+    await addKnownPaths(db, op.workspaceId, result.written)
+    const { written: _written, ...summary } = result
+    await finishGitOperation(db, op.id, { status: 'SUCCEEDED', result: summary, log: '' })
     log('INFO', 'GIT_OPERATION_SUCCEEDED', { operationId: op.id, type: op.type, branch: result.branch, sha: result.sha })
   } catch (error) {
     const message = error instanceof GitError ? error.message : 'The Git operation failed.'
@@ -91,6 +95,7 @@ async function importBranch(op: GitOperation, target: Parameters<GitWorker['read
   const contents = await git.readBranch(op.workspaceId, target)
   const totals = { created: 0, updated: 0, unchanged: 0 }
   const refused: string[] = []
+  const imported: string[] = []
   const entries = [...contents.files]
   for (let i = 0; i < entries.length; i += 100) {
     const batch = entries.slice(i, i + 100).map(([path, text]) => ({ path, text }))
@@ -106,7 +111,11 @@ async function importBranch(op: GitOperation, target: Parameters<GitWorker['read
     totals.updated += result.updated
     totals.unchanged += result.unchanged
     refused.push(...result.refused)
+    for (const { path } of batch) {
+      if (!result.refused.some((entry) => entry.startsWith(`${path}: `))) imported.push(path)
+    }
   }
+  await setKnownPaths(db, op.workspaceId, imported)
   return {
     branch: op.params.branch,
     sha: contents.sha,

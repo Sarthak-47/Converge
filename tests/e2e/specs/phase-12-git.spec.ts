@@ -1,6 +1,6 @@
 import { createHmac } from 'node:crypto'
 import { expect, test } from '@playwright/test'
-import { createWorkspace, editorText, openFile, register, uniqueEmail } from './helpers.ts'
+import { answer, createWorkspace, editorText, openFile, register, uniqueEmail } from './helpers.ts'
 
 /**
  * Phase 12 exit (design §10): finishing a session opens a pull request. The stack runs the fake GitHub
@@ -114,4 +114,47 @@ test('a signed push from GitHub imports the default branch automatically', async
   await expect(page.locator('.tree-name', { hasText: 'CHANGELOG.md' })).toBeVisible({ timeout: 60_000 })
   await openFile(page, 'CHANGELOG.md')
   await expect.poll(() => editorText(page), { timeout: 20_000 }).toContain('# pushed to main')
+})
+
+test('a push deletes on its branch what was deleted or moved here, and nothing else', async ({ page, request }) => {
+  test.setTimeout(150_000)
+  const repo = `tidy-${Date.now()}`
+  await request.post(`${FAKE_GITHUB}/__test/repos`, {
+    data: {
+      owner: 'acme',
+      repo,
+      files: { 'README.md': '# tidy\n', 'src/util.ts': 'export const util = 1\n', 'src/old.ts': 'export const old = 1\n', 'logo.png': '\u0000\u0001binary' },
+    },
+  })
+  await register(page, uniqueEmail('asha'), 'Asha')
+  await createWorkspace(page, 'Tidy check')
+  await page.getByRole('button', { name: 'Repository' }).click()
+  await page.getByLabel('Repository URL').fill(`http://fake-github:9200/acme/${repo}.git`)
+  await page.getByLabel('Access token').fill(TOKEN)
+  await page.getByRole('button', { name: 'Connect', exact: true }).click()
+  await page.getByRole('button', { name: 'Import files from main' }).click()
+  await expect(page.getByLabel('Recent Git operations')).toContainText('Imported main: 3 new', { timeout: 60_000 })
+  await page.getByRole('button', { name: 'Close' }).click()
+
+  // Delete one imported file and move another to the top level.
+  await page.locator('.tree-row[title="src/util.ts"]').hover()
+  page.once('dialog', (dialog) => void dialog.accept())
+  await page.getByRole('button', { name: 'Delete util.ts' }).click()
+  await expect(page.locator('.tree-row[title="src/util.ts"]')).toHaveCount(0)
+  await page.locator('.tree-row[title="src/old.ts"]').hover()
+  await page.getByRole('button', { name: 'Move old.ts' }).click()
+  await answer(page, '')
+  await expect(page.locator('.tree-row[title="old.ts"]')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Repository' }).click()
+  const form = page.getByRole('form', { name: 'Push to a branch' })
+  await expect(form.getByLabel('Push to branch')).toHaveValue('converge/tidy-check')
+  await form.getByLabel('Commit message').fill('Tidy up')
+  await form.getByRole('button', { name: 'Push' }).click()
+  await expect(page.getByLabel('Recent Git operations')).toContainText('Push on converge/tidy-check', { timeout: 60_000 })
+
+  // The deleted file and the old path are gone; the binary Converge never held is untouched.
+  const head = (await (await request.get(`${FAKE_GITHUB}/__test/repos/acme/${repo}/branches/converge%2Ftidy-check`)).json()) as { author: string; files: string[] }
+  expect(head.author).toBe('Asha')
+  expect(head.files.sort()).toEqual(['README.md', 'logo.png', 'old.ts'])
 })

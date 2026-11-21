@@ -194,6 +194,9 @@ export const api = {
     request<GitOperation[]>('GET', `/workspaces/${workspaceId}/git/operations${sessionId ? `?sessionId=${sessionId}` : ''}`),
   importRepository: (workspaceId: string, idempotencyKey: string) =>
     request<GitOperation>('POST', `/workspaces/${workspaceId}/git/pulls`, { idempotencyKey }),
+  /** Commits the workspace on a branch built from the default branch and pushes it (editors). */
+  pushBranch: (workspaceId: string, push: { idempotencyKey: string; branch: string; message: string }) =>
+    request<GitOperation>('POST', `/workspaces/${workspaceId}/git/pushes`, push),
   openPullRequest: (sessionId: string, idempotencyKey: string) =>
     request<GitOperation>('POST', `/sessions/${sessionId}/pull-request`, { idempotencyKey }),
   overlaps: (sessionId: string) => request<Overlap[]>('GET', `/sessions/${sessionId}/overlaps`),

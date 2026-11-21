@@ -2142,12 +2142,25 @@ select {
 }
 
 /* Repository and pull requests */
-.git-form {
+.git-form,
+.git-push {
   display: grid;
   gap: 8px;
 }
 
+/* Pushing sits between importing and automatic import, ruled off like the other settings rows. */
+.git-push {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.git-push button {
+  justify-self: start;
+}
+
 .git-form p,
+.git-push p,
 .git-connected p {
   margin: 4px 0;
 }

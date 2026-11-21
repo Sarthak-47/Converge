@@ -62,6 +62,25 @@ export async function finishGitOperation(
   )
 }
 
+/** The paths Converge knows are on the default branch (set by imports, extended by pushes). */
+export async function knownPaths(db: pg.Pool, workspaceId: string): Promise<string[]> {
+  const { rows } = await db.query<{ known_paths: string[] }>(
+    'select known_paths from git_repositories where workspace_id = $1', [workspaceId])
+  return rows[0]?.known_paths ?? []
+}
+
+/** An import replaces the known paths with what it brought in. */
+export async function setKnownPaths(db: pg.Pool, workspaceId: string, paths: string[]) {
+  await db.query('update git_repositories set known_paths = $2 where workspace_id = $1', [workspaceId, paths])
+}
+
+/** A push adds what it wrote; paths it deleted stay known until an import, so later pushes delete them too. */
+export async function addKnownPaths(db: pg.Pool, workspaceId: string, paths: string[]) {
+  await db.query(
+    `update git_repositories set known_paths = array(select distinct unnest(known_paths || $2::text[]) order by 1)
+     where workspace_id = $1`, [workspaceId, paths])
+}
+
 /**
  * Operations left RUNNING by a crash are not retried automatically: a push may or may not have reached the
  * remote. They fail with a note; running them again is safe because the branch is rebuilt and force-pushed.

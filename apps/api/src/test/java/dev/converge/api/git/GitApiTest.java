@@ -111,9 +111,33 @@ class GitApiTest extends IntegrationTest {
                 .andExpect(status().isForbidden());
         perform(asha, post("/api/v1/workspaces/" + workspace + "/git/pushes"), "{'idempotencyKey':'p','branch':'bad..name','message':'m'}")
                 .andExpect(status().isBadRequest());
+        perform(asha, post("/api/v1/workspaces/" + workspace + "/git/pushes"), "{'idempotencyKey':'p','branch':'main','message':'m'}")
+                .andExpect(status().isBadRequest());
         perform(asha, post("/api/v1/workspaces/" + workspace + "/git/pushes"), "{'idempotencyKey':'p','branch':'feature/login','message':'Add login'}")
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.params.branch").value("feature/login"));
+    }
+
+    @Test
+    void whatConvergeKnowsAboutTheBranchSurvivesANewTokenButNotANewRepository() throws Exception {
+        connect();
+        jdbc.sql("update git_repositories set known_paths = '{README.md,src/app.ts}' where workspace_id = ?")
+                .param(UUID.fromString(workspace)).update();
+        // A rotated token: same repository and branch, so pushes still know what to delete.
+        perform(asha, put("/api/v1/workspaces/" + workspace + "/git"),
+                "{'remoteUrl':'https://github.com/acme/app.git','defaultBranch':'main','token':'ghp_rotated_token_0000'}")
+                .andExpect(status().isOk());
+        assertThat(knownPaths()).isEqualTo("{README.md,src/app.ts}");
+        // Another repository: nothing is known about it, so nothing would be deleted there.
+        perform(asha, put("/api/v1/workspaces/" + workspace + "/git"),
+                "{'remoteUrl':'https://github.com/acme/other.git','defaultBranch':'main','token':'%s'}", TOKEN)
+                .andExpect(status().isOk());
+        assertThat(knownPaths()).isEqualTo("{}");
+    }
+
+    private String knownPaths() {
+        return jdbc.sql("select known_paths::text from git_repositories where workspace_id = ?")
+                .param(UUID.fromString(workspace)).query(String.class).single();
     }
 
     @Test

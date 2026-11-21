@@ -116,7 +116,11 @@ public class GitService {
                     on conflict (workspace_id) do update set remote_url = excluded.remote_url,
                         default_branch = excluded.default_branch, owner = excluded.owner, repo = excluded.repo,
                         credential = excluded.credential, credential_hint = excluded.credential_hint,
-                        connected_by = excluded.connected_by, updated_at = now()
+                        connected_by = excluded.connected_by, updated_at = now(),
+                        -- What Converge knows about the branch holds only while it is the same branch.
+                        known_paths = case when git_repositories.remote_url = excluded.remote_url
+                            and git_repositories.default_branch = excluded.default_branch
+                            then git_repositories.known_paths else '{}' end
                     """)
                     .params(workspaceId, url, branch, remote.group(3), remote.group(4),
                             box.seal(secret, credentialContext(workspaceId)), hint, userId)
@@ -313,6 +317,11 @@ public class GitService {
         access.require(workspaceId, userId, Role.EDITOR);
         requireBranch(branch);
         if (message == null || message.isBlank()) throw ApiException.badRequest("A commit needs a message");
+        // The worker force-pushes the branch it rebuilds, so it never writes the default branch itself:
+        // a commit that landed there in the meantime would be lost. Changes reach it through a pull request.
+        boolean toDefault = jdbc.sql("select default_branch = ? from git_repositories where workspace_id = ?")
+                .params(branch, workspaceId).query(Boolean.class).optional().orElse(false);
+        if (toDefault) throw ApiException.badRequest("Push to a new branch and open a pull request into " + branch);
         return enqueue(workspaceId, null, userId, "PUSH_BRANCH", idempotencyKey,
                 Map.of("branch", branch, "message", truncate(message.strip(), 2000)));
     }

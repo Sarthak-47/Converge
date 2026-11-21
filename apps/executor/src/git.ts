@@ -19,6 +19,11 @@ export type GitRequest = {
   author: { name: string; email: string }
   /** The workspace's stored text, by path. */
   files: Map<string, string>
+  /**
+   * Paths to delete on the branch: ones Converge knows are on the default branch but the workspace no
+   * longer holds (deleted, renamed or moved). Anything else Converge does not hold is left as it is.
+   */
+  deleted?: string[]
 }
 
 /** What an import read from the repository: text files to apply, and what it left out and why. */
@@ -27,7 +32,15 @@ export type BranchContents = { sha: string; files: Map<string, string>; skipped:
 /** Files larger than this stay out of live documents (the desktop sync uses the same limit, design §12.7). */
 export const MAX_IMPORT_BYTES = 1024 * 1024
 
-export type GitResult = { branch: string; sha: string; changedFiles: number; prUrl?: string; prNumber?: number }
+export type GitResult = {
+  branch: string
+  sha: string
+  changedFiles: number
+  /** The workspace paths written into the commit (what the branch now holds from Converge). */
+  written: string[]
+  prUrl?: string
+  prNumber?: number
+}
 
 export class GitError extends Error {
   constructor(message: string, readonly log: string) {
@@ -114,8 +127,12 @@ export class GitWorker {
         await writeFile(target, text)
         written.push(file)
       }
-      // Add and modify only: files Converge does not hold are left as they are on the branch.
       for (let i = 0; i < written.length; i += 200) await git(['add', '--', ...written.slice(i, i + 200)])
+      // Deletes only what the caller named; files Converge never held stay as they are on the branch.
+      const deleted = (request.deleted ?? []).filter((file) => safePath(file) && !request.files.has(file))
+      for (let i = 0; i < deleted.length; i += 200) {
+        await git(['rm', '-q', '--ignore-unmatch', '--', ...deleted.slice(i, i + 200)])
+      }
       const staged = await git(['diff', '--cached', '--name-only'])
       const changedFiles = staged.stdout.split('\n').filter(Boolean).length
       if (changedFiles === 0) {
@@ -125,7 +142,7 @@ export class GitWorker {
       const sha = (await git(['rev-parse', 'HEAD'])).stdout.trim()
       await git(['push', '-q', '--force', 'origin', `HEAD:refs/heads/${request.branch}`])
 
-      const result: GitResult = { branch: request.branch, sha, changedFiles }
+      const result: GitResult = { branch: request.branch, sha, changedFiles, written }
       if (request.type === 'PULL_REQUEST') Object.assign(result, await this.pullRequest(target, request, log))
       return result
     } catch (error) {
@@ -237,6 +254,8 @@ export class GitWorker {
           GIT_CONFIG_NOSYSTEM: '1',
           GIT_CONFIG_GLOBAL: '/dev/null',
           GIT_TERMINAL_PROMPT: '0',
+          // Workspace paths are file names, never patterns: "*.ts" in a pathspec means that one file.
+          GIT_LITERAL_PATHSPECS: '1',
           GIT_ASKPASS: this.askpass,
           CONVERGE_GIT_TOKEN: token,
           GIT_AUTHOR_NAME: author.name,

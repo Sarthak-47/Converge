@@ -5,6 +5,11 @@ import { Icon } from './Icon.tsx'
 
 type Props = { workspace: Workspace; onClose: () => void; refreshSignal?: number }
 
+/** A branch-name-safe form of the workspace name, for the suggested branch. */
+function slug(text: string): string {
+  return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'workspace'
+}
+
 function describe(op: GitOperation): string {
   const what = op.type === 'PULL' ? 'Import' : op.type === 'PULL_REQUEST' ? 'Pull request' : 'Push'
   if (op.status === 'FAILED') return `${what} failed: ${op.error ?? 'unknown error'}`
@@ -32,6 +37,8 @@ export function GitDialog({ workspace, onClose, refreshSignal = 0 }: Props) {
   const isOwner = workspace.role === 'OWNER'
   const canEdit = isOwner || workspace.role === 'EDITOR'
   const [operations, setOperations] = useState<GitOperation[]>([])
+  const [branch, setBranch] = useState(() => `converge/${slug(workspace.name)}`)
+  const [message, setMessage] = useState('')
   /** Shown once, right after automatic import is turned on. */
   const [newHook, setNewHook] = useState<{ url: string; secret: string } | null>(null)
   const dialog = useRef<HTMLDialogElement>(null)
@@ -68,6 +75,15 @@ export function GitDialog({ workspace, onClose, refreshSignal = 0 }: Props) {
     }, 'Could not connect the repository')
   }
 
+  function push(event: FormEvent) {
+    event.preventDefault()
+    void act(async () => {
+      const op = await api.pushBranch(workspace.id, { idempotencyKey: crypto.randomUUID(), branch: branch.trim(), message: message.trim() })
+      setOperations((list) => [op, ...list])
+      setMessage('')
+    }, 'Could not start the push')
+  }
+
   return (
     <dialog ref={dialog} className="dialog card" onClose={onClose} aria-labelledby="git-title">
       <header className="dialog-header">
@@ -86,6 +102,19 @@ export function GitDialog({ workspace, onClose, refreshSignal = 0 }: Props) {
               }, 'Could not start the import')}>Import files from {repository.defaultBranch}</button>
             )}
             <p className="muted small">Importing creates the branch's text files here and merges changes into existing ones; nothing is deleted.</p>
+            {canEdit && (
+              <form className="git-push" onSubmit={push} aria-label="Push to a branch">
+                <label htmlFor="git-push-branch">Push to branch</label>
+                <input id="git-push-branch" value={branch} maxLength={100} spellCheck={false} onChange={(e) => setBranch(e.target.value)} />
+                <label htmlFor="git-push-message">Commit message</label>
+                <input id="git-push-message" value={message} maxLength={2000} placeholder="What changed" onChange={(e) => setMessage(e.target.value)} />
+                <p className="muted small">
+                  The branch starts from {repository.defaultBranch} and gets the workspace's files on top. Files deleted, renamed
+                  or moved here are deleted there too; files Converge never held are left alone.
+                </p>
+                <button type="submit" disabled={busy || !branch.trim() || !message.trim() || branch.trim() === repository.defaultBranch}>Push</button>
+              </form>
+            )}
             {operations.length > 0 && (
               <ul className="git-operations" aria-label="Recent Git operations">
                 {operations.slice(0, 8).map((op) => (
@@ -148,7 +177,7 @@ export function GitDialog({ workspace, onClose, refreshSignal = 0 }: Props) {
             <input id="git-branch" value={defaultBranch} onChange={(e) => setDefaultBranch(e.target.value)} />
             <label htmlFor="git-token">Access token</label>
             <input id="git-token" type="password" autoComplete="off" placeholder="A token that can push branches and open pull requests" value={token} onChange={(e) => setToken(e.target.value)} />
-            <p className="muted small">Stored encrypted and never shown again. Converge pushes branches named converge/… and never deletes files from the repository.</p>
+            <p className="muted small">Stored encrypted and never shown again. Converge pushes only to branches other than the default one, and deletes only files that were deleted here.</p>
             <button type="submit" className="primary" disabled={busy || !remoteUrl.trim() || !token.trim()}>Connect</button>
           </form>
         )}

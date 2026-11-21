@@ -94,6 +94,29 @@ describe('opening a pull request from the workspace', () => {
     }
   }, 60_000)
 
+  it('deletes only the paths it is told to, which covers renames and moves', async () => {
+    github.createRepo('acme', 'gone', {
+      'keep.txt': 'keep\n',
+      'old/name.ts': 'export const x = 1\n',
+      '[ab].txt': 'brackets are a pattern unless pathspecs are literal\n',
+      'a.txt': 'Converge never held this\n',
+      'logo.png': 'binary Converge never held\n',
+    })
+    const result = await worker.run('ws-7', target('gone'), request({
+      'keep.txt': 'keep\n',
+      'new/name.ts': 'export const x = 1\n',
+    }, {
+      type: 'PUSH_BRANCH',
+      branch: 'converge/tidy',
+      // A held path is never deleted, and unsafe or unknown paths are ignored.
+      deleted: ['old/name.ts', '[ab].txt', 'keep.txt', '../outside', 'never-there.txt'],
+    }))
+    expect(github.headCommit('acme', 'gone', 'converge/tidy').files.sort()).toEqual(['a.txt', 'keep.txt', 'logo.png', 'new/name.ts'])
+    // Git sees old/name.ts -> new/name.ts as one rename, plus the deleted [ab].txt.
+    expect(result.changedFiles).toBe(2)
+    expect(result.written.sort()).toEqual(['keep.txt', 'new/name.ts'])
+  }, 60_000)
+
   it('refuses a pull request when the repository has no default branch yet', async () => {
     github.createRepo('acme', 'empty', {})
     await expect(worker.run('ws-5', target('empty'), request({ 'a.txt': 'a' }))).rejects.toThrow('has no main branch')

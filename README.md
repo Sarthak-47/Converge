@@ -10,7 +10,7 @@ The full design — architecture, protocols, roadmap and decision log — is in 
 - Desktop builds are unsigned, because signing needs code-signing certificates.
 - Trace ids flow through every service and appear in their logs, but spans are not exported to a tracing backend.
 - API sessions live in memory, so restarting the API signs people out, and the API runs as one instance.
-- Pushes from Converge add and change files but never delete them on the branch.
+- Importing from GitHub adds and changes files but never deletes them in the workspace; delete them here by hand.
 
 ## Architecture at a glance
 
@@ -77,7 +77,7 @@ The Vite dev server (http://localhost:5173) proxies `/api`, `/ws` and `/collab` 
 
 ## Pull requests
 
-An owner connects a GitHub repository under **Repository** (a token that can push branches and open pull requests; stored encrypted). A session's driver then uses **Finish and open pull request**: the worker commits the workspace on a `converge/…` branch and opens the pull request. Desktop members can also **Commit & push** from their own checkout with their own credentials.
+An owner connects a GitHub repository under **Repository** (a token that can push branches and open pull requests; stored encrypted). A session's driver then uses **Finish and open pull request**: the worker commits the workspace on a `converge/…` branch and opens the pull request. Editors can also push the workspace to any other branch from the same dialog. Files deleted, renamed or moved in Converge are deleted on the branch; files Converge never held (binaries, large files, anything added upstream since the last import) are left alone. Desktop members can also **Commit & push** from their own checkout with their own credentials.
 
 ## Monitoring
 
