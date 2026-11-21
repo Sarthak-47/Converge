@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { api, type Workspace } from '../api.ts'
+import { api, type AuditEvent, type Workspace } from '../api.ts'
+import { describeActivity } from './activity.ts'
 import { Icon } from './Icon.tsx'
 
 type Props = {
@@ -8,17 +9,25 @@ type Props = {
   onClose: () => void
 }
 
-/** Workspace settings for owners: rename, archive and unarchive (FR-02). An archived workspace is read-only. */
+const when = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+
+/** Workspace settings for owners: rename, archive and unarchive (FR-02), and who did what (FR-15). */
 export function WorkspaceDialog({ workspace, onChanged, onClose }: Props) {
   const dialog = useRef<HTMLDialogElement>(null)
   const [name, setName] = useState(workspace.name)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const archived = workspace.status === 'ARCHIVED'
+  const [activity, setActivity] = useState<AuditEvent[] | null>(null)
 
   useEffect(() => {
     dialog.current?.showModal()
   }, [])
+
+  // Reloaded after every change made here, so the change itself shows up at the top.
+  useEffect(() => {
+    api.activity(workspace.id).then(setActivity).catch(() => setActivity([]))
+  }, [workspace.id, workspace.name, workspace.status])
 
   async function run(change: { name?: string; status?: Workspace['status'] }) {
     setBusy(true)
@@ -60,6 +69,21 @@ export function WorkspaceDialog({ workspace, onChanged, onClose }: Props) {
         <button type="button" disabled={busy} onClick={() => void run({ status: archived ? 'ACTIVE' : 'ARCHIVED' })}>
           {archived ? 'Unarchive' : 'Archive'}
         </button>
+      </section>
+      <section className="activity" aria-label="Activity">
+        <p className="settings-title">Activity</p>
+        {activity === null && <p className="muted small">Loading…</p>}
+        {activity?.length === 0 && <p className="muted small">Nothing recorded yet.</p>}
+        {activity && activity.length > 0 && (
+          <ol className="activity-list">
+            {activity.slice(0, 30).map((event) => (
+              <li key={event.id}>
+                <span><strong>{event.actorName}</strong> {describeActivity(event)}</span>
+                <time className="muted small" dateTime={event.createdAt}>{when.format(new Date(event.createdAt))}</time>
+              </li>
+            ))}
+          </ol>
+        )}
       </section>
       {error && <p className="error small" role="alert">{error}</p>}
     </dialog>

@@ -45,9 +45,9 @@ public class AuditLog {
                 .update();
     }
 
-    /** The newest events first; owners only, since the log names who did what. */
+    /** The newest events first; owners only, since the log names who did what. Readable in an archived workspace too. */
     public List<AuditEvent> recent(UUID workspaceId, UUID userId) {
-        access.require(workspaceId, userId, Role.OWNER);
+        access.requireIgnoringArchive(workspaceId, userId, Role.OWNER);
         return jdbc.sql("""
                 select a.id, a.actor_id, u.display_name, a.action, a.entity_type, a.entity_id, a.metadata::text,
                        a.created_at

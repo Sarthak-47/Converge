@@ -15,6 +15,18 @@ export type Role = 'OWNER' | 'EDITOR' | 'COMMENTER' | 'VIEWER'
 
 export type Workspace = { id: string; name: string; slug: string; status: 'ACTIVE' | 'ARCHIVED'; role: Role }
 
+export type AuditEvent = {
+  id: string
+  actorId: string
+  actorName: string
+  action: string
+  entityType: string
+  entityId: string | null
+  /** JSON text. */
+  metadata: string
+  createdAt: string
+}
+
 export type FileKind = 'FILE' | 'FOLDER'
 
 export type FileNode = {
@@ -89,6 +101,8 @@ export const api = {
   workspaces: () => request<Workspace[]>('GET', '/workspaces'),
   workspace: (id: string) => request<Workspace>('GET', `/workspaces/${id}`),
   createWorkspace: (name: string) => request<Workspace>('POST', '/workspaces', { name }),
+  /** Who did what in the workspace, newest first (owners only, FR-15). */
+  activity: (workspaceId: string) => request<AuditEvent[]>('GET', `/workspaces/${workspaceId}/audit`),
   updateWorkspace: (id: string, change: { name?: string; status?: Workspace['status'] }) =>
     request<Workspace>('PATCH', `/workspaces/${id}`, change),
 
