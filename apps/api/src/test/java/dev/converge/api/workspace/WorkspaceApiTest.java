@@ -57,6 +57,29 @@ class WorkspaceApiTest extends IntegrationTest {
     }
 
     @Test
+    void anArchivedWorkspaceIsReadOnlyUntilAnOwnerUnarchivesIt() throws Exception {
+        var asha = signUp("Asha");
+        String id = createWorkspace(asha, "Old project");
+        createFile(asha, id, null, "notes.txt", "FILE").andExpect(status().isCreated());
+
+        perform(asha, patch("/api/v1/workspaces/" + id), "{'status':'ARCHIVED'}").andExpect(status().isOk());
+        // Open editors are turned read-only at once, not on their next reconnect.
+        org.mockito.Mockito.verify(collab).revoke(org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.eq(java.util.UUID.fromString(id)), org.mockito.ArgumentMatchers.eq("read-only"));
+
+        // Reading still works; writing is refused with a reason.
+        getAs(asha, "/api/v1/workspaces/{id}/tree", id).andExpect(status().isOk());
+        createFile(asha, id, null, "more.txt", "FILE")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value("This workspace is archived; an owner can unarchive it"));
+        // Settings stay open, so the owner can rename it and bring it back.
+        perform(asha, patch("/api/v1/workspaces/" + id), "{'name':'Old project (2025)','status':'ACTIVE'}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ACTIVE"));
+        createFile(asha, id, null, "more.txt", "FILE").andExpect(status().isCreated());
+    }
+
+    @Test
     void slugifyHandlesAccentsAndSymbols() {
         org.assertj.core.api.Assertions.assertThat(WorkspaceService.slugify("Café  Déjà-vu!!")).isEqualTo("cafe-deja-vu");
         org.assertj.core.api.Assertions.assertThat(WorkspaceService.slugify("***")).isEqualTo("workspace");

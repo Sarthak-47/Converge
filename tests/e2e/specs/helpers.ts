@@ -36,8 +36,8 @@ export async function createWorkspace(page: Page, name: string) {
 
 export async function createFile(page: Page, name: string) {
   await page.getByTitle('New file').click()
-  await page.getByLabel('Name').fill(name)
-  await page.getByLabel('Name').press('Enter')
+  await page.getByLabel('Name', { exact: true }).fill(name)
+  await page.getByLabel('Name', { exact: true }).press('Enter')
   await expect(page.locator('.statusbar')).toContainText(name)
 }
 

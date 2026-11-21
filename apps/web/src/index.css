@@ -2436,3 +2436,65 @@ select {
 .agent-turn::after {
   order: 1;
 }
+
+/* File moves: a folder (or the rail's top level) lights up as a drop target while a row is dragged over it. */
+.tree-row.drop-target {
+  background: color-mix(in srgb, var(--signal) 28%, var(--surface));
+  box-shadow: inset 0 0 0 1.5px var(--text);
+}
+
+.file-tree.drop-target {
+  outline: 1.5px dashed var(--text);
+  outline-offset: -4px;
+}
+
+/* Settings: one row per setting, the explanation beside its action. */
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.settings-row p {
+  margin: 0;
+}
+
+.settings-title {
+  font-weight: 700;
+}
+
+.topbar .topbar-icon {
+  color: var(--hinge-muted);
+}
+
+.topbar .topbar-icon:hover {
+  background: rgb(255 255 255 / 0.08);
+  color: var(--hinge-text);
+}
+
+.banner.archived-banner {
+  border-bottom: 1.5px dashed var(--text);
+  font-weight: 600;
+}
+
+/* The rail is one drop zone for "top level": fill its height. */
+.file-tree {
+  min-height: 100%;
+}
+
+/* History: the compare control reads as a sentence. */
+.compare-with {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.compare-with select {
+  height: 28px;
+  font-size: var(--t-xs);
+}

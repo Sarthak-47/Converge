@@ -3,13 +3,17 @@ package dev.converge.api.workspace;
 import java.text.Normalizer;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import dev.converge.api.audit.AuditLog;
 import dev.converge.api.common.ApiException;
+import dev.converge.api.realtime.WorkspaceEvent;
 
 @Service
 public class WorkspaceService {
@@ -24,12 +28,20 @@ public class WorkspaceService {
             from workspaces w join workspace_members m on m.workspace_id = w.id
             """;
 
+    /** Published when a workspace is archived or unarchived, so open editors can turn read-only or back. */
+    public record ArchiveChanged(UUID workspaceId, boolean archived) {
+    }
+
     private final JdbcClient jdbc;
     private final WorkspaceAccess access;
+    private final AuditLog audit;
+    private final ApplicationEventPublisher events;
 
-    public WorkspaceService(JdbcClient jdbc, WorkspaceAccess access) {
+    public WorkspaceService(JdbcClient jdbc, WorkspaceAccess access, AuditLog audit, ApplicationEventPublisher events) {
         this.jdbc = jdbc;
         this.access = access;
+        this.audit = audit;
+        this.events = events;
     }
 
     /** Creates the workspace and its owner membership atomically (design §6.3). */
@@ -63,12 +75,23 @@ public class WorkspaceService {
 
     @Transactional
     public WorkspaceView update(UUID workspaceId, UUID userId, String name, Status status) {
-        access.require(workspaceId, userId, Role.OWNER);
+        access.requireIgnoringArchive(workspaceId, userId, Role.OWNER);
         if (name != null) {
             jdbc.sql("update workspaces set name = ? where id = ?").params(name.trim(), workspaceId).update();
+            audit.record(workspaceId, userId, "workspace.renamed", "workspace", workspaceId, Map.of("name", name.trim()));
         }
         if (status != null) {
-            jdbc.sql("update workspaces set status = ? where id = ?").params(status.name(), workspaceId).update();
+            int changed = jdbc.sql("update workspaces set status = ? where id = ? and status <> ?")
+                    .params(status.name(), workspaceId, status.name()).update();
+            if (changed == 1) {
+                boolean archived = status == Status.ARCHIVED;
+                audit.record(workspaceId, userId, archived ? "workspace.archived" : "workspace.unarchived", "workspace",
+                        workspaceId, Map.of());
+                events.publishEvent(new ArchiveChanged(workspaceId, archived));
+            }
+        }
+        if (name != null || status != null) {
+            events.publishEvent(WorkspaceEvent.of("WORKSPACE_UPDATED", workspaceId, userId, Map.of()));
         }
         return get(workspaceId, userId);
     }

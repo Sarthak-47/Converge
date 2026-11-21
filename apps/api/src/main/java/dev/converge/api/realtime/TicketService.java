@@ -82,7 +82,8 @@ public class TicketService {
         }
         String displayName = jdbc.sql("select display_name from users where id = ?").param(claim.userId())
                 .query(String.class).single();
-        return new Grant(claim.userId(), displayName, claim.fileId(), workspaceId, role, !role.atLeast(Role.EDITOR));
+        boolean readOnly = !role.atLeast(Role.EDITOR) || access.archived(workspaceId);
+        return new Grant(claim.userId(), displayName, claim.fileId(), workspaceId, role, readOnly);
     }
 
     @Scheduled(fixedDelay = 10 * 60 * 1000)

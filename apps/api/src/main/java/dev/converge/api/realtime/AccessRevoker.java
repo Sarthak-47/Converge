@@ -2,12 +2,14 @@ package dev.converge.api.realtime;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.web.socket.CloseStatus;
 
 import dev.converge.api.workspace.MemberService.AccessChanged;
+import dev.converge.api.workspace.WorkspaceService.ArchiveChanged;
 import dev.converge.api.workspace.Role;
 
 /**
@@ -23,10 +25,32 @@ class AccessRevoker {
 
     private final CollabClient collab;
     private final WebSocketSessions sessions;
+    private final JdbcClient jdbc;
 
-    AccessRevoker(CollabClient collab, WebSocketSessions sessions) {
+    AccessRevoker(CollabClient collab, WebSocketSessions sessions, JdbcClient jdbc) {
         this.collab = collab;
         this.sessions = sessions;
+        this.jdbc = jdbc;
+    }
+
+    /** Archiving turns every open editor in the workspace read-only; unarchiving restores each member's role. */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    void onArchiveChanged(ArchiveChanged change) {
+        record Member(java.util.UUID userId, Role role) {
+        }
+        java.util.List<Member> members = jdbc.sql("select user_id, role from workspace_members where workspace_id = ?")
+                .param(change.workspaceId())
+                .query((rs, n) -> new Member(rs.getObject(1, java.util.UUID.class), Role.valueOf(rs.getString(2))))
+                .list();
+        for (Member m : members) {
+            String action = !change.archived() && m.role().atLeast(Role.EDITOR) ? "read-write" : "read-only";
+            try {
+                collab.revoke(m.userId(), change.workspaceId(), action);
+            } catch (RuntimeException e) {
+                log.warn("Could not update live document connections for user {} in workspace {}", m.userId(),
+                        change.workspaceId(), e);
+            }
+        }
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)

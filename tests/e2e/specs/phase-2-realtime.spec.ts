@@ -25,8 +25,8 @@ test('chat and file-tree changes reach another open tab live', async ({ browser 
   await expect(second.locator('.chat-messages')).toContainText('hello from the first tab')
 
   await first.getByTitle('New file').click()
-  await first.getByLabel('Name').fill('shared.txt')
-  await first.getByLabel('Name').press('Enter')
+  await first.getByLabel('Name', { exact: true }).fill('shared.txt')
+  await first.getByLabel('Name', { exact: true }).press('Enter')
   await expect(second.locator('.tree-name', { hasText: 'shared.txt' })).toBeVisible()
 
   // History survives a reload because chat is persisted before it is broadcast.

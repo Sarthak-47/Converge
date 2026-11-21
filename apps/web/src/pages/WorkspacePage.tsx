@@ -9,6 +9,7 @@ import { FileTree } from '../components/FileTree.tsx'
 import { askText } from '../components/askText.tsx'
 import { GitDialog } from '../components/GitDialog.tsx'
 import { MembersDialog } from '../components/MembersDialog.tsx'
+import { WorkspaceDialog } from '../components/WorkspaceDialog.tsx'
 import { PresenceAvatars } from '../components/PresenceAvatars.tsx'
 import { SessionsPanel } from '../components/SessionsPanel.tsx'
 import { SyncControl } from '../components/SyncControl.tsx'
@@ -45,6 +46,7 @@ export default function WorkspacePage() {
   const { user } = useAuth()
   const navigate = useNavigate()
   const [showMembers, setShowMembers] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
   const [showGit, setShowGit] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
@@ -69,8 +71,11 @@ export default function WorkspacePage() {
   const editorInstance = useRef<monaco.editor.IStandaloneCodeEditor | null>(null)
   const editorHost = useRef<HTMLDivElement | null>(null)
 
-  const canEdit = workspace?.role === 'OWNER' || workspace?.role === 'EDITOR'
-  const canComment = canEdit || workspace?.role === 'COMMENTER'
+  // An archived workspace is read-only for everyone until an owner unarchives it (FR-02).
+  const archived = workspace?.status === 'ARCHIVED'
+  const canEdit = !archived && (workspace?.role === 'OWNER' || workspace?.role === 'EDITOR')
+  const canComment = canEdit || (!archived && workspace?.role === 'COMMENTER')
+  const isOwner = workspace?.role === 'OWNER'
   const activeId = active?.id ?? null
   const activeFile = files.find((f) => f.id === activeId) ?? null
 
@@ -155,6 +160,10 @@ export default function WorkspacePage() {
     }
     if (/^(AGENT|SESSION|COMMENT|APPROVAL|MEMORY|LOCKS|GIT)_/.test(event.type)) {
       setAgentSignal((n) => n + 1)
+      return
+    }
+    if (event.type === 'WORKSPACE_UPDATED') {
+      await refreshAccess()
       return
     }
     if (event.type === 'MEMBER_ADDED' || event.type === 'MEMBER_ROLE_CHANGED' || event.type === 'MEMBER_REMOVED') {
@@ -358,6 +367,11 @@ export default function WorkspacePage() {
     if (kind === 'FILE') openFile(node)
   }
 
+  async function moveFile(file: FileNode, parentId: string | null) {
+    await api.moveFile(file, parentId)
+    setFiles(await api.tree(workspaceId))
+  }
+
   async function renameFile(file: FileNode, name: string) {
     await api.renameFile(file, name)
     const tree = await api.tree(workspaceId)
@@ -402,6 +416,11 @@ export default function WorkspacePage() {
     <div className="ide">
       <TopBar>
         <span className="workspace-name">{workspace?.name ?? '…'}</span>
+        {isOwner && (
+          <button type="button" className="icon topbar-icon" aria-label="Workspace settings" title="Workspace settings" onClick={() => setShowSettings(true)}>
+            <Icon name="settings" size={15} />
+          </button>
+        )}
         {workspace && <span className="role-badge">{workspace.role.toLowerCase()}</span>}
         <span className={`connection ${channel.state}`} title="Realtime connection">
           {channel.state === 'connected' ? 'Live' : channel.state === 'connecting' ? 'Connecting…' : 'Reconnecting…'}
@@ -416,6 +435,9 @@ export default function WorkspacePage() {
         )}
       </TopBar>
       {showGit && workspace && <GitDialog workspace={workspace} refreshSignal={agentSignal} onClose={() => setShowGit(false)} />}
+      {showSettings && workspace && (
+        <WorkspaceDialog workspace={workspace} onChanged={setWorkspace} onClose={() => setShowSettings(false)} />
+      )}
       {showMembers && workspace && user && (
         <MembersDialog workspace={workspace} currentUserId={user.id} onClose={() => setShowMembers(false)} onLeft={() => navigate('/')} />
       )}
@@ -428,11 +450,20 @@ export default function WorkspacePage() {
           onOpen={openFile}
           onCreate={createFile}
           onRename={renameFile}
+          onMove={moveFile}
           onDelete={deleteFile}
         />
       </aside>
       <section className="editor-area">
         {message && <div className="banner error-banner" role="alert">{message}</div>}
+        {archived && (
+          <div className="banner archived-banner" role="status">
+            <span>This workspace is archived: everything is read-only.</span>
+            {isOwner && workspace && (
+              <button type="button" className="ghost" onClick={() => void api.updateWorkspace(workspace.id, { status: 'ACTIVE' }).then(setWorkspace)}>Unarchive</button>
+            )}
+          </div>
+        )}
         {active && peers.length > 0 && (
           <div className="editor-peers" aria-label="Also editing this file">
             <span>Also here:</span>

@@ -89,12 +89,17 @@ export const api = {
   workspaces: () => request<Workspace[]>('GET', '/workspaces'),
   workspace: (id: string) => request<Workspace>('GET', `/workspaces/${id}`),
   createWorkspace: (name: string) => request<Workspace>('POST', '/workspaces', { name }),
+  updateWorkspace: (id: string, change: { name?: string; status?: Workspace['status'] }) =>
+    request<Workspace>('PATCH', `/workspaces/${id}`, change),
 
   tree: (workspaceId: string) => request<FileNode[]>('GET', `/workspaces/${workspaceId}/tree`),
   createFile: (workspaceId: string, parentId: string | null, name: string, kind: FileKind) =>
     request<FileNode>('POST', '/files', { workspaceId, parentId, name, kind }),
   renameFile: (file: FileNode, name: string) =>
     request<FileNode>('PATCH', `/files/${file.id}`, { name, rowVersion: file.rowVersion }),
+  /** Moves a file or folder into `parentId`, or to the top level when it is null. */
+  moveFile: (file: FileNode, parentId: string | null) =>
+    request<FileNode>('PATCH', `/files/${file.id}`, parentId === null ? { moveToRoot: true, rowVersion: file.rowVersion } : { parentId, rowVersion: file.rowVersion }),
   deleteFile: (file: FileNode) => request<void>('DELETE', `/files/${file.id}?rowVersion=${file.rowVersion}`),
   content: (fileId: string) => request<Content>('GET', `/files/${fileId}/content`),
   save: (fileId: string, text: string, baseVersion: number) =>

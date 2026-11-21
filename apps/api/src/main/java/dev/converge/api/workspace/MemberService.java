@@ -55,7 +55,7 @@ public class MemberService {
     }
 
     public Roster roster(UUID workspaceId, UUID userId) {
-        Role caller = access.require(workspaceId, userId, Role.VIEWER);
+        Role caller = access.requireIgnoringArchive(workspaceId, userId, Role.VIEWER);
         List<Member> members = jdbc.sql("""
                 select u.id, u.email, u.display_name, m.role, m.joined_at
                 from workspace_members m join users u on u.id = m.user_id
@@ -73,7 +73,7 @@ public class MemberService {
 
     @Transactional
     public AddResult add(UUID workspaceId, AppUser actor, String rawEmail, Role role) {
-        access.require(workspaceId, actor.id(), Role.OWNER);
+        access.requireIgnoringArchive(workspaceId, actor.id(), Role.OWNER);
         String email = rawEmail.trim();
         Optional<UUID> existing = jdbc.sql("select id from users where lower(email) = lower(?)").param(email)
                 .query(UUID.class).optional();
@@ -102,7 +102,7 @@ public class MemberService {
 
     @Transactional
     public Member changeRole(UUID workspaceId, AppUser actor, UUID userId, Role role) {
-        access.require(workspaceId, actor.id(), Role.OWNER);
+        access.requireIgnoringArchive(workspaceId, actor.id(), Role.OWNER);
         Role current = roleOf(workspaceId, userId);
         if (current == Role.OWNER && role != Role.OWNER) {
             requireAnotherOwner(workspaceId);
@@ -119,7 +119,7 @@ public class MemberService {
     @Transactional
     public void remove(UUID workspaceId, AppUser actor, UUID userId) {
         boolean leaving = actor.id().equals(userId);
-        access.require(workspaceId, actor.id(), leaving ? Role.VIEWER : Role.OWNER);
+        access.requireIgnoringArchive(workspaceId, actor.id(), leaving ? Role.VIEWER : Role.OWNER);
         if (roleOf(workspaceId, userId) == Role.OWNER) {
             requireAnotherOwner(workspaceId);
         }
@@ -130,7 +130,7 @@ public class MemberService {
 
     @Transactional
     public void cancelInvitation(UUID workspaceId, AppUser actor, UUID invitationId) {
-        access.require(workspaceId, actor.id(), Role.OWNER);
+        access.requireIgnoringArchive(workspaceId, actor.id(), Role.OWNER);
         int deleted = jdbc.sql("delete from workspace_invitations where id = ? and workspace_id = ?")
                 .params(invitationId, workspaceId).update();
         if (deleted == 0) {
