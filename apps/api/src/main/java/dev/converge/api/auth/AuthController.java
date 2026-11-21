@@ -112,5 +112,7 @@ public class AuthController {
                 UsernamePasswordAuthenticationToken.authenticated(principal, null, principal.getAuthorities()));
         SecurityContextHolder.setContext(context);
         contexts.saveContext(context, request, response);
+        // Shown on the person's list of signed-in devices.
+        request.getSession().setAttribute(SessionsController.DEVICE, SessionsController.describe(request.getHeader("User-Agent")));
     }
 }

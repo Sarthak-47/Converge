@@ -513,9 +513,20 @@ button.link {
   align-items: center;
   gap: 7px;
   max-width: 180px;
+  padding: 2px 6px 2px 2px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
   color: var(--hinge-muted);
+  font: inherit;
   font-size: var(--t-xs);
   font-weight: 600;
+  cursor: pointer;
+}
+
+.me:hover,
+.me:focus-visible {
+  color: var(--hinge-text);
 }
 
 .me-dot {
@@ -2599,4 +2610,35 @@ select {
 
 .deleted-list button {
   flex: none;
+}
+
+/* Signed-in devices: what and when on the left, Sign out on the right. */
+.device-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.device-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.device-what {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.device-list button,
+.device-all {
+  flex: none;
+}
+
+.device-all {
+  margin-top: 12px;
 }

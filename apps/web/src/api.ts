@@ -29,6 +29,8 @@ export type AuditEvent = {
 
 export type DeletedFile = { id: string; path: string; deletedAt: string }
 
+export type SignedInSession = { id: string; device: string; signedInAt: string; lastActiveAt: string; current: boolean }
+
 export type FileKind = 'FILE' | 'FOLDER'
 
 export type FileNode = {
@@ -99,6 +101,10 @@ export const api = {
   register: (email: string, displayName: string, password: string) =>
     request<User>('POST', '/auth/register', { email, displayName, password }),
   logout: () => request<void>('POST', '/auth/logout'),
+  /** Where you are signed in, this device first. */
+  signedInDevices: () => request<SignedInSession[]>('GET', '/auth/sessions'),
+  endSession: (id: string) => request<void>('DELETE', `/auth/sessions/${id}`),
+  endOtherSessions: () => request<{ signedOut: number }>('POST', '/auth/sessions/sign-out-others'),
 
   workspaces: () => request<Workspace[]>('GET', '/workspaces'),
   workspace: (id: string) => request<Workspace>('GET', `/workspaces/${id}`),
