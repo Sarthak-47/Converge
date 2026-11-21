@@ -1242,7 +1242,7 @@ button.link {
 }
 
 .chat-messages li + li {
-  border-top: 1px solid var(--border);
+  border-top: none;
 }
 
 .chat-messages p {
@@ -1267,12 +1267,33 @@ button.link {
   font-family: var(--font-mono);
 }
 
-.chat-messages li.mine p {
+.chat-messages p {
+  position: relative;
   display: inline-block;
+  max-width: 100%;
+  margin-top: 10px;
   padding: 7px 11px;
+  border: 1.5px solid var(--text);
   border-radius: var(--radius);
   background: var(--surface);
-  box-shadow: 0 0 0 1.5px var(--who, var(--border-strong));
+}
+
+.chat-messages p::before {
+  content: '';
+  position: absolute;
+  top: -6.5px;
+  left: 9px;
+  width: 10px;
+  height: 10px;
+  border-top: 1.5px solid var(--text);
+  border-left: 1.5px solid var(--text);
+  background: inherit;
+  transform: rotate(45deg);
+}
+
+/* Your own balloons are tinted with your sticker colour. */
+.chat-messages li.mine p {
+  background: color-mix(in srgb, var(--who, var(--text)) 16%, var(--surface));
 }
 
 .who-dot {
@@ -1949,6 +1970,58 @@ select {
 
 .approval-card p {
   margin: 2px 0;
+}
+
+.approval-card {
+  position: relative;
+}
+
+.approval-card[data-status='APPROVED']::after,
+.approval-card[data-status='DENIED']::after,
+.approval-card[data-status='EXPIRED']::after {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  padding: 1px 8px;
+  border: 2.5px solid currentColor;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-sticker);
+  font-size: var(--t-xs);
+  font-stretch: 125%;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  transform: rotate(-8deg);
+  pointer-events: none;
+}
+
+.approval-card[data-status='APPROVED']::after {
+  content: 'APPROVED' / '';
+  color: var(--text);
+}
+
+.approval-card[data-status='DENIED']::after {
+  content: 'DENIED' / '';
+  color: var(--down-text);
+}
+
+.approval-card[data-status='EXPIRED']::after {
+  content: 'EXPIRED' / '';
+  border-style: dotted;
+  color: var(--muted);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .approval-card[data-status='APPROVED']::after,
+  .approval-card[data-status='DENIED']::after {
+    animation: stamp 260ms var(--ease-out) both;
+  }
+}
+
+@keyframes stamp {
+  from {
+    opacity: 0;
+    transform: rotate(-8deg) scale(1.8);
+  }
 }
 
 .approval-command {
