@@ -22,12 +22,14 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     private final DestinationAuthorizationInterceptor authorization;
     private final WebSocketSessions sessions;
+    private final StompSpans spans;
     private final List<String> allowedOrigins;
 
-    public WebSocketConfig(DestinationAuthorizationInterceptor authorization, WebSocketSessions sessions,
+    public WebSocketConfig(DestinationAuthorizationInterceptor authorization, WebSocketSessions sessions, StompSpans spans,
             @Value("${converge.websocket.allowed-origins:}") List<String> allowedOrigins) {
         this.authorization = authorization;
         this.sessions = sessions;
+        this.spans = spans;
         this.allowedOrigins = allowedOrigins.stream().filter(o -> !o.isBlank()).toList();
     }
 
@@ -54,6 +56,6 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void configureClientInboundChannel(ChannelRegistration registration) {
-        registration.interceptors(authorization);
+        registration.interceptors(authorization, spans);
     }
 }

@@ -9,7 +9,7 @@ import { handleInternal } from './internal.js'
 import { checkMemories, type MemoryCheck } from './memory.js'
 import { ConnectionLimiter, metrics, registry } from './metrics.js'
 import { timingSafeEqual } from 'node:crypto'
-import { childHeader, flushSpans, fromHeader, startSpanExport, traceRequest } from './trace.js'
+import { childHeader, childOf, flushSpans, inSpan, recordSpan, SPAN_KIND, startSpanExport, traceRequest, type TraceContext } from './trace.js'
 import { loadDocument, storeDocument } from './persistence.js'
 
 // A connection attempt that hangs fails after 5 s, so a store fails (and is retried) instead of waiting forever.
@@ -24,8 +24,7 @@ function log(level: 'INFO' | 'WARN' | 'ERROR', event: string, fields: Record<str
   console.log(JSON.stringify({ timestamp: new Date().toISOString(), level, service: 'collab', event, ...fields }))
 }
 
-async function reportStored(fileId: string) {
-  const trace = fromHeader(undefined)
+async function reportStored(fileId: string, trace: TraceContext) {
   const response = await fetch(`${config.apiUrl}/internal/files/${fileId}/stored`, {
     method: 'POST',
     headers: { 'X-Internal-Token': config.internalToken, traceparent: childHeader(trace) },
@@ -34,8 +33,7 @@ async function reportStored(fileId: string) {
   if (!response.ok) throw new Error(`Reporting a stored change failed with ${response.status}`)
 }
 
-async function reportMemoryChecks(checks: MemoryCheck[]) {
-  const trace = fromHeader(undefined)
+async function reportMemoryChecks(checks: MemoryCheck[], trace: TraceContext) {
   const response = await fetch(`${config.apiUrl}/internal/memories/checked`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Internal-Token': config.internalToken, traceparent: childHeader(trace) },
@@ -48,7 +46,18 @@ async function reportMemoryChecks(checks: MemoryCheck[]) {
 
 const limiter = new ConnectionLimiter()
 
-async function store(documentName: string, document: Y.Doc) {
+/**
+ * One span per editor connection to one document, from joining to leaving (design §16.3): how long people
+ * stay, and which connections ended badly. Single keystrokes are not spans; there would be far too many.
+ */
+const openConnections = new Map<string, { trace: TraceContext; start: number; userId: string; role: string }>()
+
+/** Stores a document as its own span; the reports it sends the API afterwards are that span's children. */
+function store(documentName: string, document: Y.Doc) {
+  return inSpan('collab.store', undefined, (trace) => storeTraced(documentName, document, trace), { 'converge.file_id': documentName })
+}
+
+async function storeTraced(documentName: string, document: Y.Doc, trace: TraceContext) {
   const started = performance.now()
   let changed: boolean
   try {
@@ -62,12 +71,12 @@ async function store(documentName: string, document: Y.Doc) {
   log('INFO', 'DOCUMENT_STORED', { fileId: documentName, durationMs: Math.round(durationMs), changed })
   // Clients without the live document (a desktop mirror's cold files) learn about the change from the API.
   if (changed) {
-    reportStored(documentName).catch((error: Error) =>
+    reportStored(documentName, trace).catch((error: Error) =>
       log('WARN', 'STORE_REPORT_FAILED', { fileId: documentName, message: error.message }))
   }
   // Notes pinned to this file are re-checked against what was just stored (design §13.10). Context, not
   // authority: a failure is logged and never blocks storing.
-  checkMemories(db, documentName, document, reportMemoryChecks)
+  checkMemories(db, documentName, document, (checks) => reportMemoryChecks(checks, trace))
     .then((changed) => metrics.memoryChecks.inc({ outcome: changed > 0 ? 'changed' : 'unchanged' }))
     .catch((error: Error) => {
       metrics.memoryChecks.inc({ outcome: 'failed' })
@@ -129,6 +138,14 @@ const server = new Server<ConnectionContext>({
 
   async onDisconnect({ socketId, documentName, context }) {
     metrics.connections.dec({ service: 'collab' })
+    const open = openConnections.get(`${socketId}:${documentName}`)
+    if (open) {
+      openConnections.delete(`${socketId}:${documentName}`)
+      recordSpan({
+        context: open.trace, name: 'collab.connection', kind: SPAN_KIND.server, start: open.start, end: Date.now(), error: false,
+        attributes: { 'converge.file_id': documentName, 'converge.user_id': open.userId, 'converge.role': open.role, 'converge.connection_id': socketId },
+      })
+    }
     limiter.forget(socketId)
     log('INFO', 'DOCUMENT_LEFT', { fileId: documentName, userId: (context as ConnectionContext | undefined)?.userId, connectionId: socketId })
   },
@@ -153,9 +170,13 @@ const server = new Server<ConnectionContext>({
 
   async onAuthenticate(data) {
     try {
-      const context = await authenticate(data)
+      // The connection span starts here, so redeeming the ticket with the API is its first child.
+      const trace = childOf(undefined)
+      const start = Date.now()
+      const context = await authenticate(data, trace)
       // The connection id (design §3.2, observability) ties every later line about this socket together.
       log('INFO', 'DOCUMENT_JOINED', { fileId: data.documentName, userId: context.userId, role: context.role, connectionId: data.socketId })
+      openConnections.set(`${data.socketId}:${data.documentName}`, { trace, start, userId: context.userId, role: context.role })
       return context
     } catch (error) {
       log('WARN', 'AUTH_REJECTED', { fileId: data.documentName, reason: (error as Error).message, connectionId: data.socketId })
@@ -165,7 +186,7 @@ const server = new Server<ConnectionContext>({
   },
 
   async onLoadDocument({ documentName, document }) {
-    await loadDocument(db, documentName, document)
+    await inSpan('collab.load', undefined, () => loadDocument(db, documentName, document), { 'converge.file_id': documentName })
   },
 
   async onStoreDocument({ documentName, document, instance }) {

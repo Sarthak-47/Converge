@@ -1,6 +1,6 @@
 import type { onAuthenticatePayload, onConnectPayload } from '@hocuspocus/server'
 import { config } from './config.js'
-import { childHeader, fromHeader } from './trace.js'
+import { childHeader, childOf, type TraceContext } from './trace.js'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -30,11 +30,11 @@ export async function checkOrigin({ requestHeaders }: onConnectPayload): Promise
  * Redeems the connection's ticket with the API (design §5.3). Viewers and commenters get read-only
  * connections: the server drops any document update they send.
  */
-export async function authenticate(data: onAuthenticatePayload): Promise<ConnectionContext> {
+export async function authenticate(data: onAuthenticatePayload, trace: TraceContext = childOf(undefined)): Promise<ConnectionContext> {
   if (!isFileId(data.documentName)) throw new Error('Unknown document')
   const response = await fetch(`${config.apiUrl}/internal/collab/authorize`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Internal-Token': config.internalToken, traceparent: childHeader(fromHeader(undefined)) },
+    headers: { 'Content-Type': 'application/json', 'X-Internal-Token': config.internalToken, traceparent: childHeader(trace) },
     body: JSON.stringify({ ticket: data.token, documentName: data.documentName }),
     signal: AbortSignal.timeout(5000),
   })

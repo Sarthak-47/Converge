@@ -6,7 +6,9 @@ The full design — architecture, protocols, roadmap and decision log — is in 
 
 **Status:** every functional requirement in the design (§3.1) is built and tested, along with the stretch goals: agents, sessions, approvals, workspace memory, Git (including import and push webhooks) and the desktop app with live local sync. See [docs/WORKLOG.md](docs/WORKLOG.md) for the decisions behind each step and [docs/BASELINE.md](docs/BASELINE.md) for measured latency, load and fault recovery.
 
-**Known limit:** desktop builds are unsigned, because signing needs paid code-signing certificates.
+**Known limits:**
+- Desktop builds are unsigned, because signing needs paid code-signing certificates.
+- The API runs as one instance. Sign-ins, rate limits and data are shared through PostgreSQL and Redis, but the workspace channel (chat, presence, live events) uses an in-memory broker, so a second instance would need a STOMP broker relay or Redis fan-out (design §7.5).
 
 ## Architecture at a glance
 
@@ -79,7 +81,7 @@ An owner connects a GitHub repository under **Repository** (a token that can pus
 
 The API (`/api/actuator/prometheus`) and the collaboration service (`/metrics`) expose Prometheus metrics to holders of the internal token; nginx never routes them. Rate limits live in Redis; `RATE_LIMIT_SCALE` multiplies them (raise it for the end-to-end suite and load runs).
 
-Every service carries W3C trace context and writes the trace id on each log line. Set `OTEL_EXPORTER_OTLP_ENDPOINT` to an OTLP/HTTP endpoint (an OpenTelemetry collector, Jaeger, Grafana Tempo) and each service also sends its spans there: one per API request, collaboration-service and agent-runner call, agent turn, job and Git operation, joined into one trace across services. To look at them locally:
+Every service carries W3C trace context and writes the trace id on each log line. Set `OTEL_EXPORTER_OTLP_ENDPOINT` to an OTLP/HTTP endpoint (an OpenTelemetry collector, Jaeger, Grafana Tempo) and each service also sends its spans there: one per API request, workspace-channel message and subscription, collaboration-service and agent-runner call, document load and store, editor connection (from joining to leaving), agent turn, job and Git operation, joined into one trace across services. Single keystrokes are not spans. To look at them locally:
 
 ```powershell
 $env:COMPOSE_PROFILES="tracing"; $env:OTEL_EXPORTER_OTLP_ENDPOINT="http://jaeger:4318"; docker compose up -d

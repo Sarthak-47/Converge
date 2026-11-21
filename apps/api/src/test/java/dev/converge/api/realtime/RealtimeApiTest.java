@@ -14,6 +14,31 @@ import dev.converge.api.HttpIntegrationTest;
 class RealtimeApiTest extends HttpIntegrationTest {
 
     @Test
+    void channelMessagesAndSubscriptionsAreSpansWhenExportIsOn() throws Exception {
+        java.util.List<String> bodies = new java.util.concurrent.CopyOnWriteArrayList<>();
+        var collector = com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("127.0.0.1", 0), 0);
+        collector.createContext("/", exchange -> {
+            bodies.add(new String(exchange.getRequestBody().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8));
+            exchange.sendResponseHeaders(200, -1);
+            exchange.close();
+        });
+        collector.start();
+        var exporter = dev.converge.api.common.SpanExporter.start("http://127.0.0.1:" + collector.getAddress().getPort(), "converge-api", 60_000);
+        try (var asha = StompTestClient.signUp(port(), "Asha").connect()) {
+            String workspace = asha.createWorkspace("Traced");
+            BlockingQueue<Map<String, Object>> received = asha.subscribe("/topic/workspace/" + workspace + "/chat");
+            asha.sendStomp("/app/workspace/" + workspace + "/chat", Map.of("body", "traced hello"));
+            assertThat(received.poll(5, TimeUnit.SECONDS)).isNotNull();
+        } finally {
+            exporter.stop();
+            collector.stop(0);
+        }
+        String sent = String.join("\n", bodies);
+        assertThat(sent).contains("\"STOMP SEND /app/workspace/{id}/chat\"", "\"STOMP SUBSCRIBE /topic/workspace/{id}/chat\"");
+        assertThat(sent).contains("\"messaging.system\"");
+    }
+
+    @Test
     void chatIsDeliveredToEveryMemberAndKeptInHistory() throws Exception {
         try (var asha = StompTestClient.signUp(port(), "Asha").connect()) {
             String workspace = asha.createWorkspace("Chatty");

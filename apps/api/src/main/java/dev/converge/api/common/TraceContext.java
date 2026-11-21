@@ -66,11 +66,11 @@ public final class TraceContext {
     }
 
     /** A request path with ids replaced, so spans for the same route share one name. */
-    static String route(String path) {
+    public static String route(String path) {
         return ID.matcher(path).replaceAll("{id}");
     }
 
-    static String random(int bytes) {
+    public static String random(int bytes) {
         byte[] raw = new byte[bytes];
         RANDOM.nextBytes(raw);
         return HexFormat.of().formatHex(raw);
