@@ -211,6 +211,80 @@ public class FileService {
         events.publishEvent(new FilesDeleted(removedFiles));
     }
 
+    public record DeletedFile(UUID id, String path, java.time.OffsetDateTime deletedAt) {
+    }
+
+    /**
+     * Files deleted in the last 30 days whose path is free again, newest first, one per path. Deleting only
+     * marks the row, so its text and versions are all still there to bring back.
+     */
+    public List<DeletedFile> recentlyDeleted(UUID workspaceId, UUID userId) {
+        access.require(workspaceId, userId, Role.VIEWER);
+        return jdbc.sql("""
+                select id, path, deleted_at from (
+                    select distinct on (f.path) f.id, f.path, f.deleted_at from files f
+                    where f.workspace_id = ? and f.kind = 'FILE' and f.deleted_at > now() - interval '30 days'
+                      and not exists (select 1 from files l where l.workspace_id = f.workspace_id
+                                      and l.path = f.path and l.deleted_at is null)
+                    order by f.path, f.deleted_at desc
+                ) recent order by deleted_at desc limit 100
+                """)
+                .param(workspaceId)
+                .query((rs, n) -> new DeletedFile(rs.getObject(1, UUID.class), rs.getString(2),
+                        rs.getObject(3, java.time.OffsetDateTime.class)))
+                .list();
+    }
+
+    /**
+     * Brings a deleted file back at its old path, with its text and history. Folders on the path that were
+     * deleted with it, or since, are created again.
+     */
+    @Transactional
+    public FileNode restoreDeleted(UUID fileId, UUID userId) {
+        FileNode node = jdbc.sql(SELECT_NODE + " where id = ? and deleted_at is not null and kind = 'FILE'")
+                .param(fileId).query(this::toNode).optional()
+                .orElseThrow(() -> ApiException.notFound("Deleted file"));
+        access.require(node.workspaceId(), userId, Role.EDITOR);
+        UUID parentId = null;
+        int slash = node.path().lastIndexOf('/');
+        if (slash > 0) {
+            String folderPath = node.path().substring(0, slash);
+            FileNode folder = jdbc.sql(SELECT_NODE + " where workspace_id = ? and path = ? and deleted_at is null")
+                    .params(node.workspaceId(), folderPath).query(this::toNode).optional().orElse(null);
+            if (folder == null) {
+                // createPath makes a file at the end; make the folders the same way, one level at a time.
+                String prefix = "";
+                for (String segment : folderPath.split("/")) {
+                    String path = prefix + segment;
+                    FileNode existing = jdbc.sql(SELECT_NODE + " where workspace_id = ? and path = ? and deleted_at is null")
+                            .params(node.workspaceId(), path).query(this::toNode).optional().orElse(null);
+                    if (existing == null) {
+                        existing = create(node.workspaceId(), parentId, segment, Kind.FOLDER, userId);
+                    } else if (existing.kind() != Kind.FOLDER) {
+                        throw ApiException.conflict(path + " is a file now, so " + node.name() + " cannot go back there");
+                    }
+                    parentId = existing.id();
+                    prefix = path + "/";
+                }
+            } else if (folder.kind() != Kind.FOLDER) {
+                throw ApiException.conflict(folderPath + " is a file now, so " + node.name() + " cannot go back there");
+            } else {
+                parentId = folder.id();
+            }
+        }
+        try {
+            jdbc.sql("""
+                    update files set deleted_at = null, parent_id = ?, row_version = row_version + 1, updated_at = now()
+                    where id = ? and deleted_at is not null
+                    """).params(parentId, fileId).update();
+        } catch (DuplicateKeyException e) {
+            throw ApiException.conflict("Something at " + node.path() + " exists again; rename it first");
+        }
+        FileNode restored = liveNode(fileId);
+        events.publishEvent(WorkspaceEvent.of("FILE_CREATED", restored.workspaceId(), userId, Map.of("file", restored)));
+        return restored;
+    }
+
     public Content content(UUID fileId, UUID userId) {
         FileNode node = liveFile(fileId);
         access.require(node.workspaceId(), userId, Role.VIEWER);

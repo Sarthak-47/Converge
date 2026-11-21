@@ -164,6 +164,36 @@ class GitApiTest extends IntegrationTest {
         getAs(asha, "/api/v1/workspaces/{w}/tree", workspace)
                 .andExpect(jsonPath("$[?(@.path == 'src/app/main.ts')]").exists());
     }
+    @Test
+    void anImportDeletesFilesGoneFromTheBranchUnlessTheyChangedHere() throws Exception {
+        connect();
+        String gone = id(createFile(asha, workspace, null, "gone.md", "FILE"));
+        String edited = id(createFile(asha, workspace, null, "edited.md", "FILE"));
+        // Typed into after the import: its text no longer has the hash it was imported with.
+        jdbc.sql("update documents set content_hash = 'changed-here' where file_id = ?::uuid").param(edited).update();
+        String op = id(perform(asha, post("/api/v1/workspaces/" + workspace + "/git/pulls"), "{'idempotencyKey':'pull-del'}")
+                .andExpect(status().isAccepted()));
+        String emptyHash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+
+        // Only a running import may delete.
+        mvc.perform(post("/internal/git/operations/{id}/import/deletions", op).header(InternalTokenFilter.HEADER, INTERNAL_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON).content(json("{'files':[]}")))
+                .andExpect(status().isConflict());
+        jdbc.sql("update git_operations set status = 'RUNNING' where id = ?::uuid").param(op).update();
+        mvc.perform(post("/internal/git/operations/{id}/import/deletions", op).header(InternalTokenFilter.HEADER, INTERNAL_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json("{'files':[{'path':'gone.md','hash':'%s'},{'path':'edited.md','hash':'%s'},{'path':'never-here.md','hash':'%s'}]}",
+                                emptyHash, emptyHash, emptyHash)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.deleted[0]").value("gone.md"))
+                .andExpect(jsonPath("$.deleted.length()").value(1))
+                .andExpect(jsonPath("$.kept[0]").value("edited.md"))
+                .andExpect(jsonPath("$.kept.length()").value(1));
+        getAs(asha, "/api/v1/workspaces/{w}/tree", workspace)
+                .andExpect(jsonPath("$[?(@.id == '%s')]", gone).doesNotExist())
+                .andExpect(jsonPath("$[?(@.id == '%s')]", edited).exists());
+    }
+
     private org.springframework.test.web.servlet.ResultActions deliver(String event, String delivery, String secret, String body)
             throws Exception {
         javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");

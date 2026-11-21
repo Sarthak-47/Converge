@@ -14,6 +14,8 @@ type Props = {
   onCreate: (parentId: string | null, name: string, kind: FileKind) => Promise<void>
   onRename: (file: FileNode, name: string) => Promise<void>
   onDelete: (file: FileNode) => Promise<void>
+  /** Opens the list of recently deleted files, to bring one back. */
+  onShowDeleted?: () => void
   /** Moves a file or folder into a folder, or to the top level when the parent is null (FR-04). */
   onMove: (file: FileNode, parentId: string | null) => Promise<void>
 }
@@ -39,7 +41,7 @@ function buildTree(files: FileNode[]): TreeNode[] {
   return roots
 }
 
-export function FileTree({ files, activeFileId, dirtyIds, canEdit, onOpen, onCreate, onRename, onDelete, onMove }: Props) {
+export function FileTree({ files, activeFileId, dirtyIds, canEdit, onOpen, onCreate, onRename, onDelete, onMove, onShowDeleted }: Props) {
   const tree = useMemo(() => buildTree(files), [files])
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null)
@@ -219,6 +221,9 @@ export function FileTree({ files, activeFileId, dirtyIds, canEdit, onOpen, onCre
           <span>
             <button type="button" className="icon" title="New file" aria-label="New file" onClick={() => startCreate('FILE')}><Icon name="filePlus" size={15} /></button>
             <button type="button" className="icon" title="New folder" aria-label="New folder" onClick={() => startCreate('FOLDER')}><Icon name="folderPlus" size={15} /></button>
+            {onShowDeleted && (
+              <button type="button" className="icon" title="Recently deleted" aria-label="Recently deleted" onClick={onShowDeleted}><Icon name="restore" size={15} /></button>
+            )}
           </span>
         )}
       </div>

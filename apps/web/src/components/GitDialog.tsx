@@ -16,7 +16,7 @@ function describe(op: GitOperation): string {
   if (op.status !== 'SUCCEEDED' || !op.result) return `${what} ${op.status === 'QUEUED' ? 'queued' : 'running'}…`
   if (op.type === 'PULL') {
     const r = op.result
-    return `Imported ${op.params.branch}: ${r.created ?? 0} new, ${r.updated ?? 0} updated, ${r.unchanged ?? 0} unchanged${r.skipped?.length ? `, ${r.skipped.length} skipped` : ''}`
+    return `Imported ${op.params.branch}: ${r.created ?? 0} new, ${r.updated ?? 0} updated, ${r.unchanged ?? 0} unchanged${r.deleted ? `, ${r.deleted} deleted` : ''}${r.skipped?.length ? `, ${r.skipped.length} skipped` : ''}`
   }
   return `${what} on ${op.result.branch} (${op.result.changedFiles} file${op.result.changedFiles === 1 ? '' : 's'})`
 }
@@ -101,7 +101,7 @@ export function GitDialog({ workspace, onClose, refreshSignal = 0 }: Props) {
                 setOperations((list) => [op, ...list])
               }, 'Could not start the import')}>Import files from {repository.defaultBranch}</button>
             )}
-            <p className="muted small">Importing creates the branch's text files here and merges changes into existing ones; nothing is deleted.</p>
+            <p className="muted small">Importing creates the branch's text files here and merges changes into existing ones. A file deleted on the branch since the last import is deleted here too, unless someone changed it here since; History can bring it back.</p>
             {canEdit && (
               <form className="git-push" onSubmit={push} aria-label="Push to a branch">
                 <label htmlFor="git-push-branch">Push to branch</label>

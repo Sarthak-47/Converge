@@ -1,6 +1,6 @@
 import { createHmac } from 'node:crypto'
 import { expect, test } from '@playwright/test'
-import { answer, createWorkspace, editorText, openFile, register, uniqueEmail } from './helpers.ts'
+import { answer, createWorkspace, editorText, openFile, register, typeAtEnd, uniqueEmail, waitUntilSaved } from './helpers.ts'
 
 /**
  * Phase 12 exit (design §10): finishing a session opens a pull request. The stack runs the fake GitHub
@@ -157,4 +157,41 @@ test('a push deletes on its branch what was deleted or moved here, and nothing e
   const head = (await (await request.get(`${FAKE_GITHUB}/__test/repos/acme/${repo}/branches/converge%2Ftidy-check`)).json()) as { author: string; files: string[] }
   expect(head.author).toBe('Asha')
   expect(head.files.sort()).toEqual(['README.md', 'logo.png', 'old.ts'])
+})
+
+test('an import deletes what was deleted on GitHub, keeps what changed here, and deleted files come back', async ({ page, request }) => {
+  test.setTimeout(180_000)
+  const repo = `gone-${Date.now()}`
+  const seed = (files: Record<string, string>) => request.post(`${FAKE_GITHUB}/__test/repos`, { data: { owner: 'acme', repo, files } })
+  await seed({ 'README.md': '# gone\n', 'notes.md': 'old notes\n', 'keep.md': 'keep me\n' })
+  await register(page, uniqueEmail('asha'), 'Asha')
+  await createWorkspace(page, 'Gone check')
+  await page.getByRole('button', { name: 'Repository' }).click()
+  await page.getByLabel('Repository URL').fill(`http://fake-github:9200/acme/${repo}.git`)
+  await page.getByLabel('Access token').fill(TOKEN)
+  await page.getByRole('button', { name: 'Connect', exact: true }).click()
+  await page.getByRole('button', { name: 'Import files from main' }).click()
+  await expect(page.getByLabel('Recent Git operations')).toContainText('Imported main: 3 new', { timeout: 60_000 })
+  await page.getByRole('button', { name: 'Close' }).click()
+
+  // Someone works on keep.md here; meanwhile both notes.md and keep.md are deleted on GitHub.
+  await openFile(page, 'keep.md')
+  await typeAtEnd(page, ' and my edit')
+  await waitUntilSaved(page)
+  await seed({ 'README.md': '# gone\n' })
+
+  await page.getByRole('button', { name: 'Repository' }).click()
+  await page.getByRole('button', { name: 'Import files from main' }).click()
+  await expect(page.getByLabel('Recent Git operations')).toContainText('0 new, 0 updated, 1 unchanged, 1 deleted, 1 skipped', { timeout: 60_000 })
+  await page.getByRole('button', { name: 'Close' }).click()
+  await expect(page.locator('.tree-row[title="notes.md"]')).toHaveCount(0)
+  await expect(page.locator('.tree-row[title="keep.md"]')).toBeVisible()
+
+  // The deleted file is one click from coming back, with its text.
+  await page.getByRole('button', { name: 'Recently deleted' }).click()
+  await page.getByRole('button', { name: 'Restore notes.md' }).click()
+  await expect(page.getByLabel('Deleted files')).toHaveCount(0)
+  await page.locator('dialog[aria-labelledby="deleted-title"]').getByRole('button', { name: 'Close' }).click()
+  await openFile(page, 'notes.md')
+  await expect.poll(() => editorText(page), { timeout: 20_000 }).toContain('old notes')
 })

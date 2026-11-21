@@ -116,6 +116,15 @@ public class GitController {
         return git.importFiles(operationId, body.files());
     }
 
+    public record Removed(@jakarta.validation.constraints.NotNull @Size(max = 20000) List<GitService.RemovedFile> files) {
+    }
+
+    /** Files the last import brought in that the branch no longer has. */
+    @PostMapping("/internal/git/operations/{operationId}/import/deletions")
+    GitService.DeletionResult importDeletions(@PathVariable UUID operationId, @Valid @RequestBody Removed body) {
+        return git.importDeletions(operationId, body.files());
+    }
+
     @PostMapping("/api/v1/sessions/{sessionId}/pull-request")
     ResponseEntity<Operation> pullRequest(@AuthenticationPrincipal AppUser user, @PathVariable UUID sessionId,
             @Valid @RequestBody PullRequest body) {

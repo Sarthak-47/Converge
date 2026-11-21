@@ -27,6 +27,8 @@ export type AuditEvent = {
   createdAt: string
 }
 
+export type DeletedFile = { id: string; path: string; deletedAt: string }
+
 export type FileKind = 'FILE' | 'FOLDER'
 
 export type FileNode = {
@@ -114,6 +116,9 @@ export const api = {
   /** Moves a file or folder into `parentId`, or to the top level when it is null. */
   moveFile: (file: FileNode, parentId: string | null) =>
     request<FileNode>('PATCH', `/files/${file.id}`, parentId === null ? { moveToRoot: true, rowVersion: file.rowVersion } : { parentId, rowVersion: file.rowVersion }),
+  /** Files deleted in the last 30 days whose path is free again, newest first. */
+  deletedFiles: (workspaceId: string) => request<DeletedFile[]>('GET', `/workspaces/${workspaceId}/deleted-files`),
+  undeleteFile: (fileId: string) => request<FileNode>('POST', `/files/${fileId}/undelete`),
   deleteFile: (file: FileNode) => request<void>('DELETE', `/files/${file.id}?rowVersion=${file.rowVersion}`),
   content: (fileId: string) => request<Content>('GET', `/files/${fileId}/content`),
   save: (fileId: string, text: string, baseVersion: number) =>
@@ -444,6 +449,8 @@ export type GitOperation = {
     created?: number
     updated?: number
     unchanged?: number
+    /** Files an import deleted here because they were deleted on the branch. */
+    deleted?: number
     skipped?: string[]
   } | null
   error: string | null

@@ -1,8 +1,9 @@
+import { createHash } from 'node:crypto'
 import Docker from 'dockerode'
 import pg from 'pg'
 import { config } from './config.js'
 import { GitError, GitWorker } from './git.js'
-import { addKnownPaths, claimGitOperation, failInterruptedGitOperations, finishGitOperation, knownPaths, setKnownPaths, type GitOperation } from './gitQueue.js'
+import { addKnownPaths, claimGitOperation, failInterruptedGitOperations, finishGitOperation, importedFiles, knownPaths, setImportedFiles, setKnownPaths, type GitOperation } from './gitQueue.js'
 import { claimNext, markInterrupted, workspaceFiles, type Job } from './queue.js'
 import { openSealed } from './secrets.js'
 import { Reporter } from './reporter.js'
@@ -91,8 +92,11 @@ async function runGit(op: GitOperation) {
  * Imports the default branch (design §10.2): the files go to the API in batches, which creates the new ones
  * and merges changes into existing documents as external edits, as the person who asked.
  */
+const sha256 = (text: string) => createHash('sha256').update(text, 'utf8').digest('hex')
+
 async function importBranch(op: GitOperation, target: Parameters<GitWorker['readBranch']>[1]) {
   const contents = await git.readBranch(op.workspaceId, target)
+  const previous = await importedFiles(db, op.workspaceId)
   const totals = { created: 0, updated: 0, unchanged: 0 }
   const refused: string[] = []
   const imported: string[] = []
@@ -116,12 +120,40 @@ async function importBranch(op: GitOperation, target: Parameters<GitWorker['read
     }
   }
   await setKnownPaths(db, op.workspaceId, imported)
+
+  // Files the last import brought in that the branch no longer has at all (a file that is merely skipped
+  // now, say because it grew past 1 MB, is still there). The API deletes those not edited here since.
+  const onBranch = new Set([...contents.files.keys(), ...contents.skipped.map((s) => s.path)])
+  const removed = Object.entries(previous).filter(([path]) => !onBranch.has(path)).map(([path, hash]) => ({ path, hash }))
+  let deleted: string[] = []
+  let kept: string[] = []
+  if (removed.length > 0) {
+    const response = await fetch(`${config.apiUrl.replace(/\/$/, '')}/internal/git/operations/${op.id}/import/deletions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Internal-Token': config.internalToken },
+      body: JSON.stringify({ files: removed }),
+      signal: AbortSignal.timeout(120_000),
+    })
+    if (!response.ok) throw new GitError(`The API refused the import's deletions (${response.status})`, await response.text().catch(() => ''))
+    ;({ deleted, kept } = (await response.json()) as { deleted: string[]; kept: string[] })
+  }
+  // A kept file stays on record, with the hash it was imported with, until it is deleted or reimported.
+  const next: Record<string, string> = {}
+  for (const path of imported) next[path] = sha256(contents.files.get(path)!)
+  for (const path of kept) next[path] = previous[path]!
+  await setImportedFiles(db, op.workspaceId, next)
+
   return {
     branch: op.params.branch,
     sha: contents.sha,
-    changedFiles: totals.created + totals.updated,
+    changedFiles: totals.created + totals.updated + deleted.length,
     ...totals,
-    skipped: [...contents.skipped.map((s) => `${s.path}: ${s.reason}`), ...refused].slice(0, 200),
+    deleted: deleted.length,
+    skipped: [
+      ...contents.skipped.map((s) => `${s.path}: ${s.reason}`),
+      ...refused,
+      ...kept.map((path) => `${path}: deleted on the branch but changed here since the last import, so kept`),
+    ].slice(0, 200),
   }
 }
 

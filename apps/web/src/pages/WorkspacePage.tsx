@@ -10,6 +10,7 @@ import { askText } from '../components/askText.tsx'
 import { GitDialog } from '../components/GitDialog.tsx'
 import { MembersDialog } from '../components/MembersDialog.tsx'
 import { WorkspaceDialog } from '../components/WorkspaceDialog.tsx'
+import { DeletedFilesDialog } from '../components/DeletedFilesDialog.tsx'
 import { PresenceAvatars } from '../components/PresenceAvatars.tsx'
 import { SessionsPanel } from '../components/SessionsPanel.tsx'
 import { SyncControl } from '../components/SyncControl.tsx'
@@ -47,6 +48,7 @@ export default function WorkspacePage() {
   const navigate = useNavigate()
   const [showMembers, setShowMembers] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [showDeleted, setShowDeleted] = useState(false)
   const [showGit, setShowGit] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
@@ -435,6 +437,7 @@ export default function WorkspacePage() {
         )}
       </TopBar>
       {showGit && workspace && <GitDialog workspace={workspace} refreshSignal={agentSignal} onClose={() => setShowGit(false)} />}
+      {showDeleted && workspace && <DeletedFilesDialog workspaceId={workspace.id} onClose={() => setShowDeleted(false)} />}
       {showSettings && workspace && (
         <WorkspaceDialog workspace={workspace} onChanged={setWorkspace} onClose={() => setShowSettings(false)} />
       )}
@@ -452,6 +455,7 @@ export default function WorkspacePage() {
           onRename={renameFile}
           onMove={moveFile}
           onDelete={deleteFile}
+          onShowDeleted={() => setShowDeleted(true)}
         />
       </aside>
       <section className="editor-area">

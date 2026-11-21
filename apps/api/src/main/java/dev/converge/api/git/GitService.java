@@ -120,7 +120,10 @@ public class GitService {
                         -- What Converge knows about the branch holds only while it is the same branch.
                         known_paths = case when git_repositories.remote_url = excluded.remote_url
                             and git_repositories.default_branch = excluded.default_branch
-                            then git_repositories.known_paths else '{}' end
+                            then git_repositories.known_paths else '{}' end,
+                        imported_files = case when git_repositories.remote_url = excluded.remote_url
+                            and git_repositories.default_branch = excluded.default_branch
+                            then git_repositories.imported_files else '{}' end
                     """)
                     .params(workspaceId, url, branch, remote.group(3), remote.group(4),
                             box.seal(secret, credentialContext(workspaceId)), hint, userId)
@@ -310,6 +313,51 @@ public class GitService {
             }
         }
         return new ImportResult(created, updated, unchanged, refused);
+    }
+
+    public record RemovedFile(String path, String hash) {
+    }
+
+    public record DeletionResult(List<String> deleted, List<String> kept) {
+    }
+
+    /**
+     * Files the last import brought in that are gone from the branch now: each is deleted here, as the
+     * person who asked, if its text still has the hash it was imported with. One edited in Converge since
+     * is kept, so an import never throws away work done here. Deleted files stay restorable from history.
+     */
+    public DeletionResult importDeletions(UUID operationId, List<RemovedFile> files) {
+        record Op(UUID workspaceId, UUID userId) {
+        }
+        Op op = jdbc.sql("select workspace_id, requested_by from git_operations where id = ? and type = 'PULL' and status = 'RUNNING'")
+                .param(operationId)
+                .query((rs, n) -> new Op(rs.getObject(1, UUID.class), rs.getObject(2, UUID.class)))
+                .optional().orElseThrow(() -> ApiException.conflict("This operation is not a running import"));
+        access.require(op.workspaceId(), op.userId(), Role.EDITOR);
+        record Live(UUID id, int rowVersion, String hash) {
+        }
+        List<String> deleted = new java.util.ArrayList<>();
+        List<String> kept = new java.util.ArrayList<>();
+        for (RemovedFile file : files) {
+            Live live = jdbc.sql("""
+                    select f.id, f.row_version, d.content_hash from files f join documents d on d.file_id = f.id
+                    where f.workspace_id = ? and f.path = ? and f.kind = 'FILE' and f.deleted_at is null
+                    """).params(op.workspaceId(), file.path())
+                    .query((rs, n) -> new Live(rs.getObject(1, UUID.class), rs.getInt(2), rs.getString(3)))
+                    .optional().orElse(null);
+            if (live == null) continue;
+            if (!live.hash().equals(file.hash())) {
+                kept.add(file.path());
+                continue;
+            }
+            try {
+                fileService.delete(live.id(), live.rowVersion(), op.userId());
+                deleted.add(file.path());
+            } catch (ApiException e) {
+                kept.add(file.path());
+            }
+        }
+        return new DeletionResult(deleted, kept);
     }
 
     /** Pushes the workspace's current text as a branch, without a pull request. */

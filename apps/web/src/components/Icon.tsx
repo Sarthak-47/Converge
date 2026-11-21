@@ -22,6 +22,7 @@ const PATHS = {
   branch: 'M6 4v16M18 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM6 20a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM18 8c0 6-12 4-12 8',
   people: 'M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM3 20c0-3 2.7-5 6-5s6 2 6 5M16 5.5a3 3 0 0 1 0 5.5M18 15c2 .6 3 2.3 3 5',
   pencil: 'M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4',
+  restore: 'M9 13L4 8l5-5M4 8h10a6 6 0 0 1 0 12h-4',
 } as const
 
 export type IconName = keyof typeof PATHS

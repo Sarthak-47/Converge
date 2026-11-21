@@ -77,6 +77,16 @@ public class FileController {
         return ResponseEntity.noContent().build();
     }
 
+    @GetMapping("/api/v1/workspaces/{workspaceId}/deleted-files")
+    List<FileService.DeletedFile> recentlyDeleted(@AuthenticationPrincipal AppUser user, @PathVariable UUID workspaceId) {
+        return files.recentlyDeleted(workspaceId, user.id());
+    }
+
+    @PostMapping("/api/v1/files/{id}/undelete")
+    FileNode undelete(@AuthenticationPrincipal AppUser user, @PathVariable UUID id) {
+        return files.restoreDeleted(id, user.id());
+    }
+
     @GetMapping("/api/v1/files/{id}/content")
     Content content(@AuthenticationPrincipal AppUser user, @PathVariable UUID id) {
         return files.content(id, user.id());

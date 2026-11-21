@@ -74,6 +74,17 @@ export async function setKnownPaths(db: pg.Pool, workspaceId: string, paths: str
   await db.query('update git_repositories set known_paths = $2 where workspace_id = $1', [workspaceId, paths])
 }
 
+/** What the last import brought in: path -> SHA-256 of its text. */
+export async function importedFiles(db: pg.Pool, workspaceId: string): Promise<Record<string, string>> {
+  const { rows } = await db.query<{ imported_files: Record<string, string> }>(
+    'select imported_files from git_repositories where workspace_id = $1', [workspaceId])
+  return rows[0]?.imported_files ?? {}
+}
+
+export async function setImportedFiles(db: pg.Pool, workspaceId: string, files: Record<string, string>) {
+  await db.query('update git_repositories set imported_files = $2 where workspace_id = $1', [workspaceId, JSON.stringify(files)])
+}
+
 /** A push adds what it wrote; paths it deleted stay known until an import, so later pushes delete them too. */
 export async function addKnownPaths(db: pg.Pool, workspaceId: string, paths: string[]) {
   await db.query(

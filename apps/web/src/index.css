@@ -2568,3 +2568,35 @@ select {
   flex: none;
   white-space: nowrap;
 }
+
+/* Recently deleted files: path and when on the left, Restore on the right. */
+.deleted-list {
+  max-height: 320px;
+  overflow: auto;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.deleted-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.deleted-path {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.deleted-path code {
+  overflow-wrap: anywhere;
+}
+
+.deleted-list button {
+  flex: none;
+}

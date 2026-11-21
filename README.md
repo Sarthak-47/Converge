@@ -10,7 +10,6 @@ The full design — architecture, protocols, roadmap and decision log — is in 
 - Desktop builds are unsigned, because signing needs code-signing certificates.
 - Trace ids flow through every service and appear in their logs, but spans are not exported to a tracing backend.
 - API sessions live in memory, so restarting the API signs people out, and the API runs as one instance.
-- Importing from GitHub adds and changes files but never deletes them in the workspace; delete them here by hand.
 
 ## Architecture at a glance
 

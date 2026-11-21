@@ -135,4 +135,42 @@ class FileApiTest extends IntegrationTest {
                 .andExpect(status().isNotFound());
         createFile(mallory, workspace, null, "evil.txt", "FILE").andExpect(status().isNotFound());
     }
+
+    @Test
+    void aDeletedFileComesBackAtItsPathWithTheFoldersDeletedAroundIt() throws Exception {
+        String docs = id(createFile(asha, workspace, null, "docs", "FOLDER"));
+        String guide = id(createFile(asha, workspace, docs, "guide.md", "FILE"));
+        perform(asha, delete("/api/v1/files/" + docs + "?rowVersion=0"), "{}").andExpect(status().isNoContent());
+
+        getAs(asha, "/api/v1/workspaces/{w}/deleted-files", workspace)
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].id").value(guide))
+                .andExpect(jsonPath("$[0].path").value("docs/guide.md"));
+
+        // Only editors bring files back.
+        MockHttpSession ben = signUp("Ben");
+        perform(ben, org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/v1/files/" + guide + "/undelete"), "{}")
+                .andExpect(status().isNotFound());
+
+        perform(asha, org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/v1/files/" + guide + "/undelete"), "{}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.path").value("docs/guide.md"));
+        getAs(asha, "/api/v1/workspaces/{w}/tree", workspace)
+                .andExpect(jsonPath("$[?(@.path == 'docs' && @.kind == 'FOLDER')]").exists())
+                .andExpect(jsonPath("$[?(@.path == 'docs/guide.md')]").exists());
+        getAs(asha, "/api/v1/workspaces/{w}/deleted-files", workspace).andExpect(jsonPath("$.length()").value(0));
+        // Restoring twice is refused: it is live again.
+        perform(asha, org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/v1/files/" + guide + "/undelete"), "{}")
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void aDeletedFileWhosePathIsTakenAgainIsNotOffered() throws Exception {
+        String first = id(createFile(asha, workspace, null, "notes.md", "FILE"));
+        perform(asha, delete("/api/v1/files/" + first + "?rowVersion=0"), "{}").andExpect(status().isNoContent());
+        createFile(asha, workspace, null, "notes.md", "FILE");
+        getAs(asha, "/api/v1/workspaces/{w}/deleted-files", workspace).andExpect(jsonPath("$.length()").value(0));
+        perform(asha, org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/v1/files/" + first + "/undelete"), "{}")
+                .andExpect(status().isConflict());
+    }
 }
