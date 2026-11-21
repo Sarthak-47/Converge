@@ -97,7 +97,14 @@ export const api = [
   [/\/workspaces\/[^/]+$/, workspaces[0]],
   [/\/tree$/, tree],
   [/\/chat$/, chat],
-  [/\/members$/, { members: [{ userId: asha.id, email: asha.email, displayName: asha.displayName, role: 'OWNER', joinedAt: now }], invitations: [] }],
+  [/\/members$/, {
+    members: [
+      { userId: asha.id, email: asha.email, displayName: asha.displayName, role: 'OWNER', joinedAt: '2026-11-01T09:00:00Z' },
+      { userId: ben.id, email: 'ben@example.test', displayName: ben.displayName, role: 'EDITOR', joinedAt: '2026-11-02T09:00:00Z' },
+      { userId: cara.id, email: 'cara@example.test', displayName: cara.displayName, role: 'EDITOR', joinedAt: '2026-11-03T09:00:00Z' },
+    ],
+    invitations: [],
+  }],
   [/\/provider-keys\/anthropic$/, { configured: true, hint: 'sk-ant-…7Q2x' }],
   [/\/agent-spend$/, { spentMicros: 7_400_000, dailyCapMicros: 20_000_000, turnCapMicros: 2_000_000 }],
   [/\/files\/[^/]+\/content$/, { fileId: 'f-1', path: 'src/checkout.ts', language: 'typescript', text: '', version: 1 }],

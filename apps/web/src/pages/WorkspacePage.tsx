@@ -13,7 +13,7 @@ import { PresenceAvatars } from '../components/PresenceAvatars.tsx'
 import { SessionsPanel } from '../components/SessionsPanel.tsx'
 import { SyncControl } from '../components/SyncControl.tsx'
 import { TopBar } from '../components/TopBar.tsx'
-import { CollabDocument, type Peer, type SyncState } from '../editor/collabDocument.ts'
+import { assignColors, CollabDocument, type Peer, type SyncState } from '../editor/collabDocument.ts'
 import { monaco } from '../editor/monaco.ts'
 import { useWorkspaceChannel, type ChatMessage, type WorkspaceEvent } from '../realtime/workspaceChannel.ts'
 import { Icon } from '../components/Icon.tsx'
@@ -76,14 +76,17 @@ export default function WorkspacePage() {
 
   useEffect(() => {
     const opened = openFiles.current
-    Promise.all([api.workspace(workspaceId), api.tree(workspaceId), api.chatHistory(workspaceId)])
-      .then(([w, tree, history]) => {
+    Promise.all([api.workspace(workspaceId), api.tree(workspaceId), api.chatHistory(workspaceId), api.members(workspaceId)])
+      .then(([w, tree, history, roster]) => {
+        // Before any file opens, so the colour each editor announces matches what everyone else deals it.
+        assignColors(roster.members.map((m) => m.userId))
         setWorkspace(w)
         setFiles(tree)
         setChat(history.reverse())
       })
       .catch((e: Error) => setLoadError(e.message))
     return () => {
+      assignColors([])
       opened.forEach((f) => {
         f.live.destroy()
         f.model.dispose()
@@ -156,6 +159,11 @@ export default function WorkspacePage() {
     }
     if (event.type === 'MEMBER_ADDED' || event.type === 'MEMBER_ROLE_CHANGED' || event.type === 'MEMBER_REMOVED') {
       if (event.payload.userId === user?.id) await refreshAccess()
+      // Re-deal colours so a new member gets the next free one, and re-render with them.
+      api.members(workspaceId).then((r) => {
+        assignColors(r.members.map((m) => m.userId))
+        setAgentSignal((n) => n + 1)
+      }).catch(() => undefined)
       return
     }
     const tree = await api.tree(workspaceId)

@@ -13,7 +13,6 @@ function collabUrl() {
   return `${scheme}://${window.location.host}/collab`
 }
 
-/** A stable, readable colour per user, so the same person looks the same in every tab. */
 // The sticker palette (index.css --sticker-1..6): one die-cut colour per person, all clear of lemon, which belongs to
 // primary actions and Live. Kept as hsl() strings, the only form awareness validation accepts from other clients.
 const THREADS = ['hsl(9 100% 59%)', 'hsl(230 100% 58%)', 'hsl(153 79% 43%)', 'hsl(333 100% 69%)', 'hsl(258 72% 52%)', 'hsl(195 100% 42%)']
@@ -35,7 +34,19 @@ export function inkFor(color: string): string {
   return onInk >= onWhite ? '#16171a' : '#ffffff'
 }
 
+// Inside a workspace, colours are dealt in roster order (join time, then name: the same on every client), so up to
+// six members never share one. Anyone not on the roster, and every page outside a workspace, falls back to a hash.
+let dealt = new Map<string, string>()
+
+/** Deals sticker colours to a workspace's members in roster order; an empty list clears the assignment. */
+export function assignColors(memberIds: string[]) {
+  dealt = new Map(memberIds.map((id, i) => [id, THREADS[i % THREADS.length]]))
+}
+
+/** A stable, readable colour per user, so the same person looks the same in every tab. */
 export function colorFor(userId: string) {
+  const assigned = dealt.get(userId)
+  if (assigned) return assigned
   let hash = 0
   for (const ch of userId) hash = (hash * 31 + ch.charCodeAt(0)) | 0
   return THREADS[Math.abs(hash) % THREADS.length]
