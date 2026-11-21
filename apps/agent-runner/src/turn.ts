@@ -78,6 +78,15 @@ function describe(error: unknown): string {
  * the live documents. Usage is recorded after every response and the turn stops at its cost cap; a cancel
  * takes effect at once during a request and otherwise at the next checkpoint between tool calls.
  */
+/**
+ * What each model accepts beyond the basics. Haiku 5.5 rejects server-side fallbacks with a 400 and has no
+ * progress-update thinking display; Opus 5.5 and Sonnet 5.5 support both.
+ */
+export function modelFeatures(model: string): { progressUpdates: boolean; fallbacks: boolean } {
+  if (model.startsWith('claude-haiku')) return { progressUpdates: false, fallbacks: false }
+  return { progressUpdates: true, fallbacks: true }
+}
+
 export async function runTurn(request: TurnRequest, options: TurnOptions): Promise<TurnStatus> {
   const { workspace, ledger, signal } = options
   const client = new Anthropic({ apiKey: request.apiKey, baseURL: options.baseURL, maxRetries: 2 })
@@ -117,6 +126,8 @@ export async function runTurn(request: TurnRequest, options: TurnOptions): Promi
         error = `The turn reached its limit of ${MAX_RESPONSES} model responses.`
         break
       }
+      const features = modelFeatures(request.model)
+      const fallbacks = options.fallbacks && features.fallbacks
       const stream = client.beta.messages.stream(
         {
           model: request.model,
@@ -124,15 +135,15 @@ export async function runTurn(request: TurnRequest, options: TurnOptions): Promi
           system: SYSTEM,
           tools,
           messages,
-          thinking: { type: 'adaptive', display: 'updates' },
+          thinking: features.progressUpdates ? { type: 'adaptive', display: 'updates' } : { type: 'adaptive' },
           output_config: { effort: request.effort, task_budget: { type: 'tokens', total: TASK_BUDGET_TOKENS } },
           cache_control: { type: 'ephemeral' },
           betas: [
             'task-budgets-2026-03-13',
-            'thinking-display-updates-2026-08-18',
-            ...(options.fallbacks ? (['server-side-fallback-2026-07-01'] as const) : []),
+            ...(features.progressUpdates ? (['thinking-display-updates-2026-08-18'] as const) : []),
+            ...(fallbacks ? (['server-side-fallback-2026-07-01'] as const) : []),
           ],
-          ...(options.fallbacks ? { fallbacks: 'default' as const } : {}),
+          ...(fallbacks ? { fallbacks: 'default' as const } : {}),
         },
         { signal },
       )

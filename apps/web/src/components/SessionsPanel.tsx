@@ -109,6 +109,14 @@ export function SessionsPanel(props: Props) {
   )
 }
 
+/** "claude-sonnet-5-5" as "Sonnet 5.5". */
+function modelName(model: string): string {
+  const match = /^claude-([a-z]+)-(\d+)(?:-(\d+))?$/.exec(model)
+  if (!match) return model
+  const [, family, major, minor] = match
+  return `${family![0]!.toUpperCase()}${family!.slice(1)} ${major}${minor ? `.${minor}` : ''}`
+}
+
 function SessionView({ workspaceId, currentUser, role, refreshSignal, jobSignal, sessionId, onOpenSession, onShowComment }: Props & { sessionId: string }) {
   const [detail, setDetail] = useState<SessionDetail | null>(null)
   const [approvals, setApprovals] = useState<Approval[]>([])
@@ -121,6 +129,9 @@ function SessionView({ workspaceId, currentUser, role, refreshSignal, jobSignal,
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  // The member's pick for their next turn: quick edits on a cheaper model, hard ones on the strongest.
+  const [models, setModels] = useState<string[]>([])
+  const [model, setModel] = useState<string | null>(null)
   const canEdit = role === 'OWNER' || role === 'EDITOR'
   const canComment = canEdit || role === 'COMMENTER'
   const [key, setKey] = useAgentKey(canEdit)
@@ -140,6 +151,10 @@ function SessionView({ workspaceId, currentUser, role, refreshSignal, jobSignal,
   useEffect(() => {
     reload()
   }, [reload, refreshSignal])
+
+  useEffect(() => {
+    api.agentModels(workspaceId).then(setModels).catch(() => setModels([]))
+  }, [workspaceId])
 
   async function run(action: () => Promise<unknown>, fallback: string) {
     setError(null)
@@ -184,7 +199,7 @@ function SessionView({ workspaceId, currentUser, role, refreshSignal, jobSignal,
       return
     }
     void run(async () => {
-      await api.promptAgent(workspaceId, text, sessionId)
+      await api.promptAgent(workspaceId, text, sessionId, model ?? undefined)
       setDraft('')
     }, 'Could not start the agent')
   }
@@ -403,7 +418,14 @@ function SessionView({ workspaceId, currentUser, role, refreshSignal, jobSignal,
               if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) send(e)
             }}
           />
-          <button type="submit" className="primary" disabled={busy || !draft.trim()}>{myRunning ? 'Steer' : 'Send to agent'}</button>
+          <div className="agent-send">
+            {!myRunning && models.length > 1 && (
+              <select aria-label="Model for this turn" value={model ?? models[0]} onChange={(e) => setModel(e.target.value)}>
+                {models.map((m) => <option key={m} value={m}>{modelName(m)}</option>)}
+              </select>
+            )}
+            <button type="submit" className="primary" disabled={busy || !draft.trim()}>{myRunning ? 'Steer' : 'Send to agent'}</button>
+          </div>
         </form>
       )}
     </section>

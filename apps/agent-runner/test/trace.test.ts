@@ -21,3 +21,12 @@ describe('W3C trace context', () => {
     expect(childHeader(context)).not.toContain('00f067aa0ba902b7')
   })
 })
+
+describe('model features', async () => {
+  const { modelFeatures } = await import('../src/turn.js')
+  it('sends Haiku neither fallbacks nor the progress-update display, which it rejects', () => {
+    expect(modelFeatures('claude-haiku-5-5')).toEqual({ progressUpdates: false, fallbacks: false })
+    expect(modelFeatures('claude-sonnet-5-5')).toEqual({ progressUpdates: true, fallbacks: true })
+    expect(modelFeatures('claude-opus-5-5')).toEqual({ progressUpdates: true, fallbacks: true })
+  })
+})

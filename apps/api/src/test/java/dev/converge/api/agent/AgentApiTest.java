@@ -94,6 +94,22 @@ class AgentApiTest extends IntegrationTest {
     }
 
     @Test
+    void aMemberPicksTheModelForATurnFromTheAllowedOnes() throws Exception {
+        setKey(asha, KEY);
+        getAs(asha, "/api/v1/workspaces/{w}/agent/turns/models", workspace)
+                .andExpect(jsonPath("$[0]").value("claude-opus-5-5"))
+                .andExpect(jsonPath("$.length()").value(3));
+        perform(asha, post("/api/v1/workspaces/" + workspace + "/agent/turns"), "{'prompt':'quick fix','model':'gpt-5'}")
+                .andExpect(status().isBadRequest());
+        perform(asha, post("/api/v1/workspaces/" + workspace + "/agent/turns"), "{'prompt':'quick fix','model':'claude-haiku-5-5'}")
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.model").value("claude-haiku-5-5"));
+        ArgumentCaptor<StartTurn> started = ArgumentCaptor.forClass(StartTurn.class);
+        verify(agentRunner).start(started.capture());
+        assertThat(started.getValue().model()).isEqualTo("claude-haiku-5-5");
+    }
+
+    @Test
     void aTurnRunsOnTheSponsorsKeyAndRecordsItsTranscriptAndCost() throws Exception {
         setKey(asha, KEY);
         String turn = id(prompt(asha, "add validation").andExpect(status().isCreated())

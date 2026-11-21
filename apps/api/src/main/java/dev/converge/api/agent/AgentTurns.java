@@ -61,6 +61,7 @@ public class AgentTurns {
     private final TransactionTemplate tx;
     private final JsonMapper json = JsonMapper.builder().build();
     private final String model;
+    private final java.util.List<String> models;
     private final String effort;
     private final long costCapMicros;
     private final long dailyCapMicros;
@@ -73,6 +74,7 @@ public class AgentTurns {
             dev.converge.api.common.RateLimiter limits, dev.converge.api.common.ConvergeMetrics metrics, SecretBox box,
             AgentRunnerClient runner, ApplicationEventPublisher events, TransactionTemplate tx,
             @Value("${converge.agent.model}") String model, @Value("${converge.agent.effort}") String effort,
+            @Value("${converge.agent.models:claude-opus-5-5,claude-sonnet-5-5,claude-haiku-5-5}") String choices,
             @Value("${converge.agent.cost-cap-micros}") long costCapMicros,
             @Value("${converge.agent.daily-cap-micros:20000000}") long dailyCapMicros) {
         this.dailyCapMicros = dailyCapMicros;
@@ -87,6 +89,9 @@ public class AgentTurns {
         this.events = events;
         this.tx = tx;
         this.model = model;
+        java.util.List<String> allowed = new java.util.ArrayList<>(java.util.List.of(model));
+        java.util.Arrays.stream(choices.split(",")).map(String::strip).filter(m -> !m.isEmpty() && !allowed.contains(m)).forEach(allowed::add);
+        this.models = java.util.List.copyOf(allowed);
         this.effort = effort;
         this.costCapMicros = costCapMicros;
     }
@@ -97,6 +102,21 @@ public class AgentTurns {
      * read and update the plan.
      */
     public Turn start(UUID workspaceId, UUID sessionId, UUID userId, String displayName, String prompt) {
+        return start(workspaceId, sessionId, userId, displayName, prompt, null);
+    }
+
+    /** The models members may choose per turn, the default first (design §13.4). */
+    public java.util.List<String> models() {
+        return models;
+    }
+
+    /**
+     * As {@link #start(UUID, UUID, UUID, String, String)}, on a model the member chose from the allowed ones
+     * (null for the default): a cheaper model for quick edits, the strongest for hard ones.
+     */
+    public Turn start(UUID workspaceId, UUID sessionId, UUID userId, String displayName, String prompt, String requestedModel) {
+        String model = requestedModel == null || requestedModel.isBlank() ? this.model : requestedModel.strip();
+        if (!models.contains(model)) throw ApiException.badRequest("Choose one of the available models: " + String.join(", ", models));
         access.require(workspaceId, userId, Role.EDITOR);
         limits.check(dev.converge.api.common.RateLimiter.AGENT_PROMPT, userId.toString());
         String task = sessionId == null ? null : sessionTask(workspaceId, sessionId);

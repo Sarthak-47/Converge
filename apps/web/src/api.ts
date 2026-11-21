@@ -154,8 +154,10 @@ export const api = {
   setAgentKey: (apiKey: string) => request<AgentKey>('PUT', '/me/provider-keys/anthropic', { apiKey }),
   removeAgentKey: () => request<void>('DELETE', '/me/provider-keys/anthropic'),
   agentTurns: (workspaceId: string) => request<AgentTurn[]>('GET', `/workspaces/${workspaceId}/agent/turns`),
-  promptAgent: (workspaceId: string, prompt: string, sessionId?: string) =>
-    request<AgentTurn>('POST', `/workspaces/${workspaceId}/agent/turns`, { prompt, sessionId }),
+  promptAgent: (workspaceId: string, prompt: string, sessionId?: string, model?: string) =>
+    request<AgentTurn>('POST', `/workspaces/${workspaceId}/agent/turns`, { prompt, sessionId, model }),
+  /** The models a member may pick for a turn, the default first. */
+  agentModels: (workspaceId: string) => request<string[]>('GET', `/workspaces/${workspaceId}/agent/turns/models`),
   steerTurn: (workspaceId: string, turnId: string, text: string) =>
     request<AgentTurn>('POST', `/workspaces/${workspaceId}/agent/turns/${turnId}/steer`, { text }),
 

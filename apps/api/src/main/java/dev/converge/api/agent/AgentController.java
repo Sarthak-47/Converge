@@ -25,7 +25,7 @@ import dev.converge.api.auth.AppUser;
 @RequestMapping("/api/v1/workspaces/{workspaceId}/agent/turns")
 public class AgentController {
 
-    public record Prompt(@NotBlank @Size(max = 20_000) String prompt, UUID sessionId) {
+    public record Prompt(@NotBlank @Size(max = 20_000) String prompt, UUID sessionId, @Size(max = 100) String model) {
     }
 
     public record Steer(@NotBlank @Size(max = 4000) String text) {
@@ -47,7 +47,13 @@ public class AgentController {
     ResponseEntity<Turn> start(@AuthenticationPrincipal AppUser user, @PathVariable UUID workspaceId,
             @Valid @RequestBody Prompt body) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(turns.start(workspaceId, body.sessionId(), user.id(), user.displayName(), body.prompt().strip()));
+                .body(turns.start(workspaceId, body.sessionId(), user.id(), user.displayName(), body.prompt().strip(), body.model()));
+    }
+
+    /** The models a member may choose for a turn, the default first. */
+    @GetMapping("/models")
+    List<String> models(@AuthenticationPrincipal AppUser user, @PathVariable UUID workspaceId) {
+        return turns.models();
     }
 
     @PostMapping("/{turnId}/cancel")

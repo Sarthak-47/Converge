@@ -2660,3 +2660,18 @@ select {
 .device-all {
   margin-top: 12px;
 }
+
+/* Prompt box: the model picker sits beside the send button. */
+.agent-send {
+  display: flex;
+  gap: 8px;
+}
+
+.agent-send select {
+  flex: none;
+  max-width: 45%;
+}
+
+.agent-send button {
+  flex: 1;
+}
