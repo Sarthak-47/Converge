@@ -88,6 +88,9 @@ try {
         await settle(page, 400)
         await shot(page, name)
       }
+      await page.locator('.agent-note').first().scrollIntoViewIfNeeded()
+      await settle(page, 400)
+      await shot(page, 'session-note')
       await page.getByRole('tab', { name: 'Memory' }).click()
       await settle(page)
       await shot(page, 'memory')

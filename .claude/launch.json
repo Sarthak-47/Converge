@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web-on-stack",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:stack", "-w", "@converge/web"],
+      "port": 5173
+    }
+  ]
+}

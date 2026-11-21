@@ -80,6 +80,7 @@
     --die: #f2f2ee;
     --lift: 0 7px 16px -5px rgb(0 0 0 / 0.75), 0 1px 2px rgb(0 0 0 / 0.5);
     --shadow-sheet: none;
+    --terminal: #0b0c0e;
     color-scheme: dark;
   }
 }
@@ -100,6 +101,7 @@
   --die: #f2f2ee;
   --lift: 0 7px 16px -5px rgb(0 0 0 / 0.75), 0 1px 2px rgb(0 0 0 / 0.5);
   --shadow-sheet: none;
+  --terminal: #0b0c0e;
   color-scheme: dark;
 }
 
@@ -2025,6 +2027,7 @@ select {
 }
 
 .approval-command {
+  border: 1px solid var(--border-strong);
   display: block;
   margin: 6px 0;
   padding: 7px 10px;
@@ -2278,4 +2281,89 @@ select {
     animation-duration: 0ms !important;
     animation-delay: 0ms !important;
   }
+}
+
+/* ------------------------------------------------------------------------------------------------------------
+ * Comic grammar for agent lanes. Speech is a person (a prompt to their agent, like chat); a caption box is the
+ * agent narrating; a thought bubble is an agent's note to itself. Tool lines stay plain mono: they are the record.
+ * ---------------------------------------------------------------------------------------------------------- */
+.agent-turn .agent-prompt {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  margin-top: 12px;
+  padding: 7px 11px;
+  border: 1.5px solid var(--text);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--who, var(--text)) 14%, var(--surface));
+}
+
+.agent-turn .agent-prompt::before {
+  content: '';
+  position: absolute;
+  top: -6.5px;
+  left: 9px;
+  width: 10px;
+  height: 10px;
+  border-top: 1.5px solid var(--text);
+  border-left: 1.5px solid var(--text);
+  background: inherit;
+  transform: rotate(45deg);
+}
+
+.agent-turn .agent-prompt .muted {
+  color: var(--text);
+  font-weight: 700;
+}
+
+/* The narrator's caption box: square corners, ink rule, set a step apart from speech. */
+.agent-turn .agent-text {
+  margin-top: 8px;
+  padding: 7px 11px;
+  border: 1.5px solid var(--text);
+  border-radius: 0;
+  background: var(--surface-2);
+}
+
+/* A thought bubble: rounded, with two small circles trailing back to the agent. */
+.agent-turn .agent-note {
+  position: relative;
+  display: inline-block;
+  max-width: calc(100% - 24px);
+  margin: 10px 0 4px 22px;
+  padding: 7px 14px;
+  border: 1.5px solid var(--text);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.agent-turn .agent-note::before,
+.agent-turn .agent-note::after {
+  content: '';
+  position: absolute;
+  border: 1.5px solid var(--text);
+  border-radius: 50%;
+  background: var(--surface);
+}
+
+.agent-turn .agent-note::before {
+  left: -12px;
+  bottom: 2px;
+  width: 10px;
+  height: 10px;
+}
+
+.agent-turn .agent-note::after {
+  left: -20px;
+  bottom: -5px;
+  width: 6px;
+  height: 6px;
+}
+
+/* Halftone: the comic printer's dot, only on the lid itself (sign-in) and the empty editor. */
+.auth-story,
+.editor-empty {
+  background-image: radial-gradient(color-mix(in srgb, var(--text) 9%, transparent) 1.1px, transparent 1.4px);
+  background-size: 9px 9px;
 }

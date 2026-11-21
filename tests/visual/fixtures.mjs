@@ -55,6 +55,7 @@ const turns = [
   turn('t1', asha, 'SUCCEEDED', [
     { seq: 1, kind: 'prompt', text: 'Round tax to the cent per line item.' },
     { seq: 2, kind: 'tool', ok: true, summary: 'read src/checkout.ts' },
+    { seq: 21, kind: 'note', text: 'The invoice service rounds each line, so rounding the order total would drift by a cent.' },
     { seq: 3, kind: 'tool', ok: true, summary: 'edited src/checkout.ts' },
     { seq: 4, kind: 'approval', approvalId: 'ap0' },
     { seq: 5, kind: 'text', text: 'Tax now rounds per line; totals match the invoice service.' },

@@ -305,7 +305,17 @@ Tactile and plain: a white sheet button with a strong seam, pressing down 1px.
 A 12px pill track of 9px ticks (Pressed Wash on Sheet Tint) inside a 1.5px seam; the fill is solid ink. Fixed capacity: it fills and cannot overflow.
 
 ### Terminal blocks
-Approval commands and job output are Terminal Night with Terminal Chalk mono at 12px, 6px radius, in both themes.
+Approval commands and job output are Terminal Night with Terminal Chalk mono at 12px, 6px radius, in both themes. In dark mode Terminal Night is a step deeper (#0b0c0e) than the sheet, and the command strip carries a hairline, so it never merges with the card.
+
+### Comic grammar (signature)
+Each kind of voice has one comic device, and only conversation and agent lanes use them; the editor stays plain.
+- **Speech balloon** (a person speaking): chat messages and a person's prompt or steering to their agent. 1.5px ink outline, 10px radius, a rotated-square tail pointing up at the speaker's sticker; your own (and prompts) tinted 14 to 16% with the speaker's colour.
+- **Caption box** (the agent narrating): the agent's text output. Square corners, 1.5px ink rule, Sheet Tint fill. No shadow.
+- **Thought bubble** (an agent thinking): agent notes, which come from the model's thinking. A pill outline with two small circles trailing back toward the agent.
+- **Rubber stamp** (a decision): APPROVED, DENIED (red) or EXPIRED (dotted) rotated on a decided approval card. Decoration only; its text is hidden from assistive technology because the sentence beside it names who decided.
+- **Halftone** (the printer's dot): a faint dot screen on the sign-in lid and the empty editor only, never behind working content.
+
+Tool lines are not comic: they stay plain mono, the record of what happened.
 
 ## Do's and Don'ts
 

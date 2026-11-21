@@ -4,7 +4,13 @@ import { defineConfig } from 'vite'
 
 // In development the Vite server stands in for nginx: one origin for the app, the API and
 // the collaboration socket, matching production routing (design §12.4).
-export default defineConfig({
+// `vite --mode stack` instead proxies everything through the running Compose stack's nginx (port 8000), with the
+// Origin rewritten to the stack's own, so the API's and the collaboration service's origin checks accept it. Used to
+// iterate on the UI against real data.
+const STACK = 'http://localhost:8000'
+const viaStack = { target: STACK, changeOrigin: true, headers: { Origin: STACK } }
+
+export default defineConfig(({ mode }) => ({
   plugins: [react()],
   resolve: {
     alias: [
@@ -20,10 +26,13 @@ export default defineConfig({
   build: { chunkSizeWarningLimit: 3000 },
   server: {
     port: 5173,
-    proxy: {
-      '/api': 'http://localhost:8080',
-      '/ws': { target: 'ws://localhost:8080', ws: true },
-      '/collab': { target: 'ws://localhost:1234', ws: true, rewrite: (path) => path.replace(/^\/collab/, '') },
-    },
+    proxy:
+      mode === 'stack'
+        ? { '/api': viaStack, '/ws': { ...viaStack, ws: true }, '/collab': { ...viaStack, ws: true } }
+        : {
+            '/api': 'http://localhost:8080',
+            '/ws': { target: 'ws://localhost:8080', ws: true },
+            '/collab': { target: 'ws://localhost:1234', ws: true, rewrite: (path) => path.replace(/^\/collab/, '') },
+          },
   },
-})
+}))
