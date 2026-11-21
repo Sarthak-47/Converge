@@ -35,5 +35,17 @@ The Phase 13 exit report (design §19): p95 latency, recovery numbers and cost p
 ## Limits of this baseline
 
 - **One machine, small scale**: 40 clients, not the design's 100 clients over 10 workspaces. The script takes `CLIENTS`, `WORKSPACES`, `FILES_PER_WORKSPACE` and `DURATION_MS`, and a larger run needs a bigger host than a CI runner. CPU was not sampled during the run, only memory at the end.
-- **Delayed, not dropped**: the network is delayed but never drops messages; Yjs's sync protocol would repair a lost update on the next sync. Fault injection with Toxiproxy (latency spikes, bandwidth limits, cut connections between the services and PostgreSQL) is still to do.
+- **Delayed, not dropped**: the network is delayed but never drops messages; Yjs's sync protocol would repair a lost update on the next sync. Cut and slowed connections between services are measured separately, under **Fault injection** below.
 - **No external model**: agent costs come from the scripted fake model, so the real API's latency and refusals are not part of this measurement.
+
+## Fault injection
+
+`tests/chaos/faults.mjs` runs in its own CI job with the `chaos` Compose profile, which routes the collaboration service's database connection and the API's calls to the collaboration service through Toxiproxy. Two people type into one file in each scenario. Results from the CI run on 2026-11-20 (commit c8f6c0e):
+
+| Scenario | Result |
+|---|---|
+| Database 400 ms slower (±100 ms jitter) while typing | Both replicas converged at once; everything was stored 2.1 s later |
+| Database unreachable for about 8 s while typing | Replicas kept converging while it was down; everything was stored 2.0 s after it returned |
+| API cannot reach the collaboration service | An external write answered 503 after 25 ms and changed nothing; writes worked again 35 ms after the fault cleared |
+
+The first version of this job found two real faults, both fixed before these numbers were taken. An idle database connection dropped by the database crashed the collaboration service (the pg pool's `error` event had no listener). And edits made while the database was down were never stored once it returned, because Hocuspocus stores again only on the next change; failed stores are now retried with backoff while the document stays loaded.

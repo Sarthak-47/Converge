@@ -4,7 +4,7 @@ A real-time, multi-user development environment where a team and its coding agen
 
 The full design — architecture, protocols, roadmap and decision log — is in [docs/Converge_System_Design.docx](docs/Converge_System_Design.docx) (Revision 4).
 
-**Status:** every phase of the roadmap through production hardening is built and tested (see [docs/WORKLOG.md](docs/WORKLOG.md) for the decisions behind each step and [docs/BASELINE.md](docs/BASELINE.md) for measured latency and recovery). Not yet done: pulling a repository into a workspace, tracing across services, and signed desktop builds.
+**Status:** every phase of the roadmap through production hardening is built and tested (see [docs/WORKLOG.md](docs/WORKLOG.md) for the decisions behind each step and [docs/BASELINE.md](docs/BASELINE.md) for measured latency and recovery). Not yet done: signed desktop builds (they need code-signing certificates) and exporting traces to a tracing backend (trace IDs already flow through every service and appear in their logs).
 
 ## Architecture at a glance
 
