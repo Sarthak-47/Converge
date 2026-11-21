@@ -33,7 +33,7 @@ export function ChatPanel({ messages, currentUserId, canPost, connected, onSend 
   return (
     <aside className="chat" aria-label="Chat">
       <ol className="chat-messages" ref={list}>
-        {messages.length === 0 && <li className="muted small">No messages yet.</li>}
+        {messages.length === 0 && <li className="chat-empty small">No messages yet. Say hello.</li>}
         {messages.map((m) => (
           <li key={m.id} className={m.userId === currentUserId ? 'mine' : ''} style={{ '--who': colorFor(m.userId) } as CSSProperties}>
             <div className="chat-meta">

@@ -315,6 +315,9 @@ Each kind of voice has one comic device, and only conversation and agent lanes u
 - **Rubber stamp** (a decision): APPROVED, DENIED (red) or EXPIRED (dotted) rotated on a decided approval card. Decoration only; its text is hidden from assistive technology because the sentence beside it names who decided.
 - **Halftone** (the printer's dot): a faint dot screen on the sign-in lid and the empty editor only, never behind working content.
 
+- **Typing dots** (still talking): a running agent turn ends in a small caption box whose three dots light in turn, above its cost and actions.
+- **Empty balloon** (nothing said yet): an empty chat is a dashed balloon inviting the first line.
+
 Tool lines are not comic: they stay plain mono, the record of what happened.
 
 ## Do's and Don'ts
