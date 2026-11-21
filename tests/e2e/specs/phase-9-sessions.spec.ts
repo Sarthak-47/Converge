@@ -99,6 +99,14 @@ test("two members' agents work one session, and a takeover race has exactly one 
   for (const p of [ben.page, cara.page]) {
     await expect(p.locator('.session-head')).toContainText('driven by Asha')
   }
+  // Two clicks from a test are never truly simultaneous: if the first takeover's update reached the other
+  // page before its click, that click would rightly take over from the new driver. Holding back both pages'
+  // session reloads for a moment makes both requests carry the same version, so they really race.
+  const holdReloads = (p: typeof page) => p.route(/\/api\/v1\/sessions\/[^/]+$/, async (route) => {
+    if (route.request().method() === 'GET') await new Promise((resolve) => setTimeout(resolve, 3000))
+    await route.continue()
+  })
+  await Promise.all([holdReloads(ben.page), holdReloads(cara.page)])
   await Promise.all([
     ben.page.getByRole('button', { name: 'Take over' }).click(),
     cara.page.getByRole('button', { name: 'Take over' }).click(),
