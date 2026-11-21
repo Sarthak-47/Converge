@@ -77,7 +77,7 @@ Propagation is still the artificial delay, not the server: p50 and p95 match the
 | Converged after typing stopped | within 541 ms | within 549 ms |
 | Memory at the end (collab / API / nginx) | 107 / 367 / 9 MiB | 110 / 397 / 8 MiB |
 
-Everything that measures the service under load is unchanged: propagation still matches the artificial delay, nothing was lost, and recovery is within a tenth of a second. The higher initial sync is one measurement per run, taken while 100 clients connect at once on a shared runner, so it varies from run to run. The workflow runs without span export; its cost was measured separately (see "Cost of span export" below).
+Everything that measures the service under load is unchanged: propagation still matches the artificial delay, nothing was lost, and recovery is within a tenth of a second. The higher initial sync is one measurement per run, taken while 100 clients connect at once on a shared runner, so it varies from run to run. The workflow runs without span export; its cost was measured separately (see "Cost of span export" above).
 
 ## Fault injection
 
