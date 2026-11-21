@@ -127,9 +127,10 @@ const server = new Server<ConnectionContext>({
     metrics.connections.inc({ service: 'collab' })
   },
 
-  async onDisconnect({ socketId }) {
+  async onDisconnect({ socketId, documentName, context }) {
     metrics.connections.dec({ service: 'collab' })
     limiter.forget(socketId)
+    log('INFO', 'DOCUMENT_LEFT', { fileId: documentName, userId: (context as ConnectionContext | undefined)?.userId, connectionId: socketId })
   },
 
   /** Per-connection message and byte budgets (design §7.4); a client beyond them is closed with 4429. */
@@ -137,7 +138,7 @@ const server = new Server<ConnectionContext>({
     metrics.updateBytes.observe(update.length)
     if (!limiter.allow(socketId, update.length)) {
       metrics.rateLimited.inc()
-      log('WARN', 'RATE_LIMITED', { socketId })
+      log('WARN', 'RATE_LIMITED', { connectionId: socketId })
       throw { code: 4429, reason: 'Too many updates' }
     }
   },
@@ -153,10 +154,11 @@ const server = new Server<ConnectionContext>({
   async onAuthenticate(data) {
     try {
       const context = await authenticate(data)
-      log('INFO', 'DOCUMENT_JOINED', { fileId: data.documentName, userId: context.userId, role: context.role })
+      // The connection id (design §3.2, observability) ties every later line about this socket together.
+      log('INFO', 'DOCUMENT_JOINED', { fileId: data.documentName, userId: context.userId, role: context.role, connectionId: data.socketId })
       return context
     } catch (error) {
-      log('WARN', 'AUTH_REJECTED', { fileId: data.documentName, reason: (error as Error).message })
+      log('WARN', 'AUTH_REJECTED', { fileId: data.documentName, reason: (error as Error).message, connectionId: data.socketId })
       metrics.authRejections.inc({ reason: (error as Error).message.startsWith('Not authorized') ? 'ticket' : 'document' })
       throw error
     }
