@@ -6,9 +6,7 @@ The full design — architecture, protocols, roadmap and decision log — is in 
 
 **Status:** every functional requirement in the design (§3.1) is built and tested, along with the stretch goals: agents, sessions, approvals, workspace memory, Git (including import and push webhooks) and the desktop app with live local sync. See [docs/WORKLOG.md](docs/WORKLOG.md) for the decisions behind each step and [docs/BASELINE.md](docs/BASELINE.md) for measured latency, load and fault recovery.
 
-**Known limits:**
-- Desktop builds are unsigned, because signing needs code-signing certificates.
-- API sessions live in memory, so restarting the API signs people out, and the API runs as one instance.
+**Known limit:** desktop builds are unsigned, because signing needs paid code-signing certificates.
 
 ## Architecture at a glance
 

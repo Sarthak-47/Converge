@@ -22,6 +22,12 @@ spring:
       enabled: true
   flyway:
     locations: classpath:db/migration
+  session:
+    # Matches server.servlet.session.timeout; Spring Session keeps its own.
+    timeout: 12h
+    jdbc:
+      # The tables come from a Flyway migration (V15), like every other table.
+      initialize-schema: never
 
 logging:
   pattern:

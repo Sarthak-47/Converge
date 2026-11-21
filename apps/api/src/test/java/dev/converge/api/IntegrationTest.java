@@ -40,7 +40,11 @@ import dev.converge.api.realtime.CollabClient;
         "converge.internal-token=" + IntegrationTest.INTERNAL_TOKEN,
         "converge.secrets-key=" + IntegrationTest.SECRETS_KEY,
         // Tests sign up many users from one address; RateLimitTest checks the limits on their own.
-        "converge.rate-limits.scale=0"
+        "converge.rate-limits.scale=0",
+        // These tests pass MockHttpSession objects around, which Spring Session (cookies only) would ignore;
+        // SharedSessionTest covers the real session store.
+        "spring.autoconfigure.exclude=org.springframework.boot.session.jdbc.autoconfigure.JdbcSessionAutoConfiguration,"
+                + "org.springframework.boot.session.autoconfigure.SessionAutoConfiguration"
 })
 @AutoConfigureMockMvc
 public abstract class IntegrationTest {
