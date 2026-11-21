@@ -1638,7 +1638,6 @@ select {
 
 .agent-tool.failed {
   color: var(--down-text);
-  text-decoration: line-through;
 }
 
 .agent-note {
@@ -1787,6 +1786,12 @@ select {
 .session-actions button {
   min-height: 28px;
   padding: 3px 10px;
+}
+
+/* The primary action takes its own row; quiet actions sit together above it. */
+.session-actions .primary {
+  order: 1;
+  flex-basis: 100%;
 }
 
 .session-scroll {

@@ -307,7 +307,7 @@ function SessionView({ workspaceId, currentUser, role, refreshSignal, jobSignal,
                     <button type="button" className="ghost" disabled={busy} onClick={() => void run(() => api.updateStep(step, step.status, true), 'Could not hand back the step')}>Hand back</button>
                   </>
                 )}
-                {canComment && <button type="button" className="ghost" onClick={() => void commentOn({ stepId: step.id })} aria-label={`Comment on step ${step.position}`}>💬</button>}
+                {canComment && <button type="button" className="ghost" onClick={() => void commentOn({ stepId: step.id })} aria-label={`Comment on step ${step.position}`}><Icon name="comment" size={14} /></button>}
               </span>
             </li>
           ))}

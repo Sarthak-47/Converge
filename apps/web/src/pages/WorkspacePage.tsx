@@ -485,7 +485,7 @@ export default function WorkspacePage() {
               <li key={comment.id} className={comment.status === 'RESOLVED' ? 'resolved' : ''}>
                 <button type="button" className="link small" disabled={outdated}
                   onClick={() => setReveal({ start, end, key: `${comment.id}-${Date.now()}` })}>
-                  💬 {comment.authorName}: {comment.body}
+                  <Icon name="comment" size={13} /> {comment.authorName}: {comment.body}
                 </button>
                 {outdated && <span className="muted small"> (outdated: the code it pointed at was removed)</span>}
                 {comment.status === 'RESOLVED' && <span className="muted small"> (resolved)</span>}
