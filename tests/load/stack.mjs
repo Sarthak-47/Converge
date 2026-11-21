@@ -33,7 +33,8 @@ export class Session {
 
 export async function person(name) {
   const session = new Session()
-  const email = `load-${name}-${Date.now()}-${Math.random().toString(36).slice(2)}@example.test`
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+  const email = `load-${slug}-${Date.now()}-${Math.random().toString(36).slice(2)}@example.test`
   const user = await session.request('POST', '/api/v1/auth/register', { email, displayName: name, password: 'correct horse battery' })
   return { session, email, id: user.id, name }
 }
