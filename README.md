@@ -4,7 +4,13 @@ A real-time, multi-user development environment where a team and its coding agen
 
 The full design — architecture, protocols, roadmap and decision log — is in [docs/Converge_System_Design.docx](docs/Converge_System_Design.docx) (Revision 4).
 
-**Status:** every phase of the roadmap through production hardening is built and tested (see [docs/WORKLOG.md](docs/WORKLOG.md) for the decisions behind each step and [docs/BASELINE.md](docs/BASELINE.md) for measured latency and recovery). Not yet done: signed desktop builds (they need code-signing certificates) and exporting traces to a tracing backend (trace IDs already flow through every service and appear in their logs).
+**Status:** every functional requirement in the design (§3.1) is built and tested, along with the stretch goals: agents, sessions, approvals, workspace memory, Git (including import and push webhooks) and the desktop app with live local sync. See [docs/WORKLOG.md](docs/WORKLOG.md) for the decisions behind each step and [docs/BASELINE.md](docs/BASELINE.md) for measured latency, load and fault recovery.
+
+**Known limits:**
+- Desktop builds are unsigned, because signing needs code-signing certificates.
+- Trace ids flow through every service and appear in their logs, but spans are not exported to a tracing backend.
+- API sessions live in memory, so restarting the API signs people out, and the API runs as one instance.
+- Pushes from Converge add and change files but never delete them on the branch.
 
 ## Architecture at a glance
 
