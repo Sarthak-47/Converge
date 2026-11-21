@@ -1,12 +1,18 @@
 package dev.converge.api.git;
 
 import java.net.URI;
+import java.security.MessageDigest;
+import java.security.SecureRandom;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.HexFormat;
 import java.util.UUID;
 import java.util.regex.Matcher;
+
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import java.util.regex.Pattern;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -36,9 +42,18 @@ import tools.jackson.databind.json.JsonMapper;
 @Service
 public class GitService {
 
+    private static final SecureRandom RANDOM = new SecureRandom();
+
     public record Repository(String remoteUrl, String defaultBranch, String owner, String repo, String credentialHint,
-            String connectedByName, Instant updatedAt) {
+            String connectedByName, Instant updatedAt, boolean webhook) {
     }
+
+    /** Shown once when automatic import is turned on: where GitHub should send pushes, and how to sign them. */
+    public record Webhook(String path, String secret) {
+    }
+
+    /** What a webhook delivery did. */
+    public enum Delivery { PING, IGNORED, QUEUED }
 
     public record Operation(UUID id, UUID sessionId, String type, String status, String requesterName,
             Map<String, Object> params, Map<String, Object> result, String error, String log, Instant createdAt,
@@ -120,8 +135,83 @@ public class GitService {
                 """).param(workspaceId)
                 .query((rs, n) -> new Repository(rs.getString("remote_url"), rs.getString("default_branch"),
                         rs.getString("owner"), rs.getString("repo"), rs.getString("credential_hint"),
-                        rs.getString("display_name"), rs.getTimestamp("updated_at").toInstant()))
+                        rs.getString("display_name"), rs.getTimestamp("updated_at").toInstant(),
+                        rs.getBytes("webhook_secret") != null))
                 .optional();
+    }
+
+    // ---- Webhooks (design §10.2): a push to the default branch imports it automatically --------------------
+
+    /** Turns automatic import on, with a fresh secret; any earlier secret stops working. Owners only. */
+    public Webhook enableWebhook(UUID workspaceId, UUID userId) {
+        access.require(workspaceId, userId, Role.OWNER);
+        byte[] raw = new byte[32];
+        RANDOM.nextBytes(raw);
+        String secret = HexFormat.of().formatHex(raw);
+        int updated = jdbc.sql("update git_repositories set webhook_secret = ?, webhook_enabled_at = now() where workspace_id = ?")
+                .params(box.seal(secret, webhookContext(workspaceId)), workspaceId).update();
+        if (updated == 0) throw ApiException.conflict("Connect a GitHub repository to this workspace first");
+        audit.record(workspaceId, userId, "git.webhook_enabled", "workspace", workspaceId, Map.of());
+        changed(workspaceId, userId, Map.of());
+        return new Webhook("/api/v1/git/webhooks/" + workspaceId, secret);
+    }
+
+    public void disableWebhook(UUID workspaceId, UUID userId) {
+        access.require(workspaceId, userId, Role.OWNER);
+        jdbc.sql("update git_repositories set webhook_secret = null, webhook_enabled_at = null where workspace_id = ?")
+                .param(workspaceId).update();
+        audit.record(workspaceId, userId, "git.webhook_disabled", "workspace", workspaceId, Map.of());
+        changed(workspaceId, userId, Map.of());
+    }
+
+    /**
+     * A delivery from GitHub. Nothing is trusted before the signature checks out: an unknown workspace, a
+     * workspace without a secret and a wrong signature all look the same from outside (404). A push to the
+     * default branch queues an import as the person who connected the repository, keyed by GitHub's delivery id,
+     * so a redelivered event never imports twice.
+     */
+    public Delivery webhook(UUID workspaceId, String event, String deliveryId, String signature, byte[] body) {
+        record Hook(byte[] secret, String branch, UUID connectedBy) {
+        }
+        Hook hook = jdbc.sql("""
+                select webhook_secret, default_branch, connected_by from git_repositories
+                where workspace_id = ? and webhook_secret is not null
+                """).param(workspaceId)
+                .query((rs, n) -> new Hook(rs.getBytes(1), rs.getString(2), rs.getObject(3, UUID.class)))
+                .optional().orElseThrow(() -> ApiException.notFound("Webhook"));
+        String secret = box.open(hook.secret(), webhookContext(workspaceId));
+        if (!validSignature(secret, signature, body)) throw ApiException.notFound("Webhook");
+        if ("ping".equals(event)) return Delivery.PING;
+        if (!"push".equals(event)) return Delivery.IGNORED;
+        String ref;
+        try {
+            ref = json.readTree(body).path("ref").asString("");
+        } catch (RuntimeException e) {
+            throw ApiException.badRequest("The push event is not valid JSON");
+        }
+        if (!("refs/heads/" + hook.branch()).equals(ref)) return Delivery.IGNORED;
+        if (deliveryId == null || deliveryId.isBlank() || deliveryId.length() > 80) {
+            throw ApiException.badRequest("A delivery id (X-GitHub-Delivery) is required");
+        }
+        pull(workspaceId, hook.connectedBy(), "webhook:" + deliveryId);
+        return Delivery.QUEUED;
+    }
+
+    static boolean validSignature(String secret, String header, byte[] body) {
+        if (header == null || !header.startsWith("sha256=")) return false;
+        try {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(secret.getBytes(java.nio.charset.StandardCharsets.UTF_8), "HmacSHA256"));
+            byte[] expected = mac.doFinal(body);
+            byte[] presented = HexFormat.of().parseHex(header.substring("sha256=".length()));
+            return MessageDigest.isEqual(expected, presented);
+        } catch (IllegalArgumentException | java.security.GeneralSecurityException e) {
+            return false;
+        }
+    }
+
+    static String webhookContext(UUID workspaceId) {
+        return "git-webhook:" + workspaceId;
     }
 
     public void disconnect(UUID workspaceId, UUID userId) {

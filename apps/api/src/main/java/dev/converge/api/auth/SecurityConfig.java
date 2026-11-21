@@ -34,7 +34,7 @@ public class SecurityConfig {
     SecurityFilterChain apiSecurity(HttpSecurity http, SecurityContextRepository contexts) throws Exception {
         http
                 // /internal is service-to-service: no cookies, guarded by InternalTokenFilter instead.
-                .csrf(csrf -> csrf.spa().ignoringRequestMatchers("/internal/**"))
+                .csrf(csrf -> csrf.spa().ignoringRequestMatchers("/internal/**", "/api/v1/git/webhooks/**"))
                 .securityContext(context -> context.securityContextRepository(contexts))
                 .authorizeHttpRequests(auth -> auth
                         // Error dispatches must stay public: otherwise a 403 (e.g. a CSRF rejection) is forwarded
@@ -44,6 +44,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/register", "/api/v1/auth/login").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/auth/csrf").permitAll()
                         .requestMatchers("/internal/**").permitAll()
+                        // GitHub's webhook deliveries carry no session; their HMAC signature is checked instead.
+                        .requestMatchers(HttpMethod.POST, "/api/v1/git/webhooks/*").permitAll()
                         // Guarded by InternalTokenFilter, which runs first.
                         .requestMatchers("/api/actuator/prometheus").permitAll()
                         .anyRequest().authenticated())

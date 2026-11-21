@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -59,6 +60,29 @@ public class GitController {
     ResponseEntity<Void> disconnect(@AuthenticationPrincipal AppUser user, @PathVariable UUID workspaceId) {
         git.disconnect(workspaceId, user.id());
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/api/v1/workspaces/{workspaceId}/git/webhook")
+    GitService.Webhook enableWebhook(@AuthenticationPrincipal AppUser user, @PathVariable UUID workspaceId) {
+        return git.enableWebhook(workspaceId, user.id());
+    }
+
+    @DeleteMapping("/api/v1/workspaces/{workspaceId}/git/webhook")
+    ResponseEntity<Void> disableWebhook(@AuthenticationPrincipal AppUser user, @PathVariable UUID workspaceId) {
+        git.disableWebhook(workspaceId, user.id());
+        return ResponseEntity.noContent().build();
+    }
+
+    /** GitHub's delivery: public, unauthenticated, trusted only once its HMAC signature checks out. */
+    @PostMapping("/api/v1/git/webhooks/{workspaceId}")
+    ResponseEntity<Map<String, String>> webhook(@PathVariable UUID workspaceId,
+            @RequestHeader(name = "X-GitHub-Event", required = false) String event,
+            @RequestHeader(name = "X-GitHub-Delivery", required = false) String delivery,
+            @RequestHeader(name = "X-Hub-Signature-256", required = false) String signature,
+            @RequestBody(required = false) byte[] body) {
+        GitService.Delivery result = git.webhook(workspaceId, event, delivery, signature, body == null ? new byte[0] : body);
+        HttpStatus status = result == GitService.Delivery.QUEUED ? HttpStatus.ACCEPTED : HttpStatus.OK;
+        return ResponseEntity.status(status).body(Map.of("result", result.name().toLowerCase()));
     }
 
     @GetMapping("/api/v1/workspaces/{workspaceId}/git/operations")

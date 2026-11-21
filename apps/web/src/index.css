@@ -2498,3 +2498,22 @@ select {
   height: 28px;
   font-size: var(--t-xs);
 }
+
+/* Webhook setup: the values GitHub needs, selectable in one click. */
+.webhook-setup {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 12px;
+  border: 2px dashed var(--text);
+  border-radius: var(--radius);
+}
+
+.webhook-setup p {
+  margin: 0;
+}
+
+.webhook-setup input {
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+}

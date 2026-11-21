@@ -32,6 +32,8 @@ export function GitDialog({ workspace, onClose, refreshSignal = 0 }: Props) {
   const isOwner = workspace.role === 'OWNER'
   const canEdit = isOwner || workspace.role === 'EDITOR'
   const [operations, setOperations] = useState<GitOperation[]>([])
+  /** Shown once, right after automatic import is turned on. */
+  const [newHook, setNewHook] = useState<{ url: string; secret: string } | null>(null)
   const dialog = useRef<HTMLDialogElement>(null)
 
   useEffect(() => {
@@ -92,6 +94,42 @@ export function GitDialog({ workspace, onClose, refreshSignal = 0 }: Props) {
                   </li>
                 ))}
               </ul>
+            )}
+            {isOwner && (
+              <section className="settings-row" aria-label="Automatic import">
+                <div>
+                  <p className="settings-title">Automatic import {repository.webhook ? 'is on' : 'is off'}</p>
+                  <p className="muted small">
+                    {repository.webhook
+                      ? `Every push to ${repository.defaultBranch} on GitHub is imported here, merged into open files like any import.`
+                      : `Import every push to ${repository.defaultBranch} on GitHub automatically, through a GitHub webhook.`}
+                  </p>
+                </div>
+                <button type="button" disabled={busy} onClick={() => void act(async () => {
+                  if (repository.webhook) {
+                    await api.disableGitWebhook(workspace.id)
+                    setNewHook(null)
+                    setRepository({ ...repository, webhook: false })
+                  } else {
+                    const hook = await api.enableGitWebhook(workspace.id)
+                    setNewHook({ url: new URL(hook.path, window.location.origin).href, secret: hook.secret })
+                    setRepository({ ...repository, webhook: true })
+                  }
+                }, 'Could not change automatic import')}>{repository.webhook ? 'Turn off' : 'Turn on'}</button>
+              </section>
+            )}
+            {newHook && (
+              <div className="webhook-setup" role="status">
+                <p className="small">
+                  On GitHub, open the repository's Settings → Webhooks → Add webhook, and enter these. The secret is shown only now;
+                  turning automatic import on again makes a new one.
+                </p>
+                <label className="small" htmlFor="webhook-url">Payload URL</label>
+                <input id="webhook-url" readOnly value={newHook.url} onFocus={(e) => e.currentTarget.select()} />
+                <label className="small" htmlFor="webhook-secret">Secret</label>
+                <input id="webhook-secret" readOnly value={newHook.secret} onFocus={(e) => e.currentTarget.select()} />
+                <p className="muted small">Content type: application/json. Events: just the push event.</p>
+              </div>
             )}
             {isOwner && (
               <button type="button" className="ghost" disabled={busy} onClick={() => void act(async () => {

@@ -173,6 +173,9 @@ export const api = {
   connectGit: (workspaceId: string, repo: { remoteUrl: string; defaultBranch: string; token: string }) =>
     request<GitRepository>('PUT', `/workspaces/${workspaceId}/git`, repo),
   disconnectGit: (workspaceId: string) => request<void>('DELETE', `/workspaces/${workspaceId}/git`),
+  /** Turns on importing pushes automatically; the secret is returned this once. */
+  enableGitWebhook: (workspaceId: string) => request<{ path: string; secret: string }>('POST', `/workspaces/${workspaceId}/git/webhook`),
+  disableGitWebhook: (workspaceId: string) => request<void>('DELETE', `/workspaces/${workspaceId}/git/webhook`),
   gitOperations: (workspaceId: string, sessionId?: string) =>
     request<GitOperation[]>('GET', `/workspaces/${workspaceId}/git/operations${sessionId ? `?sessionId=${sessionId}` : ''}`),
   importRepository: (workspaceId: string, idempotencyKey: string) =>
@@ -396,6 +399,8 @@ export type RangeLock = {
 export type Overlap = { sessionId: string; task: string; driverName: string; status: string; files: string[] }
 
 export type GitRepository = {
+  /** Pushes to the default branch are imported automatically (a GitHub webhook is set up). */
+  webhook: boolean
   remoteUrl: string
   defaultBranch: string
   owner: string

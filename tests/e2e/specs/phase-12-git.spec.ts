@@ -1,3 +1,4 @@
+import { createHmac } from 'node:crypto'
 import { expect, test } from '@playwright/test'
 import { createWorkspace, editorText, openFile, register, uniqueEmail } from './helpers.ts'
 
@@ -73,4 +74,44 @@ test('importing a repository brings its text files into the workspace', async ({
   await openFile(page, 'README.md')
   await expect.poll(() => editorText(page), { timeout: 20_000 }).toContain('# imported from git')
   await expect(page.locator('.tree-name', { hasText: 'logo.png' })).toHaveCount(0)
+})
+
+test('a signed push from GitHub imports the default branch automatically', async ({ page, request }) => {
+  test.setTimeout(120_000)
+  const repo = `hook-${Date.now()}`
+  await request.post(`${FAKE_GITHUB}/__test/repos`, {
+    data: { owner: 'acme', repo, files: { 'CHANGELOG.md': '# pushed to main\n' } },
+  })
+  await register(page, uniqueEmail('asha'), 'Asha')
+  await createWorkspace(page, 'Webhook check')
+  await page.getByRole('button', { name: 'Repository' }).click()
+  await page.getByLabel('Repository URL').fill(`http://fake-github:9200/acme/${repo}.git`)
+  await page.getByLabel('Access token').fill(TOKEN)
+  await page.getByRole('button', { name: 'Connect', exact: true }).click()
+
+  // Turning automatic import on shows the payload URL and the secret once, as GitHub needs them.
+  await page.getByLabel('Automatic import').getByRole('button', { name: 'Turn on' }).click()
+  await expect(page.getByLabel('Automatic import')).toContainText('Automatic import is on')
+  const hookUrl = await page.getByLabel('Payload URL').inputValue()
+  const secret = await page.getByLabel('Secret').inputValue()
+
+  // GitHub's delivery: a push to main, signed with the secret.
+  const body = JSON.stringify({ ref: 'refs/heads/main' })
+  const signature = 'sha256=' + createHmac('sha256', secret).update(body).digest('hex')
+  const delivery = await request.post(hookUrl, {
+    data: body,
+    headers: { 'Content-Type': 'application/json', 'X-GitHub-Event': 'push', 'X-GitHub-Delivery': `e2e-${repo}`, 'X-Hub-Signature-256': signature },
+  })
+  expect(delivery.status()).toBe(202)
+  // A forged delivery is refused, and looks like there is no webhook at all.
+  const forged = await request.post(hookUrl, {
+    data: body,
+    headers: { 'Content-Type': 'application/json', 'X-GitHub-Event': 'push', 'X-GitHub-Delivery': 'forged', 'X-Hub-Signature-256': 'sha256=00' },
+  })
+  expect(forged.status()).toBe(404)
+
+  await page.getByRole('button', { name: 'Close' }).click()
+  await expect(page.locator('.tree-name', { hasText: 'CHANGELOG.md' })).toBeVisible({ timeout: 60_000 })
+  await openFile(page, 'CHANGELOG.md')
+  await expect.poll(() => editorText(page), { timeout: 20_000 }).toContain('# pushed to main')
 })

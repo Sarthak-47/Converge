@@ -140,4 +140,42 @@ class GitApiTest extends IntegrationTest {
         getAs(asha, "/api/v1/workspaces/{w}/tree", workspace)
                 .andExpect(jsonPath("$[?(@.path == 'src/app/main.ts')]").exists());
     }
+    private org.springframework.test.web.servlet.ResultActions deliver(String event, String delivery, String secret, String body)
+            throws Exception {
+        javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+        mac.init(new javax.crypto.spec.SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+        String signature = "sha256=" + java.util.HexFormat.of().formatHex(mac.doFinal(body.getBytes(StandardCharsets.UTF_8)));
+        return mvc.perform(post("/api/v1/git/webhooks/" + workspace)
+                .header("X-GitHub-Event", event).header("X-GitHub-Delivery", delivery)
+                .header("X-Hub-Signature-256", signature)
+                .contentType(MediaType.APPLICATION_JSON).content(body));
+    }
+
+    @Test
+    void aSignedPushToTheDefaultBranchImportsItOnceAndNothingElseDoes() throws Exception {
+        connect();
+        MockHttpSession ben = member("EDITOR");
+        perform(ben, post("/api/v1/workspaces/" + workspace + "/git/webhook"), "{}").andExpect(status().isForbidden());
+        var enabled = perform(asha, post("/api/v1/workspaces/" + workspace + "/git/webhook"), "{}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.path").value("/api/v1/git/webhooks/" + workspace));
+        String secret = read(enabled, "$.secret");
+        getAs(asha, "/api/v1/workspaces/{id}/git", workspace).andExpect(jsonPath("$.webhook").value(true));
+
+        String push = "{\"ref\":\"refs/heads/main\"}";
+        // Anything not signed with the secret is indistinguishable from a workspace without a webhook.
+        deliver("push", "d-0", "wrong-secret", push).andExpect(status().isNotFound());
+        deliver("ping", "d-1", secret, "{}").andExpect(status().isOk()).andExpect(jsonPath("$.result").value("ping"));
+        deliver("push", "d-2", secret, "{\"ref\":\"refs/heads/feature\"}").andExpect(jsonPath("$.result").value("ignored"));
+        deliver("push", "d-3", secret, push).andExpect(status().isAccepted()).andExpect(jsonPath("$.result").value("queued"));
+        // GitHub redelivers on timeouts; the same delivery never imports twice.
+        deliver("push", "d-3", secret, push).andExpect(status().isAccepted());
+        getAs(asha, "/api/v1/workspaces/{id}/git/operations", workspace)
+                .andExpect(jsonPath("$[?(@.type == 'PULL')]").value(org.hamcrest.Matchers.hasSize(1)));
+
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .delete("/api/v1/workspaces/" + workspace + "/git/webhook").session(asha).with(csrf()))
+                .andExpect(status().isNoContent());
+        deliver("push", "d-4", secret, push).andExpect(status().isNotFound());
+    }
 }
