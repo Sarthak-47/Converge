@@ -89,6 +89,30 @@ class SharedSessionTest {
         mvc.perform(get("/api/v1/auth/me").cookie(session)).andExpect(status().isUnauthorized());
     }
 
+    @Test
+    void aSessionThatCanNoLongerBeReadSignsThePersonOutInsteadOfFailing() throws Exception {
+        String email = "stale-" + UUID.randomUUID() + "@example.test";
+        Cookie session = register(email);
+        // As after an upgrade that changed a stored class: the bytes no longer deserialize.
+        jdbc.sql("""
+                update spring_session_attributes set attribute_bytes = decode('aced0005737200156e6f2e737563682e436c617373', 'hex')
+                where session_primary_id = (select primary_id from spring_session where principal_name = ?)
+                """).param(email).update();
+
+        mvc.perform(get("/api/v1/auth/me").cookie(session)).andExpect(status().isUnauthorized());
+    }
+
+    private Cookie register(String email) throws Exception {
+        var registered = mvc.perform(post("/api/v1/auth/register").with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"" + email + "\",\"displayName\":\"Asha\",\"password\":\"correct horse battery\"}"))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String setCookie = registered.getResponse().getHeaders("Set-Cookie").stream()
+                .filter(h -> h.startsWith("CONVERGE_SESSION=")).findFirst().orElseThrow();
+        return new Cookie("CONVERGE_SESSION", setCookie.substring("CONVERGE_SESSION=".length(), setCookie.indexOf(';')));
+    }
+
     private int sessionsOf(String email) {
         return jdbc.sql("select count(*) from spring_session where principal_name = ?").param(email).query(Integer.class).single();
     }

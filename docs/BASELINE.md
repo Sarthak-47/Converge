@@ -32,6 +32,17 @@ The Phase 13 exit report (design §19): p95 latency, recovery numbers and cost p
 - **Reconnects are cheap.** A client that drops and reconnects is back in sync in under 200 ms. That covers a new ticket, the handshake and the sync exchange.
 - **Cost per turn** comes from the API's ledger, priced at Claude Opus 5.5 rates ($4 / $20 per million input / output tokens). Each response of the scripted model reports 1 000 input and 200 output tokens. A turn of three tool calls plus a final reply is four responses: 4 × (1 000 × $4 + 200 × $20) / 10⁶ = $0.032. The ledger matched this exactly, as design §22.7 requires. Real turns will differ: they carry the system prompt, the tool definitions and growing context, but also benefit from prompt caching. `agent_turn_cost_micros` and `agent_cache_hit_ratio` on the API's metrics endpoint measure real turns once a member uses their own key.
 
+## Cost of span export (2026-11-22)
+
+Span export (`OTEL_EXPORTER_OTLP_ENDPOINT`, see the README) records a span on every API request. To check that it costs nothing measurable, an authenticated `GET /api/v1/workspaces` was timed 2 000 times in a row through nginx, after 200 warm-up requests, on the local stack, twice with export to Jaeger on and twice with it off. Rerun it with `node tests/load/api-latency.mjs`.
+
+| Span export | p50 | p95 | p99 |
+|---|---|---|---|
+| On (run 1 / run 2) | 3.79 / 3.25 ms | 6.29 / 7.08 ms | 15.2 / 18.7 ms |
+| Off (run 1 / run 2) | 3.95 / 3.47 ms | 6.83 / 7.28 ms | 20.7 / 17.9 ms |
+
+The difference between on and off is smaller than the difference between two runs of the same setting. Spans are queued in memory and sent from a background thread, so a request never waits for the backend.
+
 ## Limits of this baseline
 
 - **One machine, small scale**: 40 clients per push in CI; the design's 100 clients over 10 workspaces run by hand (see above). The script takes `CLIENTS`, `WORKSPACES`, `FILES_PER_WORKSPACE` and `DURATION_MS`, and a larger run needs a bigger host than a CI runner. CPU was not sampled during the run, only memory at the end.
