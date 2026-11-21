@@ -17,6 +17,7 @@ import { SyncControl } from '../components/SyncControl.tsx'
 import { TopBar } from '../components/TopBar.tsx'
 import { assignColors, CollabDocument, type Peer, type SyncState } from '../editor/collabDocument.ts'
 import { monaco } from '../editor/monaco.ts'
+import { ProjectSources, pathUri } from '../editor/projectTypes.ts'
 import { useWorkspaceChannel, type ChatMessage, type WorkspaceEvent } from '../realtime/workspaceChannel.ts'
 import { Icon } from '../components/Icon.tsx'
 
@@ -38,7 +39,13 @@ const SYNC_LABEL: Record<SyncState, string> = {
   deleted: 'This file was deleted',
 }
 
+/**
+ * Named by workspace path, so the TypeScript service resolves imports between files. Should a model at that
+ * path still exist (a file deleted and recreated while open), the file's id keeps the name unique.
+ */
 function modelUri(file: FileNode) {
+  const byPath = pathUri(file.path)
+  if (!monaco.editor.getModel(byPath)) return byPath
   return monaco.Uri.from({ scheme: 'inmemory', authority: 'converge', path: `/${file.id}/${file.name}` })
 }
 
@@ -81,8 +88,17 @@ export default function WorkspacePage() {
   const activeId = active?.id ?? null
   const activeFile = files.find((f) => f.id === activeId) ?? null
 
+  // Other files' sources for project-wide TypeScript and JavaScript intelligence (go to definition, imports).
+  const sources = useRef<ProjectSources | null>(null)
+  const filesRef = useRef<FileNode[]>([])
+  useEffect(() => {
+    filesRef.current = files
+    void sources.current?.sync(files)
+  }, [files])
+
   useEffect(() => {
     const opened = openFiles.current
+    sources.current = new ProjectSources()
     Promise.all([api.workspace(workspaceId), api.tree(workspaceId), api.chatHistory(workspaceId), api.members(workspaceId)])
       .then(([w, tree, history, roster]) => {
         // Before any file opens, so the colour each editor announces matches what everyone else deals it.
@@ -94,6 +110,8 @@ export default function WorkspacePage() {
       .catch((e: Error) => setLoadError(e.message))
     return () => {
       assignColors([])
+      sources.current?.dispose()
+      sources.current = null
       opened.forEach((f) => {
         f.live.destroy()
         f.model.dispose()
@@ -124,6 +142,8 @@ export default function WorkspacePage() {
     open.live.destroy()
     open.model.dispose()
     openFiles.current.delete(fileId)
+    const file = filesRef.current.find((f) => f.id === fileId)
+    if (file) sources.current?.closed(file)
     setSyncStates(({ [fileId]: _closed, ...rest }) => rest)
     setActive((current) => (current?.id === fileId ? null : current))
   }, [])
@@ -134,6 +154,7 @@ export default function WorkspacePage() {
     let open = openFiles.current.get(file.id)
     if (!open) {
       const live = new CollabDocument(file.id, user, (state) => setSyncStates((s) => ({ ...s, [file.id]: state })))
+      sources.current?.opened(file)
       const model = monaco.editor.createModel('', file.language ?? undefined, modelUri(file))
       open = { live, model }
       openFiles.current.set(file.id, open)
@@ -153,7 +174,12 @@ export default function WorkspacePage() {
 
   /** Applies another client's change. Content changes arrive through each file's live replica. */
   async function onRemoteEvent(event: WorkspaceEvent) {
-    if (event.type === 'FILE_SAVED') return
+    if (event.type === 'FILE_SAVED') {
+      // A file someone else changed: its background source is refreshed (open files have their live model).
+      const changed = String(event.payload.fileId ?? '')
+      if (changed && !openFiles.current.has(changed)) void sources.current?.sync(filesRef.current, new Set([changed]))
+      return
+    }
     if (event.type.startsWith('JOB_')) {
       // Output streams often; only status changes refresh the session view.
       setJobSignal((n) => n + 1)
