@@ -116,6 +116,12 @@ npm run build -w @converge/web
 PLAYWRIGHT_BROWSERS_PATH=.cache/ms-playwright node tests/visual/capture.mjs
 ```
 
+With the stack running (fake model), `tests/visual/live.mjs` captures the same surfaces live: two throwaway local accounts share a workspace, so presence stickers, cursor flags, chat, a scripted agent edit and an approval all render for real:
+
+```bash
+PLAYWRIGHT_BROWSERS_PATH=.cache/ms-playwright node tests/visual/live.mjs
+```
+
 ## Repository layout
 
 ```
