@@ -65,6 +65,20 @@ The `Load and chaos run` workflow (`.github/workflows/load.yml`, started by hand
 
 Propagation is still the artificial delay, not the server: p50 and p95 match the delay's own distribution, as in the 40-client run, so going from 40 to 100 clients added no measurable latency. The 2.5 s maximum falls inside the restart window.
 
+**Rerun on 2026-11-22** ([run 44948756038](https://github.com/Sarthak-47/Converge/actions/runs/44948756038), main at 5b3de10), after the day's changes to sessions, desktop sync, Git and tracing:
+
+| Measure | 2026-11-21 | 2026-11-22 |
+|---|---|---|
+| Initial sync of all clients | 793 ms | 1 135 ms |
+| Update propagation p50 / p95 / p99 / max | 177 / 288 / 299 / 2 487 ms | 176 / 289 / 300 / 2 553 ms |
+| Updates delivered to peers | all 107 940 | all 112 232 |
+| Reconnect recovery p50 / p95 | 305 / 322 ms | 286 / 340 ms |
+| Recovery after restarting the collaboration service | 2.1 s | 2.2 s |
+| Converged after typing stopped | within 541 ms | within 549 ms |
+| Memory at the end (collab / API / nginx) | 107 / 367 / 9 MiB | 110 / 397 / 8 MiB |
+
+Everything that measures the service under load is unchanged: propagation still matches the artificial delay, nothing was lost, and recovery is within a tenth of a second. The higher initial sync is one measurement per run, taken while 100 clients connect at once on a shared runner, so it varies from run to run. The workflow runs without span export; its cost was measured separately (see "Cost of span export" below).
+
 ## Fault injection
 
 `tests/chaos/faults.mjs` runs in its own CI job with the `chaos` Compose profile, which routes the collaboration service's database connection and the API's calls to the collaboration service through Toxiproxy. Two people type into one file in each scenario. Results from the CI run on 2026-11-20 (commit c8f6c0e):
