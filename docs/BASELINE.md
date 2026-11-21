@@ -34,9 +34,25 @@ The Phase 13 exit report (design §19): p95 latency, recovery numbers and cost p
 
 ## Limits of this baseline
 
-- **One machine, small scale**: 40 clients, not the design's 100 clients over 10 workspaces. The script takes `CLIENTS`, `WORKSPACES`, `FILES_PER_WORKSPACE` and `DURATION_MS`, and a larger run needs a bigger host than a CI runner. CPU was not sampled during the run, only memory at the end.
+- **One machine, small scale**: 40 clients per push in CI; the design's 100 clients over 10 workspaces run by hand (see above). The script takes `CLIENTS`, `WORKSPACES`, `FILES_PER_WORKSPACE` and `DURATION_MS`, and a larger run needs a bigger host than a CI runner. CPU was not sampled during the run, only memory at the end.
 - **Delayed, not dropped**: the network is delayed but never drops messages; Yjs's sync protocol would repair a lost update on the next sync. Cut and slowed connections between services are measured separately, under **Fault injection** below.
 - **No external model**: agent costs come from the scripted fake model, so the real API's latency and refusals are not part of this measurement.
+
+## The design's full scenario
+
+The `Load and chaos run` workflow (`.github/workflows/load.yml`, started by hand) runs the design's scenario on a GitHub runner: 100 clients on 20 files in 10 workspaces, 180 s of typing at one edit every ~700 ms per client, 50 to 300 ms artificial send delay, and the collaboration service restarted mid-run. Results from 2026-11-21 (main at f69541a):
+
+| Measure | Result |
+|---|---|
+| Initial sync of all clients | 793 ms |
+| Update propagation p50 / p95 / p99 / max | 177 / 288 / 299 / 2487 ms (107 940 samples) |
+| Updates delivered to peers | all 107 940 (ratio 1) |
+| Reconnect recovery p50 / p95 (10 clients) | 305 / 322 ms |
+| Recovery after restarting the collaboration service | 2.1 s |
+| Converged after typing stopped | yes, within 541 ms |
+| Memory at the end | collab 107 MiB, API 367 MiB, nginx 9 MiB |
+
+Propagation is still the artificial delay, not the server: p50 and p95 match the delay's own distribution, as in the 40-client run, so going from 40 to 100 clients added no measurable latency. The 2.5 s maximum falls inside the restart window.
 
 ## Fault injection
 

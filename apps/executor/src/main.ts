@@ -15,6 +15,8 @@ function log(level: 'INFO' | 'WARN' | 'ERROR', event: string, fields: Record<str
 }
 
 const db = new pg.Pool({ connectionString: config.databaseUrl, max: 4 })
+// The pool emits 'error' when the database drops an idle connection; unhandled, that ends the process.
+db.on('error', (error) => log('ERROR', 'DATABASE_CONNECTION_LOST', { message: error.message }))
 const sandbox = new Sandbox(new Docker(), config)
 const git = new GitWorker(config.gitRoot, config.githubApi)
 let stopping = false
@@ -146,6 +148,20 @@ async function loop() {
       log('ERROR', 'QUEUE_ERROR', { message: (error as Error).message })
       await new Promise((resolve) => setTimeout(resolve, 3000))
     }
+  }
+}
+
+// The API owns the schema (Flyway). On a fresh stack the executor can start first; wait for the tables instead of
+// crashing and relying on the container restart policy.
+for (let attempt = 1; ; attempt++) {
+  try {
+    await db.query('select 1 from jobs limit 1')
+    break
+  } catch (error) {
+    const code = (error as { code?: string }).code
+    if (attempt >= 60 || (code !== '42P01' && code !== 'ECONNREFUSED')) throw error
+    if (attempt === 1) log('INFO', 'WAITING_FOR_SCHEMA', { reason: (error as Error).message })
+    await new Promise((resolve) => setTimeout(resolve, 2000))
   }
 }
 

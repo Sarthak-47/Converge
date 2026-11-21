@@ -58,6 +58,8 @@ jobs:
           # Inputs reach the script only as environment variables, never spliced into it.
           DURATION_SECONDS: ${{ inputs.duration_seconds }}
         run: |
+          set -o pipefail
+          mkdir -p .tmp
           DURATION_MS=$(( DURATION_SECONDS * 1000 )) node tests/load/baseline.mjs | tee .tmp/baseline.md
           cat .tmp/baseline.md >> "$GITHUB_STEP_SUMMARY"
       - if: always()
