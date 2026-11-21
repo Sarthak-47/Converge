@@ -9,7 +9,7 @@ import { openSealed } from './secrets.js'
 import { Reporter } from './reporter.js'
 import { Sandbox } from './sandbox.js'
 import { argv } from './templates.js'
-import { childHeader, fromHeader, type TraceContext } from './trace.js'
+import { childHeader, flushSpans, fromHeader, inSpan, recordSpan, SPAN_KIND, startSpanExport, type TraceContext } from './trace.js'
 
 function log(level: 'INFO' | 'WARN' | 'ERROR', event: string, fields: Record<string, unknown> = {}) {
   console.log(JSON.stringify({ timestamp: new Date().toISOString(), level, service: 'executor', event, ...fields }))
@@ -24,6 +24,8 @@ let stopping = false
 
 async function run(job: Job) {
   const reporter = new Reporter(config.apiUrl, config.internalToken, job.id)
+  const started = Date.now()
+  let failed = true
   await reporter.notify().catch(() => undefined)
   try {
     const files = await workspaceFiles(db, job.workspaceId, config.maxFilesBytes)
@@ -35,9 +37,16 @@ async function run(job: Job) {
       error: result.timedOut ? `Timed out after ${Math.round(config.timeoutMs / 1000)} s` : undefined,
     })
     log('INFO', 'JOB_FINISHED', { jobId: job.id, status, exitCode: result.exitCode, timedOut: result.timedOut, traceId: reporter.trace.traceId })
+    failed = false
   } catch (error) {
     log('ERROR', 'JOB_FAILED', { jobId: job.id, message: (error as Error).message })
     await reporter.status('FAILED', { error: 'The job could not be run in the sandbox.' }).catch(() => undefined)
+  } finally {
+    // The job's own trace (every report about it shares it), as one span: a failing command is not an error.
+    recordSpan({
+      context: reporter.trace, name: 'executor.job', kind: SPAN_KIND.internal, start: started, end: Date.now(), error: failed,
+      attributes: { 'converge.job_id': job.id, 'converge.workspace_id': job.workspaceId },
+    })
   }
 }
 
@@ -161,7 +170,7 @@ async function gitLoop() {
   while (!stopping) {
     try {
       const op = await claimGitOperation(db)
-      if (op) await runGit(op)
+      if (op) await inSpan(`git.${op.type.toLowerCase()}`, undefined, () => runGit(op), { 'converge.operation_id': op.id, 'converge.workspace_id': op.workspaceId })
       else await new Promise((resolve) => setTimeout(resolve, config.pollMs))
     } catch (error) {
       log('ERROR', 'GIT_QUEUE_ERROR', { message: (error as Error).message })
@@ -211,12 +220,12 @@ for (const id of interrupted) await new Reporter(config.apiUrl, config.internalT
 for (const id of await failInterruptedGitOperations(db)) await notifyGit(id)
 const removed = await sandbox.removeLeftovers()
 await sandbox.prepare()
-log('INFO', 'EXECUTOR_STARTED', { image: config.image, runtime: config.runtime ?? 'default', interrupted: interrupted.length, removedContainers: removed })
+log('INFO', 'EXECUTOR_STARTED', { exportingSpans: startSpanExport('converge-executor'), image: config.image, runtime: config.runtime ?? 'default', interrupted: interrupted.length, removedContainers: removed })
 const done = Promise.all([loop(), gitLoop()])
 
 const shutdown = () => {
   stopping = true
-  void done.finally(() => db.end().finally(() => process.exit(0)))
+  void done.finally(() => Promise.allSettled([db.end(), flushSpans()]).finally(() => process.exit(0)))
   setTimeout(() => process.exit(0), 15_000).unref()
 }
 process.on('SIGTERM', shutdown)

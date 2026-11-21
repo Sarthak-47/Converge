@@ -42,6 +42,10 @@ server:
         secure: ${COOKIE_SECURE:false}
 
 converge:
+  tracing:
+    # An OTLP/HTTP endpoint (a collector, Jaeger, Tempo...) to send spans to; empty sends none (design §16.3).
+    otlp-endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:}
+    service-name: ${OTEL_SERVICE_NAME:converge-api}
   # Shared secret for service-to-service calls on /internal/** (design §5.3). Empty refuses all of them.
   internal-token: ${INTERNAL_TOKEN:}
   # AES-256 key (base64, 32 bytes) for members' API keys and agent transcripts at rest (design §13.5).

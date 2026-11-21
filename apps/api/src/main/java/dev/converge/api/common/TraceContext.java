@@ -3,6 +3,8 @@ package dev.converge.api.common;
 import java.io.IOException;
 import java.security.SecureRandom;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -28,6 +30,9 @@ public final class TraceContext {
 
     public static final String HEADER = "traceparent";
     public static final String MDC_KEY = "traceId";
+    /** This service's own span for the current request: the parent of every call it makes. */
+    public static final String SPAN_KEY = "spanId";
+    private static final Pattern ID = Pattern.compile("(?<=/)([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|\\d+)(?=/|$)");
     private static final Pattern TRACEPARENT = Pattern.compile("^00-([0-9a-f]{32})-([0-9a-f]{16})-[0-9a-f]{2}$");
     private static final SecureRandom RANDOM = new SecureRandom();
 
@@ -43,9 +48,26 @@ public final class TraceContext {
         return random(16);
     }
 
-    /** A traceparent for an outgoing call: the same trace, a new span, sampled. */
+    /** The caller's span ID, or null when the header is missing or invalid. */
+    public static String parentSpanFrom(String header) {
+        if (header == null) return null;
+        Matcher match = TRACEPARENT.matcher(header.strip());
+        return match.matches() && !match.group(2).chars().allMatch(c -> c == '0') ? match.group(2) : null;
+    }
+
+    /** A traceparent for an outgoing call: the same trace, with the given span (the caller's own) as parent. */
+    public static String childHeader(String traceId, String spanId) {
+        return "00-" + traceId + "-" + (spanId != null ? spanId : random(8)) + "-01";
+    }
+
+    /** A traceparent for an outgoing call outside any request: the same trace, a new span, sampled. */
     public static String childHeader(String traceId) {
-        return "00-" + traceId + "-" + random(8) + "-01";
+        return childHeader(traceId, null);
+    }
+
+    /** A request path with ids replaced, so spans for the same route share one name. */
+    static String route(String path) {
+        return ID.matcher(path).replaceAll("{id}");
     }
 
     static String random(int bytes) {
@@ -59,13 +81,36 @@ public final class TraceContext {
         @Override
         protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
                 throws ServletException, IOException {
-            String traceId = traceIdFrom(request.getHeader(HEADER));
+            String header = request.getHeader(HEADER);
+            String traceId = traceIdFrom(header);
+            String spanId = random(8);
             MDC.put(MDC_KEY, traceId);
+            MDC.put(SPAN_KEY, spanId);
             response.setHeader("X-Trace-Id", traceId);
+            long start = System.currentTimeMillis() * 1_000_000L;
+            boolean failed = false;
             try {
                 chain.doFilter(request, response);
+            } catch (IOException | ServletException | RuntimeException e) {
+                failed = true;
+                throw e;
             } finally {
                 MDC.remove(MDC_KEY);
+                MDC.remove(SPAN_KEY);
+                String path = request.getRequestURI();
+                // Health and metrics scrapes would bury the requests worth reading.
+                if (SpanExporter.enabled() && !path.startsWith("/actuator") && !path.startsWith("/api/actuator")) {
+                    int status = failed ? 500 : response.getStatus();
+                    Object pattern = request.getAttribute("org.springframework.web.servlet.HandlerMapping.bestMatchingPattern");
+                    String route = pattern != null ? pattern.toString() : route(path);
+                    Map<String, Object> attributes = new LinkedHashMap<>();
+                    attributes.put("http.request.method", request.getMethod());
+                    attributes.put("http.route", route);
+                    attributes.put("http.response.status_code", status);
+                    SpanExporter.record(new SpanExporter.Span(traceId, spanId, parentSpanFrom(header),
+                            request.getMethod() + " " + route, SpanExporter.KIND_SERVER, start,
+                            System.currentTimeMillis() * 1_000_000L, status >= 500, attributes));
+                }
             }
         }
     }
@@ -76,7 +121,7 @@ public final class TraceContext {
         public ClientHttpResponse intercept(HttpRequest request, byte[] body, ClientHttpRequestExecution execution)
                 throws IOException {
             String traceId = MDC.get(MDC_KEY);
-            request.getHeaders().set(HEADER, childHeader(traceId != null ? traceId : random(16)));
+            request.getHeaders().set(HEADER, traceId != null ? childHeader(traceId, MDC.get(SPAN_KEY)) : childHeader(random(16)));
             return execution.execute(request, body);
         }
     }

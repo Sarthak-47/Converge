@@ -9,7 +9,7 @@ import { handleInternal } from './internal.js'
 import { checkMemories, type MemoryCheck } from './memory.js'
 import { ConnectionLimiter, metrics, registry } from './metrics.js'
 import { timingSafeEqual } from 'node:crypto'
-import { childHeader, fromHeader } from './trace.js'
+import { childHeader, flushSpans, fromHeader, startSpanExport, traceRequest } from './trace.js'
 import { loadDocument, storeDocument } from './persistence.js'
 
 // A connection attempt that hangs fails after 5 s, so a store fails (and is retried) instead of waiting forever.
@@ -196,6 +196,7 @@ const server = new Server<ConnectionContext>({
       // Hocuspocus treats a thrown null as "request handled".
       throw null
     }
+    if (request.url?.startsWith('/internal/')) traceRequest(request, response)
     if (await handleInternal(request, response, instance, db)) {
       throw null
     }
@@ -204,12 +205,12 @@ const server = new Server<ConnectionContext>({
 
 await redis.connect().catch(() => undefined)
 await server.listen()
-log('INFO', 'COLLAB_STARTED', { port: config.port, originCheck: config.allowedOrigins.length > 0 })
+log('INFO', 'COLLAB_STARTED', { port: config.port, originCheck: config.allowedOrigins.length > 0, exportingSpans: startSpanExport('converge-collab') })
 
 const shutdown = async () => {
   // destroy() stores every loaded document before closing, so a clean stop loses nothing.
   await server.destroy()
-  await Promise.allSettled([db.end(), redis.quit()])
+  await Promise.allSettled([db.end(), redis.quit(), flushSpans()])
   process.exit(0)
 }
 process.on('SIGTERM', shutdown)

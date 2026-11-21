@@ -8,7 +8,6 @@ The full design — architecture, protocols, roadmap and decision log — is in 
 
 **Known limits:**
 - Desktop builds are unsigned, because signing needs code-signing certificates.
-- Trace ids flow through every service and appear in their logs, but spans are not exported to a tracing backend.
 - API sessions live in memory, so restarting the API signs people out, and the API runs as one instance.
 
 ## Architecture at a glance
@@ -81,6 +80,14 @@ An owner connects a GitHub repository under **Repository** (a token that can pus
 ## Monitoring
 
 The API (`/api/actuator/prometheus`) and the collaboration service (`/metrics`) expose Prometheus metrics to holders of the internal token; nginx never routes them. Rate limits live in Redis; `RATE_LIMIT_SCALE` multiplies them (raise it for the end-to-end suite and load runs).
+
+Every service carries W3C trace context and writes the trace id on each log line. Set `OTEL_EXPORTER_OTLP_ENDPOINT` to an OTLP/HTTP endpoint (an OpenTelemetry collector, Jaeger, Grafana Tempo) and each service also sends its spans there: one per API request, collaboration-service and agent-runner call, agent turn, job and Git operation, joined into one trace across services. To look at them locally:
+
+```powershell
+$env:COMPOSE_PROFILES="tracing"; $env:OTEL_EXPORTER_OTLP_ENDPOINT="http://jaeger:4318"; docker compose up -d
+```
+
+then open Jaeger on http://localhost:16686.
 
 ## Checks
 

@@ -36,6 +36,8 @@ services:
       API_URL: http://api:8080
       INTERNAL_TOKEN: ${INTERNAL_TOKEN:-dev-internal-token}
       COLLAB_ALLOWED_ORIGINS: ${PUBLIC_ORIGIN:-http://localhost:8000}
+      # Spans go to this OTLP/HTTP endpoint when set (design §16.3); see the tracing profile below.
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -59,6 +61,8 @@ services:
       GIT_ALLOW_INSECURE_REMOTES: ${GIT_ALLOW_INSECURE_REMOTES:-false}
       RATE_LIMIT_SCALE: ${RATE_LIMIT_SCALE:-1}
       SECRETS_KEY: ${SECRETS_KEY:-ZGV2ZWxvcG1lbnQtb25seS1zZWNyZXRzLWtleS0zMiE=}
+      # Spans go to this OTLP/HTTP endpoint when set (design §16.3); see the tracing profile below.
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -79,6 +83,8 @@ services:
       INTERNAL_TOKEN: ${INTERNAL_TOKEN:-dev-internal-token}
       # Empty means the real Claude API. The end-to-end tests point it at the scripted fake model.
       ANTHROPIC_BASE_URL: ${AGENT_MODEL_URL:-}
+      # Spans go to this OTLP/HTTP endpoint when set (design §16.3); see the tracing profile below.
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
     depends_on:
       collab:
         condition: service_healthy
@@ -99,6 +105,8 @@ services:
       SECRETS_KEY: ${SECRETS_KEY:-ZGV2ZWxvcG1lbnQtb25seS1zZWNyZXRzLWtleS0zMiE=}
       GITHUB_API_URL: ${CONVERGE_GITHUB_API_URL:-https://api.github.com}
       GIT_ROOT: /var/lib/converge-git
+      # Spans go to this OTLP/HTTP endpoint when set (design §16.3); see the tracing profile below.
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - git-data:/var/lib/converge-git
@@ -152,6 +160,16 @@ services:
       - ./toxiproxy.json:/config/toxiproxy.json:ro
     ports:
       - "8474:8474"
+
+  # Traces from every service, for development (design §16.3); the UI is on http://localhost:16686.
+  #   COMPOSE_PROFILES=tracing OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318 docker compose up -d
+  jaeger:
+    profiles: [tracing]
+    image: jaegertracing/all-in-one:1.62.0
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"
 
   nginx:
     build:

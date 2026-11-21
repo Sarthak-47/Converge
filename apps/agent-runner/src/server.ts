@@ -5,7 +5,7 @@ import { TurnApi } from './apiClient.js'
 import { CollabWorkspace } from './collabWorkspace.js'
 import { config } from './config.js'
 import { revertTurn } from './edits.js'
-import { fromHeader, type TraceContext } from './trace.js'
+import { childOf, flushSpans, recordSpan, SPAN_KIND, startSpanExport, traceRequest, type TraceContext } from './trace.js'
 import { runTurn } from './turn.js'
 import { TEXT_FIELD } from './workspace.js'
 
@@ -65,7 +65,11 @@ function reply(response: ServerResponse, status: number, body?: unknown) {
   response.end(body === undefined ? undefined : JSON.stringify(body))
 }
 
-function startTurn(input: z.infer<typeof TurnStart>, trace: TraceContext) {
+function startTurn(input: z.infer<typeof TurnStart>, request: TraceContext) {
+  // The turn outlives the request that started it, so it is its own span, and the parent of its calls back.
+  const trace = childOf(request)
+  const started = Date.now()
+  let failed = false
   const controller = new AbortController()
   running.set(input.turnId, controller)
   // The whole turn continues the API's trace: its log lines and its calls back to the API share one trace ID.
@@ -89,12 +93,20 @@ function startTurn(input: z.infer<typeof TurnStart>, trace: TraceContext) {
       return queued
     },
   })
-    .then((status) => log('INFO', 'TURN_ENDED', { turnId: input.turnId, status, ...traced }))
+    .then((status) => {
+      failed = status === 'FAILED'
+      log('INFO', 'TURN_ENDED', { turnId: input.turnId, status, ...traced })
+    })
     .catch((error: Error) => {
+      failed = true
       log('ERROR', 'TURN_REPORT_FAILED', { turnId: input.turnId, message: error.message, ...traced })
       return api.finish('FAILED', 'The agent runner could not complete the turn.').catch(() => undefined)
     })
     .finally(() => {
+      recordSpan({
+        context: trace, name: 'agent.turn', kind: SPAN_KIND.internal, start: started, end: Date.now(), error: failed,
+        attributes: { 'converge.turn_id': input.turnId, 'converge.workspace_id': input.workspaceId, 'gen_ai.request.model': input.model },
+      })
       running.delete(input.turnId)
       guidance.delete(input.turnId)
     })
@@ -129,6 +141,7 @@ const server = createServer((request, response) => {
     if (request.method === 'GET' && url.pathname === '/health') {
       return reply(response, 200, { status: 'UP', runningTurns: running.size })
     }
+    const requestTrace = traceRequest(request, response)
     if (!url.pathname.startsWith('/internal/')) return reply(response, 404)
     if (!authorized(request)) return reply(response, 401)
 
@@ -136,7 +149,7 @@ const server = createServer((request, response) => {
       const parsed = TurnStart.safeParse(await readJson(request))
       if (!parsed.success) return reply(response, 400, { message: 'Invalid turn request' })
       if (running.has(parsed.data.turnId)) return reply(response, 409, { message: 'Turn already running' })
-      startTurn(parsed.data, fromHeader(request.headers.traceparent))
+      startTurn(parsed.data, requestTrace)
       return reply(response, 202, { accepted: true })
     }
     const cancel = /^\/internal\/turns\/([0-9a-f-]{36})\/cancel$/i.exec(url.pathname)
@@ -158,7 +171,7 @@ const server = createServer((request, response) => {
     if (request.method === 'POST' && revertMatch) {
       const parsed = RevertRequest.safeParse(await readJson(request))
       if (!parsed.success) return reply(response, 400, { message: 'Invalid revert request' })
-      const trace = fromHeader(request.headers.traceparent)
+      const trace = requestTrace
       const reverted = await revert(revertMatch[1]!, parsed.data, trace)
       log('INFO', 'TURN_REVERTED', { turnId: revertMatch[1], files: reverted, traceId: trace.traceId })
       return reply(response, 200, { revertedFiles: reverted })
@@ -170,11 +183,12 @@ const server = createServer((request, response) => {
   })
 })
 
-server.listen(config.port, () => log('INFO', 'RUNNER_STARTED', { port: config.port, fakeModel: Boolean(config.anthropicBaseUrl) }))
+const exporting = startSpanExport('converge-agent-runner')
+server.listen(config.port, () => log('INFO', 'RUNNER_STARTED', { port: config.port, fakeModel: Boolean(config.anthropicBaseUrl), exportingSpans: exporting }))
 
 const shutdown = () => {
   for (const controller of running.values()) controller.abort()
-  server.close(() => process.exit(0))
+  server.close(() => void flushSpans().finally(() => process.exit(0)))
   setTimeout(() => process.exit(0), 10_000).unref()
 }
 process.on('SIGTERM', shutdown)
