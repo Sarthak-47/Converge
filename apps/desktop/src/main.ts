@@ -41,6 +41,8 @@ function createWindow() {
     title: 'Converge',
     // The window and taskbar icon (Windows and Linux; macOS uses the app bundle's icon).
     icon: path.join(here, '..', 'assets', 'icon.png'),
+    // The app's dark ink, so the window does not flash white before the page paints.
+    backgroundColor: '#111214',
     webPreferences: {
       preload: path.join(here, 'preload.cjs'),
       // The renderer is the ordinary web app: no Node, isolated from the preload, sandboxed (design §12.12).

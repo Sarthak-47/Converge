@@ -1,5 +1,7 @@
-// Light, dark or the system's choice. The choice is a per-browser convenience: it lives in localStorage, and
-// everything still renders correctly (following the system) when storage is unavailable.
+// Light, dark or the system's choice. Dark until someone chooses otherwise, as in most code editors: following
+// the system by default showed light to everyone whose Windows apps are set to light, even with a dark taskbar.
+// The choice is a per-browser convenience: it lives in localStorage, and everything still renders (dark) when
+// storage is unavailable.
 export type ThemeChoice = 'system' | 'light' | 'dark'
 export type Theme = 'light' | 'dark'
 
@@ -10,9 +12,9 @@ const listeners = new Set<(theme: Theme) => void>()
 function stored(): ThemeChoice {
   try {
     const value = localStorage.getItem(KEY)
-    return value === 'light' || value === 'dark' ? value : 'system'
+    return value === 'light' || value === 'dark' || value === 'system' ? value : 'dark'
   } catch {
-    return 'system'
+    return 'dark'
   }
 }
 
@@ -39,8 +41,7 @@ function apply() {
 export function setThemeChoice(next: ThemeChoice) {
   choice = next
   try {
-    if (next === 'system') localStorage.removeItem(KEY)
-    else localStorage.setItem(KEY, next)
+    localStorage.setItem(KEY, next)
   } catch {
     // Storage blocked: the choice still holds for this page.
   }
