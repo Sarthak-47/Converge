@@ -32,6 +32,8 @@ mac:
   category: public.app-category.developer-tools
   identity: null
 linux:
+  # The npm package name (@converge/desktop) is not a valid file name for the Linux executable.
+  executableName: converge
   target:
     - target: AppImage
       arch: [x64]

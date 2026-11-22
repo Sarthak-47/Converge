@@ -1,7 +1,7 @@
 {
   "name": "@converge/desktop",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "description": "Converge desktop app: the web client plus a live local checkout (design §12).",
   "main": "dist/main.js",
