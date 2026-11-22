@@ -54,6 +54,13 @@ Open http://localhost:8000 to see the health of every service. The API's aggrega
 
 Default database credentials are development-only values from `.env.example`; copy it to `.env` to change them.
 
+## Deploy for a team
+
+Only the server needs Docker. Teammates open a link in a browser or the desktop app (`CONVERGE_URL` sets its server).
+
+- **[On a cloud server](docs/deploy/CLOUD_SERVER.md):** one Ubuntu server, Docker Compose with [`infra/compose.production.yaml`](infra/compose.production.yaml) (nothing published but nginx on 127.0.0.1, HTTPS-only cookie, restarts on boot), and Caddy for HTTPS.
+- **[Without Docker](docs/deploy/WITHOUT_DOCKER.md):** every service run directly with systemd and nginx. Everything works except running approved commands, which needs Docker for its sandboxes; the executor runs with `SANDBOX=off` and still does all Git work.
+
 ## Agents
 
 Open a workspace, switch the right-hand panel to **Sessions**, and save your own API key. It can be a key for Anthropic, OpenAI, Google Gemini or OpenRouter, and you can save one of each under **API keys**. Keys are stored encrypted and only a hint is shown back. Every turn runs on the key of the member who prompts it, on the model they pick beside **Send to agent**. Only models you hold a key for are offered:
