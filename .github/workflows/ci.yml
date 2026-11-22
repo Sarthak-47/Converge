@@ -37,6 +37,12 @@ jobs:
   node:
     name: Web + collab (Node 24)
     runs-on: ubuntu-latest
+    # For the agent runner's cluster tests.
+    services:
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6379:6379
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -57,6 +63,8 @@ jobs:
         run: npm test --workspace @converge/sync-bridge
       - name: Agent runner tests (edits, revert property tests, scripted model)
         run: npm test --workspace @converge/agent-runner
+        env:
+          RUNNER_TEST_REDIS_URL: redis://localhost:6379
       - name: Executor tests (allowlist parity; Git against git http-backend; sandbox isolation, Gate C)
         run: npm test --workspace @converge/executor
 
@@ -121,9 +129,9 @@ jobs:
       RATE_LIMIT_SCALE: "50"
     steps:
       - uses: actions/checkout@v7
-      # Two API and two collaboration-service instances behind nginx, so every realtime and editing test also
-      # crosses instances (design §7.5).
-      - run: docker compose up -d --build --scale api=2 --scale collab=2
+      # Two instances each of the API, the collaboration service and the agent runner, so every realtime,
+      # editing and agent test also crosses instances (design §7.5).
+      - run: docker compose up -d --build --scale api=2 --scale collab=2 --scale agent-runner=2
         env:
           COLLAB_CLUSTER: "true"
       - name: Wait for the whole stack to report UP

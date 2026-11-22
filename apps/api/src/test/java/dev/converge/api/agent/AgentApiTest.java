@@ -251,6 +251,36 @@ class AgentApiTest extends IntegrationTest {
     }
 
     @Test
+    void turnsWhoseRunnerDiedAreEndedOnceTheirLeaseLapses(@org.springframework.beans.factory.annotation.Autowired RunnerLeaseSweep sweep)
+            throws Exception {
+        // One running turn per lane, so each turn below is in its own member's lane.
+        member("EDITOR");
+        member("COMMENTER");
+        List<String> people = jdbc.sql("select user_id::text from workspace_members where workspace_id = ?::uuid order by role")
+                .param(workspace).query(String.class).list();
+        UUID orphaned = UUID.randomUUID();
+        UUID alive = UUID.randomUUID();
+        UUID fresh = UUID.randomUUID();
+        String[] ages = {"5 minutes", "5 minutes", "10 seconds"};
+        UUID[] ids = {orphaned, alive, fresh};
+        for (int i = 0; i < ids.length; i++) {
+            jdbc.sql("""
+                    insert into agent_turns (id, workspace_id, lane_user_id, sponsor_id, model, status, cost_cap_micros, started_at)
+                    values (?, ?::uuid, ?::uuid, ?::uuid, 'claude-opus-5-5', 'RUNNING', 2000000, now() - cast(? as interval))
+                    """).params(ids[i], workspace, people.get(i), people.get(i), ages[i]).update();
+        }
+        // Only the old turn without a lease ends; a turn just started may not have one yet.
+        assertThat(sweep.sweep(id -> id.equals(alive))).isEqualTo(1);
+        assertThat(turnStatus(orphaned)).isEqualTo("FAILED");
+        assertThat(turnStatus(alive)).isEqualTo("RUNNING");
+        assertThat(turnStatus(fresh)).isEqualTo("RUNNING");
+    }
+
+    private String turnStatus(UUID turnId) {
+        return jdbc.sql("select status from agent_turns where id = ?").param(turnId).query(String.class).single();
+    }
+
+    @Test
     void theInternalApiNeedsTheServiceToken() throws Exception {
         mvc.perform(get("/internal/agent/turns/{t}/tree", UUID.randomUUID())).andExpect(status().isUnauthorized());
         verify(agentRunner, never()).revert(any(), anyString(), anyList());

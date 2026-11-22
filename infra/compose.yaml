@@ -63,6 +63,8 @@ services:
       AGENT_RUNNER_URL: http://agent-runner:4100
       AGENT_MODELS: ${AGENT_MODELS:-claude-opus-5-5,claude-sonnet-5-5,claude-haiku-5-5}
       AGENT_CUSTOM_MODELS: ${AGENT_CUSTOM_MODELS:-true}
+      # The runners keep leases in Redis, so the API can end turns whose runner died.
+      AGENT_RUNNER_LEASES: "true"
       GIT_ALLOW_INSECURE_REMOTES: ${GIT_ALLOW_INSECURE_REMOTES:-false}
       RATE_LIMIT_SCALE: ${RATE_LIMIT_SCALE:-1}
       SECRETS_KEY: ${SECRETS_KEY:-ZGV2ZWxvcG1lbnQtb25seS1zZWNyZXRzLWtleS0zMiE=}
@@ -76,7 +78,8 @@ services:
       collab:
         condition: service_healthy
 
-  # Runs agent turns on the Claude API (design §13.4). Members' own keys arrive per turn from the API.
+  # Runs agent turns on the member's chosen provider (design §13.4). Members' own keys arrive per turn from
+  # the API. Scales out (--scale agent-runner=N): Redis routes stop and steer to the instance running a turn.
   agent-runner:
     build:
       context: ..
@@ -91,10 +94,13 @@ services:
       MODEL_BASE_URL: ${AGENT_MODEL_URL:-}
       # Prices for models on other providers, as JSON; unpriced models are charged at a high rate.
       AGENT_MODEL_PRICES: ${AGENT_MODEL_PRICES:-}
+      REDIS_URL: redis://redis:6379
       # Spans go to this OTLP/HTTP endpoint when set (design §16.3); see the tracing profile below.
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
     depends_on:
       collab:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
   # Runs approved jobs in sandbox containers (design §11). The only service with the Docker socket; it

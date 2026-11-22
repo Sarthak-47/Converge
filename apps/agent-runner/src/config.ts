@@ -30,6 +30,11 @@ export const config = {
    * the older name.
    */
   modelBaseUrl: process.env.MODEL_BASE_URL || process.env.ANTHROPIC_BASE_URL || undefined,
+  /**
+   * Redis, when several runner instances share the work: a cancel or steer reaches whichever instance runs
+   * the turn, and each instance keeps a lease on its turns so the API can end those of an instance that died.
+   */
+  redisUrl: process.env.REDIS_URL || undefined,
   /** Server-side refusal fallback (design §13.4); off only for gateways that reject the beta parameter. */
   fallbacks: (process.env.AGENT_FALLBACKS ?? 'true') !== 'false',
   /** Characters typed per Yjs transaction and the pause between them, so people see the agent type. */

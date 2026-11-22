@@ -2,6 +2,7 @@ import { timingSafeEqual } from 'node:crypto'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { z } from 'zod'
 import { TurnApi } from './apiClient.js'
+import { RunnerCluster } from './cluster.js'
 import { CollabWorkspace } from './collabWorkspace.js'
 import { config } from './config.js'
 import { revertTurn } from './edits.js'
@@ -44,6 +45,26 @@ const RevertRequest = z.object({
 const running = new Map<string, AbortController>()
 const guidance = new Map<string, string[]>()
 
+/** Acts on a turn running on this instance: false when it is not here. */
+function handleLocal(op: 'cancel' | 'steer', turnId: string, text?: string): boolean {
+  const controller = running.get(turnId)
+  if (!controller) return false
+  if (op === 'cancel') controller.abort()
+  else guidance.set(turnId, [...(guidance.get(turnId) ?? []), text ?? ''])
+  return true
+}
+
+/** With Redis configured, several instances share the work; see cluster.ts. */
+const cluster = config.redisUrl
+  ? new RunnerCluster(config.redisUrl, { running: () => running.keys(), handle: handleLocal }, (event, fields) => log('WARN', event, fields ?? {}))
+  : null
+
+/** Cancels or steers a turn here, or on the instance that runs it. */
+async function command(op: 'cancel' | 'steer', turnId: string, text?: string): Promise<boolean> {
+  if (handleLocal(op, turnId, text)) return true
+  return cluster ? cluster.forward(op, turnId, text) : false
+}
+
 function authorized(request: IncomingMessage): boolean {
   const presented = Buffer.from(String(request.headers['x-internal-token'] ?? ''))
   const expected = Buffer.from(config.internalToken)
@@ -73,6 +94,7 @@ function startTurn(input: z.infer<typeof TurnStart>, request: TraceContext) {
   let failed = false
   const controller = new AbortController()
   running.set(input.turnId, controller)
+  void cluster?.lease(input.turnId)
   // The whole turn continues the API's trace: its log lines and its calls back to the API share one trace ID.
   const api = new TurnApi(config.apiUrl, config.internalToken, input.turnId, trace)
   const traced = { traceId: trace.traceId }
@@ -110,6 +132,7 @@ function startTurn(input: z.infer<typeof TurnStart>, request: TraceContext) {
       })
       running.delete(input.turnId)
       guidance.delete(input.turnId)
+      void cluster?.release(input.turnId)
     })
 }
 
@@ -155,17 +178,14 @@ const server = createServer((request, response) => {
     }
     const cancel = /^\/internal\/turns\/([0-9a-f-]{36})\/cancel$/i.exec(url.pathname)
     if (request.method === 'POST' && cancel) {
-      const controller = running.get(cancel[1]!)
-      if (!controller) return reply(response, 404, { message: 'Turn is not running here' })
-      controller.abort()
+      if (!(await command('cancel', cancel[1]!))) return reply(response, 404, { message: 'Turn is not running' })
       return reply(response, 202, { cancelling: true })
     }
     const steer = /^\/internal\/turns\/([0-9a-f-]{36})\/steer$/i.exec(url.pathname)
     if (request.method === 'POST' && steer) {
       const parsed = Steer.safeParse(await readJson(request))
       if (!parsed.success) return reply(response, 400, { message: 'Invalid guidance' })
-      if (!running.has(steer[1]!)) return reply(response, 404, { message: 'Turn is not running here' })
-      guidance.set(steer[1]!, [...(guidance.get(steer[1]!) ?? []), parsed.data.text])
+      if (!(await command('steer', steer[1]!, parsed.data.text))) return reply(response, 404, { message: 'Turn is not running' })
       return reply(response, 202, { queued: true })
     }
     const revertMatch = /^\/internal\/turns\/([0-9a-f-]{36})\/revert$/i.exec(url.pathname)
@@ -185,11 +205,11 @@ const server = createServer((request, response) => {
 })
 
 const exporting = startSpanExport('converge-agent-runner')
-server.listen(config.port, () => log('INFO', 'RUNNER_STARTED', { port: config.port, fakeModel: Boolean(config.modelBaseUrl), exportingSpans: exporting }))
+server.listen(config.port, () => log('INFO', 'RUNNER_STARTED', { port: config.port, fakeModel: Boolean(config.modelBaseUrl), exportingSpans: exporting, clustered: cluster !== null, instance: cluster?.instance }))
 
 const shutdown = () => {
   for (const controller of running.values()) controller.abort()
-  server.close(() => void flushSpans().finally(() => process.exit(0)))
+  server.close(() => void Promise.allSettled([flushSpans(), cluster?.close()]).finally(() => process.exit(0)))
   setTimeout(() => process.exit(0), 10_000).unref()
 }
 process.on('SIGTERM', shutdown)
