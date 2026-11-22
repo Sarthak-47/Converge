@@ -39,6 +39,8 @@ function createWindow() {
     width: 1440,
     height: 900,
     title: 'Converge',
+    // The window and taskbar icon (Windows and Linux; macOS uses the app bundle's icon).
+    icon: path.join(here, '..', 'assets', 'icon.png'),
     webPreferences: {
       preload: path.join(here, 'preload.cjs'),
       // The renderer is the ordinary web app: no Node, isolated from the preload, sandboxed (design §12.12).

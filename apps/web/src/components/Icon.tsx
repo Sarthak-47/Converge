@@ -47,11 +47,15 @@ export function Icon({ name, size = 16, className }: { name: IconName; size?: nu
   )
 }
 
-/** Converge's mark: the name as a die-cut lemon sticker, the first sticker on the lid. */
+/**
+ * Converge's logo: the mark (a lemon sticker whose "C" ends in a person and their agent, meeting with a
+ * spark) beside the name as a die-cut lemon sticker. The source art is in docs/brand.
+ */
 export function BrandMark({ size = 15 }: { size?: number }) {
   return (
-    <span className="logo-sticker" style={{ fontSize: size }} aria-hidden="true">
-      CONVERGE
+    <span className="brand-lockup" aria-hidden="true">
+      <img className="brand-mark" src="/converge-mark.svg" alt="" width={size * 2.2} height={size * 2.2} />
+      <span className="logo-sticker" style={{ fontSize: size }}>CONVERGE</span>
     </span>
   )
 }

@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/brand/converge-logo-dark.png">
+    <img src="docs/brand/converge-logo-light.png" alt="Converge" width="560">
+  </picture>
+</p>
+
 # Converge
 
 A real-time, multi-user development environment where a team and its coding agents edit, test and ship code together: a browser IDE and a desktop app with live local sync, collaborative editing, version history, agents that type in the same files as people, sandboxed test runs behind approvals, and pull requests from sessions.
@@ -8,16 +15,17 @@ The full design — architecture, protocols, roadmap and decision log — is in 
 
 **Known limit:** desktop builds are unsigned, because signing needs paid code-signing certificates.
 
-**Scaling out:** the API and the collaboration service both run as several instances behind nginx:
+**Scaling out:** the API, the collaboration service and the agent runner all run as several instances:
 
 ```powershell
-$env:COLLAB_CLUSTER="true"; docker compose up -d --scale api=2 --scale collab=2
+$env:COLLAB_CLUSTER="true"; docker compose up -d --scale api=2 --scale collab=2 --scale agent-runner=2
 ```
 
 - **API:** sign-ins live in PostgreSQL, rate limits and presence in Redis, and every workspace-channel message is shared between instances through Redis, so a person may land on any instance.
 - **Collaboration service** (with `COLLAB_CLUSTER=true`): instances keep each document in step through Redis, an instance opening a document live elsewhere first catches up with it, stores merge with what is already stored so none can take back another's edits, and closing, access changes and "store now" reach every instance.
+- **Agent runner:** any instance starts or reverts a turn. A running turn lives on one instance, so a stop or steer that lands elsewhere is forwarded to it through Redis. Each instance keeps a lease on its turns, and the API ends the turns of an instance that died instead of leaving them "Working…".
 - **nginx** looks up the instances when it starts, so restart it after changing their number.
-- **Still one instance each:** the agent runner, which keeps running agent turns in memory (a stop or steer must reach the instance running the turn), and the executor, by design: a job interrupted by a crash is marked for a person to check, never re-run, which assumes a single executor.
+- **Still one instance:** the executor, by design: a job interrupted by a crash is marked for a person to check, never re-run, which assumes a single executor.
 
 CI runs the whole end-to-end suite against two API and two collaboration-service instances.
 

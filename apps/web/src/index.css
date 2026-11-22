@@ -2734,3 +2734,28 @@ select {
   flex: 1;
   min-width: 0;
 }
+
+/* The logo: the mark beside the name sticker. The mark carries its own die-cut edge and tilt. */
+.brand-lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.brand-mark {
+  display: block;
+  flex: none;
+}
+
+/* On the lid the mark is a sticker like the others, without the shared die-cut ring (it has its own). */
+.lid-sticker.lid-mark {
+  padding: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.lid-mark img {
+  display: block;
+  width: clamp(72px, 9vw, 120px);
+  height: auto;
+}

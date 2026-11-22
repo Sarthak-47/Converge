@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- The Converge mark simplified for 16 to 32 pixels: no die-cut edge, shadow or spark, heavier strokes. -->
+  <rect x="2" y="2" width="60" height="60" rx="15" fill="#ffd400" stroke="#111214" stroke-width="4"/>
+  <path d="M 42.6 20.4 A 16 16 0 1 0 42.6 43.6" fill="none" stroke="#111214" stroke-width="9" stroke-linecap="round"/>
+  <circle cx="43" cy="20" r="7" fill="#ff5532" stroke="#111214" stroke-width="3"/>
+  <rect x="36" y="37" width="14" height="14" rx="4" fill="#2b4dff" stroke="#111214" stroke-width="3"/>
+</svg>
