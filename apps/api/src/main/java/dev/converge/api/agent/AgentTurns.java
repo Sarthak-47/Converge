@@ -45,7 +45,29 @@ public class AgentTurns {
             boolean revertible, List<Map<String, Object>> events) {
     }
 
-    static final Pattern SECRET = Pattern.compile("sk-ant-[A-Za-z0-9_\\-]{8,}");
+    /** Provider keys that might be echoed back in an error: Anthropic, OpenAI, OpenRouter and Google ones. */
+    static final Pattern SECRET = Pattern.compile("(?:sk-[A-Za-z0-9_\\-]{8,}|AIza[A-Za-z0-9_\\-]{20,})");
+    /** A model ID on another provider, as members may type it: "gpt-x", "meta-llama/llama-x:free". */
+    private static final Pattern MODEL_ID = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,99}");
+
+    /** A model and whose API it runs on. Claude models are named plainly; others as "openai:gpt-x". */
+    record ModelChoice(ProviderKeys.Provider provider, String id, String name) {
+
+        static ModelChoice parse(String name) {
+            if (name.startsWith("claude-")) return new ModelChoice(ProviderKeys.Provider.ANTHROPIC, name, name);
+            int colon = name.indexOf(':');
+            if (colon > 0) {
+                String prefix = name.substring(0, colon);
+                String id = name.substring(colon + 1);
+                for (ProviderKeys.Provider p : ProviderKeys.Provider.values()) {
+                    if (p.id().equals(prefix) && MODEL_ID.matcher(id).matches()) {
+                        return p == ProviderKeys.Provider.ANTHROPIC ? parse(id) : new ModelChoice(p, id, p.id() + ":" + id);
+                    }
+                }
+            }
+            return null;
+        }
+    }
     private static final TypeReference<Map<String, Object>> MAP = new TypeReference<>() {
     };
 
@@ -63,6 +85,7 @@ public class AgentTurns {
     private final String model;
     private final java.util.List<String> models;
     private final String effort;
+    private final boolean customModels;
     private final long costCapMicros;
     private final long dailyCapMicros;
 
@@ -75,9 +98,11 @@ public class AgentTurns {
             AgentRunnerClient runner, ApplicationEventPublisher events, TransactionTemplate tx,
             @Value("${converge.agent.model}") String model, @Value("${converge.agent.effort}") String effort,
             @Value("${converge.agent.models:claude-opus-5-5,claude-sonnet-5-5,claude-haiku-5-5}") String choices,
+            @Value("${converge.agent.custom-models:true}") boolean customModels,
             @Value("${converge.agent.cost-cap-micros}") long costCapMicros,
             @Value("${converge.agent.daily-cap-micros:20000000}") long dailyCapMicros) {
         this.dailyCapMicros = dailyCapMicros;
+        this.customModels = customModels;
         this.jdbc = jdbc;
         this.access = access;
         this.keys = keys;
@@ -110,18 +135,55 @@ public class AgentTurns {
         return models;
     }
 
+    /** Whether members may name a model on OpenAI, Gemini or OpenRouter that is not in the list. */
+    public boolean customModels() {
+        return customModels;
+    }
+
+    /**
+     * A model the member asked for: one from the list, or (unless the operator turned it off) any model on a
+     * provider other than Anthropic, whose catalogues change too often to list. The cost cap holds either way.
+     */
+    private ModelChoice allowed(String name) {
+        ModelChoice choice = ModelChoice.parse(name);
+        if (choice != null && models.contains(choice.name())) return choice;
+        if (choice != null && customModels && choice.provider() != ProviderKeys.Provider.ANTHROPIC) return choice;
+        throw ApiException.badRequest("Choose one of the available models: " + String.join(", ", models)
+                + (customModels ? ", or a model on another provider such as openai:<model>" : ""));
+    }
+
+    /**
+     * The model for a turn the member did not pick one for (a comment sent to the agent, a takeover): the
+     * default when they have a key for it, else the first listed model they have a key for, else the model of
+     * their latest turn on a provider they still have a key for.
+     */
+    private ModelChoice defaultFor(UUID userId) {
+        List<ProviderKeys.Provider> have = keys.configured(userId);
+        if (have.isEmpty()) throw ApiException.conflict("Add an API key before prompting your agent");
+        for (String name : models) {
+            ModelChoice choice = ModelChoice.parse(name);
+            if (choice != null && have.contains(choice.provider())) return choice;
+        }
+        for (String name : jdbc.sql("select model from agent_turns where sponsor_id = ? order by started_at desc limit 20")
+                .param(userId).query(String.class).list()) {
+            ModelChoice choice = ModelChoice.parse(name);
+            if (choice != null && have.contains(choice.provider())) return choice;
+        }
+        throw ApiException.conflict("Pick a model for your " + have.getFirst().label() + " key before prompting your agent");
+    }
+
     /**
      * As {@link #start(UUID, UUID, UUID, String, String)}, on a model the member chose from the allowed ones
      * (null for the default): a cheaper model for quick edits, the strongest for hard ones.
      */
     public Turn start(UUID workspaceId, UUID sessionId, UUID userId, String displayName, String prompt, String requestedModel) {
-        String model = requestedModel == null || requestedModel.isBlank() ? this.model : requestedModel.strip();
-        if (!models.contains(model)) throw ApiException.badRequest("Choose one of the available models: " + String.join(", ", models));
         access.require(workspaceId, userId, Role.EDITOR);
+        ModelChoice choice = requestedModel == null || requestedModel.isBlank() ? defaultFor(userId) : allowed(requestedModel.strip());
+        String model = choice.name();
         limits.check(dev.converge.api.common.RateLimiter.AGENT_PROMPT, userId.toString());
         String task = sessionId == null ? null : sessionTask(workspaceId, sessionId);
-        String apiKey = keys.reveal(userId).orElseThrow(() -> ApiException.conflict(
-                "Add your Anthropic API key before prompting your agent"));
+        String apiKey = keys.reveal(userId, choice.provider()).orElseThrow(() -> ApiException.conflict(
+                "Add your " + choice.provider().label() + " API key before prompting your agent on " + model));
         // A turn may spend at most the per-turn cap and what is left of the member's daily cap; reaching it
         // mid-turn ends the turn as BUDGET_EXCEEDED, which puts a session up for takeover.
         long spent = spentToday(userId);
@@ -164,7 +226,7 @@ public class AgentTurns {
         }
         try {
             log.info("Agent turn {} started in workspace {} on the sponsor's key", turnId, workspaceId);
-            runner.start(new StartTurn(turnId, workspaceId, new Sponsor(userId, displayName), apiKey, model, effort,
+            runner.start(new StartTurn(turnId, workspaceId, new Sponsor(userId, displayName), apiKey, choice.provider().id(), choice.id(), effort,
                     prompt, history, turnCap, sessionId == null ? null : new SessionContext(sessionId, task),
                     context.text().isBlank() ? null : context.text()));
         } catch (ApiException e) {
@@ -186,8 +248,8 @@ public class AgentTurns {
 
     /** Refuses early when a member has no key, before anything else changes (for example a takeover). */
     public void requireKey(UUID userId) {
-        if (keys.reveal(userId).isEmpty()) {
-            throw ApiException.conflict("Add your Anthropic API key before prompting your agent");
+        if (keys.configured(userId).isEmpty()) {
+            throw ApiException.conflict("Add an API key before prompting your agent");
         }
     }
 
@@ -417,7 +479,7 @@ public class AgentTurns {
     // ---- Helpers ---------------------------------------------------------------------------------------
 
     static String redact(String text) {
-        return SECRET.matcher(text).replaceAll("sk-ant-…redacted");
+        return SECRET.matcher(text).replaceAll("…redacted key…");
     }
 
     private void append(UUID turnId, UUID workspaceId, UUID actorId, Map<String, Object> event) {

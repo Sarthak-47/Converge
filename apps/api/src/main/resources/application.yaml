@@ -62,8 +62,11 @@ converge:
     # Design §13.4: Opus 5.5 with effort set explicitly (the model's own default is medium).
     model: ${AGENT_MODEL:claude-opus-5-5}
     effort: ${AGENT_EFFORT:high}
-    # What members may pick per turn; the default model above is always offered first.
+    # What members may pick per turn; the default model above is always offered first. Models on other
+    # providers are named provider:model, for example openai:<model> or openrouter:<vendor>/<model>.
     models: ${AGENT_MODELS:claude-opus-5-5,claude-sonnet-5-5,claude-haiku-5-5}
+    # Lets members name any model on OpenAI, Gemini or OpenRouter, not only the listed ones.
+    custom-models: ${AGENT_CUSTOM_MODELS:true}
     # Hard cap per turn, in micro-dollars, enforced from recorded usage.
     cost-cap-micros: ${AGENT_COST_CAP_MICROS:2000000}
     # And per member over any 24 hours; each turn gets the smaller of the two (design §13.5).

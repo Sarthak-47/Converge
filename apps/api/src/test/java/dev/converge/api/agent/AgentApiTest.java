@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -110,6 +111,42 @@ class AgentApiTest extends IntegrationTest {
     }
 
     @Test
+    void aMemberCanBringAKeyForAnotherProviderAndRunTurnsOnIt() throws Exception {
+        String openAi = "sk-proj-test-0123456789abcdOPEN";
+        perform(asha, put("/api/v1/me/provider-keys/openai"), "{'apiKey':'%s'}", KEY).andExpect(status().isBadRequest());
+        perform(asha, put("/api/v1/me/provider-keys/gemini"), "{'apiKey':'%s'}", "AIzaSyTest0123456789abcdefGEMI").andExpect(status().isOk());
+        perform(asha, put("/api/v1/me/provider-keys/openai"), "{'apiKey':'%s'}", openAi)
+                .andExpect(status().isOk()).andExpect(jsonPath("$.hint").value("…OPEN"));
+        perform(asha, put("/api/v1/me/provider-keys/mistral"), "{'apiKey':'%s'}", openAi).andExpect(status().isNotFound());
+        getAs(asha, "/api/v1/me/provider-keys")
+                .andExpect(jsonPath("$[?(@.provider == 'anthropic')].configured").value(false))
+                .andExpect(jsonPath("$[?(@.provider == 'openai')].hint").value("…OPEN"))
+                .andExpect(jsonPath("$[?(@.provider == 'gemini')].configured").value(true));
+        getAs(asha, "/api/v1/workspaces/{w}/agent/turns/model-options", workspace)
+                .andExpect(jsonPath("$.customModels").value(true));
+
+        // No Anthropic key, so a Claude model is refused; a model on OpenAI runs on the OpenAI key.
+        perform(asha, post("/api/v1/workspaces/" + workspace + "/agent/turns"), "{'prompt':'hi','model':'claude-opus-5-5'}")
+                .andExpect(status().isConflict());
+        perform(asha, post("/api/v1/workspaces/" + workspace + "/agent/turns"), "{'prompt':'hi','model':'openai:gpt-test'}")
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.model").value("openai:gpt-test"));
+        ArgumentCaptor<StartTurn> started = ArgumentCaptor.forClass(StartTurn.class);
+        verify(agentRunner).start(started.capture());
+        assertThat(started.getValue().provider()).isEqualTo("openai");
+        assertThat(started.getValue().model()).isEqualTo("gpt-test");
+        assertThat(started.getValue().apiKey()).isEqualTo(openAi);
+
+        // Without a model named (a comment sent to the agent, say), it reuses the last one it can pay for.
+        String turn = jdbc.sql("select id from agent_turns where model = 'openai:gpt-test'").query(String.class).single();
+        internal(post("/internal/agent/turns/{t}/finish", turn), "{'status':'SUCCEEDED','error':null}").andExpect(status().isNoContent());
+        prompt(asha, "again").andExpect(status().isCreated()).andExpect(jsonPath("$.model").value("openai:gpt-test"));
+
+        mvc.perform(delete("/api/v1/me/provider-keys/openai").session(asha).with(csrf())).andExpect(status().isNoContent());
+        getAs(asha, "/api/v1/me/provider-keys/openai").andExpect(jsonPath("$.configured").value(false));
+    }
+
+    @Test
     void aTurnRunsOnTheSponsorsKeyAndRecordsItsTranscriptAndCost() throws Exception {
         setKey(asha, KEY);
         String turn = id(prompt(asha, "add validation").andExpect(status().isCreated())
@@ -152,7 +189,7 @@ class AgentApiTest extends IntegrationTest {
                 .andExpect(jsonPath("$[0].events[0].kind").value("prompt"))
                 .andExpect(jsonPath("$[0].events[0].text").value("add validation"))
                 .andExpect(jsonPath("$[0].events[1].summary").value("edited signup.ts"))
-                .andExpect(jsonPath("$[0].events[2].text").value("Done. My key is sk-ant-…redacted"));
+                .andExpect(jsonPath("$[0].events[2].text").value("Done. My key is …redacted key…"));
 
         // The next turn in the lane carries this exchange as history.
         prompt(asha, "and now tests").andExpect(status().isCreated());

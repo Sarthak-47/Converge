@@ -83,6 +83,10 @@ export class FakeModel {
       res.writeHead(200, { 'Content-Type': 'application/json' }).end('{"status":"UP"}')
       return
     }
+    if (req.method === 'POST' && req.url?.startsWith('/v1/chat/completions')) {
+      await this.handleChat(req, res)
+      return
+    }
     if (req.method !== 'POST' || !req.url?.startsWith('/v1/messages')) {
       res.writeHead(404).end()
       return
@@ -141,6 +145,58 @@ export class FakeModel {
     }
     if (body.stream) this.stream(res, message, blocks)
     else res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(message))
+  }
+
+  /**
+   * The same script on the OpenAI Chat Completions API, which the OpenAI, Gemini and OpenRouter providers
+   * share. Streams chunks the way those APIs do, tool-call arguments split across deltas.
+   */
+  private async handleChat(req: IncomingMessage, res: ServerResponse) {
+    const chunks: Buffer[] = []
+    for await (const chunk of req) chunks.push(chunk as Buffer)
+    const body = JSON.parse(Buffer.concat(chunks).toString('utf8')) as Record<string, unknown>
+    const apiKey = String(req.headers.authorization ?? '').replace(/^Bearer /, '') || undefined
+    this.requests.push({ apiKey, beta: undefined, body })
+    if (apiKey === 'sk-invalid') {
+      res.writeHead(401, { 'Content-Type': 'application/json' })
+        .end(JSON.stringify({ error: { message: 'Incorrect API key provided: sk-inv***', type: 'invalid_request_error' } }))
+      return
+    }
+    const messages = body.messages as Array<{ role: string; content: unknown }>
+    let start = messages.length - 1
+    while (start > 0 && !(messages[start]!.role === 'user' && !String(messages[start]!.content).startsWith('Guidance from'))) start--
+    const prompt = textOf(messages[start]?.content)
+    const responses = messages.slice(start).filter((m) => m.role === 'assistant').length
+    const { steps, delayMs } = parseScript(prompt)
+    if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs))
+    const step = steps[responses]
+    const id = this.id('chatcmpl')
+    const base = { id, object: 'chat.completion.chunk', created: 0, model: String(body.model) }
+    res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' })
+    const send = (data: object) => res.write(`data: ${JSON.stringify({ ...base, ...data })}\n\n`)
+    const delta = (d: object, finish: string | null = null) => send({ choices: [{ index: 0, delta: d, finish_reason: finish }] })
+    const call = (name: string, input: unknown) => {
+      const json = JSON.stringify(input)
+      delta({ tool_calls: [{ index: 0, id: this.id('call'), type: 'function', function: { name, arguments: '' } }] })
+      for (let i = 0; i < json.length; i += 16) delta({ tool_calls: [{ index: 0, function: { arguments: json.slice(i, i + 16) } }] })
+      delta({}, 'tool_calls')
+    }
+    delta({ role: 'assistant', content: '' })
+    if (steps.length === 0) {
+      delta({ content: 'This is the scripted test model. Add @tool lines to the prompt to drive it.' }, 'stop')
+    } else if (!step) {
+      delta({ content: 'Done.' }, 'stop')
+    } else if (step.kind === 'refuse') {
+      delta({ refusal: 'Scripted refusal.' }, 'stop')
+    } else if (step.kind === 'say') {
+      delta({ content: step.text })
+      call('list_files', {})
+    } else {
+      call(step.name, step.input)
+    }
+    send({ choices: [], usage: { prompt_tokens: this.usage.input_tokens, completion_tokens: this.usage.output_tokens, total_tokens: this.usage.input_tokens + this.usage.output_tokens } })
+    res.write('data: [DONE]\n\n')
+    res.end()
   }
 
   private stream(res: ServerResponse, message: Record<string, unknown> & { usage: object }, blocks: Block[]) {

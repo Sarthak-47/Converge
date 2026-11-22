@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import type React from 'react'
-import { api, type AgentKey, type AgentTurn, type AgentTurnStatus } from '../api.ts'
-import { dollars, errorMessage } from './agentKit.ts'
+import { api, type AgentKey, type AgentProvider, type AgentTurn, type AgentTurnStatus } from '../api.ts'
+import { dollars, errorMessage, PROVIDERS } from './agentKit.ts'
 import { Icon } from './Icon.tsx'
 import type { CSSProperties } from 'react'
 import { colorFor } from '../editor/collabDocument.ts'
@@ -60,10 +60,12 @@ export function TurnCard({ turn, currentUserId, canEdit, busy, onStop, onRevert,
   )
 }
 
-export function AgentKeyForm({ onSaved }: { onSaved: (key: AgentKey) => void }) {
+export function AgentKeyForm({ onSaved, title }: { onSaved: (key: AgentKey) => void; title?: string }) {
+  const [provider, setProvider] = useState<AgentProvider>('anthropic')
   const [draft, setDraft] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const chosen = PROVIDERS.find((p) => p.id === provider)!
 
   function save(event: FormEvent) {
     event.preventDefault()
@@ -71,7 +73,7 @@ export function AgentKeyForm({ onSaved }: { onSaved: (key: AgentKey) => void }) 
     if (!value) return
     setBusy(true)
     setError(null)
-    api.setAgentKey(value)
+    api.setAgentKey(provider, value)
       .then((key) => {
         setDraft('')
         onSaved(key)
@@ -82,11 +84,47 @@ export function AgentKeyForm({ onSaved }: { onSaved: (key: AgentKey) => void }) 
 
   return (
     <form className="agent-key-form" onSubmit={save}>
-      <label htmlFor="agent-key">Your Anthropic API key</label>
-      <input id="agent-key" type="password" autoComplete="off" placeholder="sk-ant-…" value={draft} onChange={(e) => setDraft(e.target.value)} />
+      {title && <strong className="small">{title}</strong>}
+      <div className="agent-key-provider" role="radiogroup" aria-label="Key provider">
+        {PROVIDERS.map((p) => (
+          <button key={p.id} type="button" role="radio" aria-checked={p.id === provider} className={p.id === provider ? 'chip active' : 'chip'}
+            onClick={() => setProvider(p.id)}>{p.label}</button>
+        ))}
+      </div>
+      <label htmlFor="agent-key">Your {chosen.label} API key</label>
+      <input id="agent-key" type="password" autoComplete="off" placeholder={chosen.placeholder} value={draft} onChange={(e) => setDraft(e.target.value)} />
       <p className="muted small">Your agent runs on your own key. It is stored encrypted and never shown again.</p>
       {error && <p className="error small" role="alert">{error}</p>}
       <button type="submit" className="primary" disabled={busy || !draft.trim()}>Save key</button>
     </form>
+  )
+}
+
+/** The member's saved keys, each removable, and a form to add another provider's or replace one. */
+export function AgentKeyManager({ keys, onChanged }: { keys: AgentKey[]; onChanged: () => void }) {
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  function remove(key: AgentKey) {
+    setBusy(true)
+    setError(null)
+    api.removeAgentKey(key.provider)
+      .then(onChanged)
+      .catch((e) => setError(errorMessage(e, 'Could not remove the key')))
+      .finally(() => setBusy(false))
+  }
+  return (
+    <details className="agent-keys">
+      <summary className="small">API keys</summary>
+      <ul className="agent-key-list" aria-label="Your API keys">
+        {keys.filter((k) => k.configured).map((k) => (
+          <li key={k.provider}>
+            <span className="small"><strong>{k.label}</strong> <span className="muted">{k.hint}</span></span>
+            <button type="button" className="link small" disabled={busy} aria-label={`Remove your ${k.label} key`} onClick={() => remove(k)}>Remove</button>
+          </li>
+        ))}
+      </ul>
+      {error && <p className="error small" role="alert">{error}</p>}
+      <AgentKeyForm onSaved={onChanged} title="Add or replace a key" />
+    </details>
   )
 }

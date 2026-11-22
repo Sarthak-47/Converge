@@ -2675,3 +2675,62 @@ select {
 .agent-send button {
   flex: 1;
 }
+
+/* Bring-your-own-key: one key per provider, picked from a row of inked chips like the theme switch. */
+.agent-key-provider {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.agent-key-provider button {
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1.5px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.agent-key-provider button[aria-checked='true'] {
+  background: var(--chip);
+  color: var(--chip-ink);
+  border-color: var(--chip-edge);
+}
+
+.agent-keys {
+  border-top: 1px solid var(--border);
+}
+
+.agent-keys > summary {
+  padding: 8px 12px;
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.agent-keys .agent-key-form {
+  border-top: none;
+  padding-top: 4px;
+}
+
+.agent-key-list {
+  margin: 0;
+  padding: 0 12px;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+}
+
+.agent-key-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.agent-model-custom {
+  flex: 1;
+  min-width: 0;
+}

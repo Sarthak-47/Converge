@@ -149,15 +149,19 @@ export const api = {
 
   chatHistory: (workspaceId: string) => request<ChatHistoryEntry[]>('GET', `/workspaces/${workspaceId}/chat`),
 
-  agentKey: () => request<AgentKey>('GET', '/me/provider-keys/anthropic'),
+  /** Every provider a member can bring a key for, and whether they have (design §13.5). */
+  agentKeys: () => request<AgentKey[]>('GET', '/me/provider-keys'),
   agentSpend: () => request<{ spentMicros: number; dailyCapMicros: number; turnCapMicros: number }>('GET', '/me/agent-spend'),
-  setAgentKey: (apiKey: string) => request<AgentKey>('PUT', '/me/provider-keys/anthropic', { apiKey }),
-  removeAgentKey: () => request<void>('DELETE', '/me/provider-keys/anthropic'),
+  setAgentKey: (provider: AgentProvider, apiKey: string) => request<AgentKey>('PUT', `/me/provider-keys/${provider}`, { apiKey }),
+  removeAgentKey: (provider: AgentProvider) => request<void>('DELETE', `/me/provider-keys/${provider}`),
   agentTurns: (workspaceId: string) => request<AgentTurn[]>('GET', `/workspaces/${workspaceId}/agent/turns`),
   promptAgent: (workspaceId: string, prompt: string, sessionId?: string, model?: string) =>
     request<AgentTurn>('POST', `/workspaces/${workspaceId}/agent/turns`, { prompt, sessionId, model }),
   /** The models a member may pick for a turn, the default first. */
   agentModels: (workspaceId: string) => request<string[]>('GET', `/workspaces/${workspaceId}/agent/turns/models`),
+  /** The listed models, and whether any model on OpenAI, Gemini or OpenRouter may be named too. */
+  agentModelOptions: (workspaceId: string) =>
+    request<{ models: string[]; customModels: boolean }>('GET', `/workspaces/${workspaceId}/agent/turns/model-options`),
   steerTurn: (workspaceId: string, turnId: string, text: string) =>
     request<AgentTurn>('POST', `/workspaces/${workspaceId}/agent/turns/${turnId}/steer`, { text }),
 
@@ -257,7 +261,16 @@ export type ChatHistoryEntry = {
   createdAt: string
 }
 
-export type AgentKey = { configured: boolean; hint: string | null }
+export type AgentProvider = 'anthropic' | 'openai' | 'gemini' | 'openrouter'
+
+export type AgentKey = { provider: AgentProvider; label: string; configured: boolean; hint: string | null }
+
+/** Whose API a model runs on: Claude models are named plainly, others as "openai:<model>". */
+export function providerOf(model: string): AgentProvider | null {
+  if (model.startsWith('claude-')) return 'anthropic'
+  const prefix = model.slice(0, Math.max(0, model.indexOf(':')))
+  return prefix === 'openai' || prefix === 'gemini' || prefix === 'openrouter' || prefix === 'anthropic' ? prefix : null
+}
 
 export type AgentEvent = {
   seq: number

@@ -28,7 +28,7 @@ public class AgentRunnerClient {
     public record Sponsor(UUID id, String name) {
     }
 
-    public record StartTurn(UUID turnId, UUID workspaceId, Sponsor sponsor, String apiKey, String model, String effort,
+    public record StartTurn(UUID turnId, UUID workspaceId, Sponsor sponsor, String apiKey, String provider, String model, String effort,
             String prompt, List<History> history, long costCapMicros, SessionContext session, String context) {
     }
 

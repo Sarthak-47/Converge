@@ -25,10 +25,11 @@ export const config = {
   /** Shared secret for /internal calls in both directions; empty refuses all of them. */
   internalToken: process.env.INTERNAL_TOKEN ?? '',
   /**
-   * Where Claude API requests go. Unset means the real API; tests and the end-to-end stack point it at the
-   * scripted fake model so no key or money is needed.
+   * Where model requests go, for every provider. Unset means each provider's real API; tests and the
+   * end-to-end stack point it at the scripted fake model so no key or money is needed. ANTHROPIC_BASE_URL is
+   * the older name.
    */
-  anthropicBaseUrl: process.env.ANTHROPIC_BASE_URL || undefined,
+  modelBaseUrl: process.env.MODEL_BASE_URL || process.env.ANTHROPIC_BASE_URL || undefined,
   /** Server-side refusal fallback (design §13.4); off only for gateways that reject the beta parameter. */
   fallbacks: (process.env.AGENT_FALLBACKS ?? 'true') !== 'false',
   /** Characters typed per Yjs transaction and the pause between them, so people see the agent type. */

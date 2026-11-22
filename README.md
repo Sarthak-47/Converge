@@ -28,7 +28,7 @@ CI runs the whole end-to-end suite against two API and two collaboration-service
 | Web | `apps/web` | Vite + React + TypeScript | Browser client: Monaco bound to Yjs, file tree, chat |
 | API | `apps/api` | Spring Boot 4.1, Java 21, Maven | Identity, workspaces, files, history, Git and job orchestration |
 | Collab | `apps/collab` | Node 24 + Hocuspocus (Yjs) | Document synchronization: ticket auth, persistence, merging external changes |
-| Agent runner | `apps/agent-runner` | Node 24 + Anthropic SDK | Agent turns on the Claude API; agents edit live documents as their own Yjs clients |
+| Agent runner | `apps/agent-runner` | Node 24 + Anthropic SDK | Agent turns on the Claude API or an OpenAI-compatible provider; agents edit live documents as their own Yjs clients |
 | Executor | `apps/executor` | Node 24 + Docker + Git | Approved jobs in sandbox containers and server-side Git; the only holder of the Docker socket |
 | Desktop | `apps/desktop` | Electron | The web app plus a sync bridge that mirrors a workspace into a local Git checkout |
 | nginx | `infra/nginx` | nginx | Single origin: `/` web, `/api` and `/ws` API, `/collab` collaboration socket; `/internal` is never routed |
@@ -48,7 +48,12 @@ Default database credentials are development-only values from `.env.example`; co
 
 ## Agents
 
-Open a workspace, switch the right-hand panel to **Sessions**, and save your own Anthropic API key. It is stored encrypted and only a hint is shown back. Every turn runs on the key of the member who prompts it, on the model they pick beside **Send to agent**: Claude Opus 5.5 by default, or Sonnet 5.5 or Haiku 5.5 for quicker, cheaper turns (`AGENT_MODELS` sets the list).
+Open a workspace, switch the right-hand panel to **Sessions**, and save your own API key. It can be a key for Anthropic, OpenAI, Google Gemini or OpenRouter, and you can save one of each under **API keys**. Keys are stored encrypted and only a hint is shown back. Every turn runs on the key of the member who prompts it, on the model they pick beside **Send to agent**. Only models you hold a key for are offered:
+
+- **Claude:** Opus 5.5 by default, or Sonnet 5.5 or Haiku 5.5 for quicker, cheaper turns (`AGENT_MODELS` sets the list).
+- **OpenAI, Gemini and OpenRouter:** choose **Another model…** and type the provider's model ID. Their catalogues change too often to list. OpenRouter covers Llama, Mistral, DeepSeek, Qwen and many more behind one key. An operator can also list such models in `AGENT_MODELS` as `openai:<model>`, `gemini:<model>` or `openrouter:<vendor>/<model>`, or set `AGENT_CUSTOM_MODELS=false` to allow only the listed ones.
+
+Turns on other providers use their OpenAI-compatible Chat Completions APIs with the same tools, approvals, revert and cost caps. The Claude-only settings (effort, adaptive thinking, task budgets and server-side fallbacks) are left at the provider's defaults. OpenRouter reports each request's real price. For OpenAI and Gemini, set the prices of the models you allow in `AGENT_MODEL_PRICES` on the agent runner, as JSON in dollars per million tokens, for example `{"openai:<model>":{"input":2,"output":10}}`. A model without a price is charged at a deliberately high $15 in and $75 out per million tokens, so a cost cap is never under-enforced.
 
 To try agents without a key or any cost, start the stack with the scripted fake model:
 
@@ -56,7 +61,7 @@ To try agents without a key or any cost, start the stack with the scripted fake 
 COMPOSE_PROFILES=fake-model AGENT_MODEL_URL=http://fake-model:9100 docker compose up -d --build
 ```
 
-Any key-shaped value then works (for example `sk-ant-test-0000000000000000`), and prompts drive the fake with directive lines such as `@tool read_file {"path":"app.ts"}`. See `apps/agent-runner/src/testing/fakeModel.ts` for the directives. Outside development, set `SECRETS_KEY` to your own value (`openssl rand -base64 32`).
+Any key-shaped value then works for any provider (for example `sk-ant-test-0000000000000000`), and prompts drive the fake with directive lines such as `@tool read_file {"path":"app.ts"}`. See `apps/agent-runner/src/testing/fakeModel.ts` for the directives. Outside development, set `SECRETS_KEY` to your own value (`openssl rand -base64 32`).
 
 ## Develop a service locally
 

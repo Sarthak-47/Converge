@@ -18,6 +18,7 @@ const TurnStart = z.object({
   workspaceId: z.string().uuid(),
   sponsor: z.object({ id: z.string().uuid(), name: z.string().min(1).max(200) }),
   apiKey: z.string().min(1).max(500),
+  provider: z.enum(['anthropic', 'openai', 'gemini', 'openrouter']).default('anthropic'),
   model: z.string().min(1).max(100),
   effort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']),
   prompt: z.string().min(1).max(20_000),
@@ -79,13 +80,13 @@ function startTurn(input: z.infer<typeof TurnStart>, request: TraceContext) {
     collabUrl: config.collabUrl,
     origin: config.collabOrigin,
   })
-  log('INFO', 'TURN_STARTED', { turnId: input.turnId, workspaceId: input.workspaceId, model: input.model, ...traced })
+  log('INFO', 'TURN_STARTED', { turnId: input.turnId, workspaceId: input.workspaceId, provider: input.provider, model: input.model, ...traced })
   void runTurn(input, {
     workspace,
     ledger: api,
     signal: controller.signal,
     typing: { chunk: config.typingChunk, delayMs: config.typingDelayMs },
-    baseURL: config.anthropicBaseUrl,
+    baseURL: config.modelBaseUrl,
     fallbacks: config.fallbacks,
     takeGuidance: () => {
       const queued = guidance.get(input.turnId) ?? []
@@ -105,7 +106,7 @@ function startTurn(input: z.infer<typeof TurnStart>, request: TraceContext) {
     .finally(() => {
       recordSpan({
         context: trace, name: 'agent.turn', kind: SPAN_KIND.internal, start: started, end: Date.now(), error: failed,
-        attributes: { 'converge.turn_id': input.turnId, 'converge.workspace_id': input.workspaceId, 'gen_ai.request.model': input.model },
+        attributes: { 'converge.turn_id': input.turnId, 'converge.workspace_id': input.workspaceId, 'gen_ai.system': input.provider, 'gen_ai.request.model': input.model },
       })
       running.delete(input.turnId)
       guidance.delete(input.turnId)
@@ -184,7 +185,7 @@ const server = createServer((request, response) => {
 })
 
 const exporting = startSpanExport('converge-agent-runner')
-server.listen(config.port, () => log('INFO', 'RUNNER_STARTED', { port: config.port, fakeModel: Boolean(config.anthropicBaseUrl), exportingSpans: exporting }))
+server.listen(config.port, () => log('INFO', 'RUNNER_STARTED', { port: config.port, fakeModel: Boolean(config.modelBaseUrl), exportingSpans: exporting }))
 
 const shutdown = () => {
   for (const controller of running.values()) controller.abort()

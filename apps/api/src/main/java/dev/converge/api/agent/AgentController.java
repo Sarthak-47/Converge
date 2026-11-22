@@ -25,7 +25,7 @@ import dev.converge.api.auth.AppUser;
 @RequestMapping("/api/v1/workspaces/{workspaceId}/agent/turns")
 public class AgentController {
 
-    public record Prompt(@NotBlank @Size(max = 20_000) String prompt, UUID sessionId, @Size(max = 100) String model) {
+    public record Prompt(@NotBlank @Size(max = 20_000) String prompt, UUID sessionId, @Size(max = 120) String model) {
     }
 
     public record Steer(@NotBlank @Size(max = 4000) String text) {
@@ -54,6 +54,15 @@ public class AgentController {
     @GetMapping("/models")
     List<String> models(@AuthenticationPrincipal AppUser user, @PathVariable UUID workspaceId) {
         return turns.models();
+    }
+
+    public record ModelOptions(List<String> models, boolean customModels) {
+    }
+
+    /** The listed models, and whether members may also name any model on OpenAI, Gemini or OpenRouter. */
+    @GetMapping("/model-options")
+    ModelOptions modelOptions(@AuthenticationPrincipal AppUser user, @PathVariable UUID workspaceId) {
+        return new ModelOptions(turns.models(), turns.customModels());
     }
 
     @PostMapping("/{turnId}/cancel")

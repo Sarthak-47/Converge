@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
-import { api, type AgentTurn, type Approval, type Comment, type GitOperation, type Overlap, type PlanStep, type Role, type SessionCard, type SessionDetail } from '../api.ts'
+import { api, providerOf, type AgentProvider, type AgentTurn, type Approval, type Comment, type GitOperation, type Overlap, type PlanStep, type Role, type SessionCard, type SessionDetail } from '../api.ts'
 import { ApprovalCard } from './ApprovalCard.tsx'
 import { askText } from './askText.tsx'
-import { AgentKeyForm, TurnCard } from './TurnCard.tsx'
-import { errorMessage, useAgentKey } from './agentKit.ts'
+import { AgentKeyForm, AgentKeyManager, TurnCard } from './TurnCard.tsx'
+import { errorMessage, PROVIDERS, useAgentKeys } from './agentKit.ts'
 import type { CSSProperties } from 'react'
 import { colorFor, inkFor } from '../editor/collabDocument.ts'
 import { stickerStyle } from './sticker.ts'
@@ -109,8 +109,15 @@ export function SessionsPanel(props: Props) {
   )
 }
 
-/** "claude-sonnet-5-5" as "Sonnet 5.5". */
+/** The model picker's value for "Another model…". */
+const CUSTOM = '__custom'
+
+/** "claude-sonnet-5-5" as "Sonnet 5.5"; "openai:gpt-x" as "gpt-x (OpenAI)". */
 function modelName(model: string): string {
+  const provider = providerOf(model)
+  if (provider && provider !== 'anthropic') {
+    return `${model.slice(model.indexOf(':') + 1)} (${PROVIDERS.find((p) => p.id === provider)?.label ?? provider})`
+  }
   const match = /^claude-([a-z]+)-(\d+)(?:-(\d+))?$/.exec(model)
   if (!match) return model
   const [, family, major, minor] = match
@@ -132,9 +139,15 @@ function SessionView({ workspaceId, currentUser, role, refreshSignal, jobSignal,
   // The member's pick for their next turn: quick edits on a cheaper model, hard ones on the strongest.
   const [models, setModels] = useState<string[]>([])
   const [model, setModel] = useState<string | null>(null)
+  // Or any model on another provider, when the operator allows it: a provider the member has a key for and its model ID.
+  const [customModels, setCustomModels] = useState(false)
+  const [customProvider, setCustomProvider] = useState<AgentProvider | null>(null)
+  const [customId, setCustomId] = useState('')
   const canEdit = role === 'OWNER' || role === 'EDITOR'
   const canComment = canEdit || role === 'COMMENTER'
-  const [key, setKey] = useAgentKey(canEdit)
+  const [keys, reloadKeys] = useAgentKeys(canEdit)
+  const configured = keys?.filter((k) => k.configured) ?? []
+  const hasKey = configured.length > 0
   const [spend, setSpend] = useState<{ spentMicros: number; dailyCapMicros: number } | null>(null)
   const lanes = useRef<HTMLDivElement>(null)
 
@@ -153,7 +166,12 @@ function SessionView({ workspaceId, currentUser, role, refreshSignal, jobSignal,
   }, [reload, refreshSignal])
 
   useEffect(() => {
-    api.agentModels(workspaceId).then(setModels).catch(() => setModels([]))
+    api.agentModelOptions(workspaceId)
+      .then((o) => {
+        setModels(o.models)
+        setCustomModels(o.customModels)
+      })
+      .catch(() => setModels([]))
   }, [workspaceId])
 
   async function run(action: () => Promise<unknown>, fallback: string) {
@@ -180,6 +198,23 @@ function SessionView({ workspaceId, currentUser, role, refreshSignal, jobSignal,
   const done = session.status === 'DONE'
   const myRunning = turns.find((t) => t.sponsorId === currentUser.id && t.status === 'RUNNING')
   const laneOwners = [...new Set(turns.map((t) => t.laneUserId))]
+  // Only models the member holds a key for are offered; "Another model…" names any model on a provider
+  // other than Anthropic, whose catalogues change too often to list.
+  const have = new Set(configured.map((k) => k.provider))
+  const usable = models.filter((m) => {
+    const provider = providerOf(m)
+    return provider !== null && have.has(provider)
+  })
+  const customFrom = customModels ? configured.filter((k) => k.provider !== 'anthropic') : []
+  const picked = model && (model === CUSTOM ? customFrom.length > 0 : usable.includes(model))
+    ? model
+    : (usable[0] ?? (customFrom.length > 0 ? CUSTOM : null))
+  const customProviderNow = customFrom.find((k) => k.provider === customProvider)?.provider ?? customFrom[0]?.provider ?? null
+  const chosenModel = picked === CUSTOM
+    ? (customProviderNow && customId.trim() ? `${customProviderNow}:${customId.trim()}` : null)
+    : picked
+  const chosenProvider = picked === CUSTOM ? customProviderNow : (chosenModel ? providerOf(chosenModel) : null)
+  const chosenKey = configured.find((k) => k.provider === chosenProvider) ?? configured[0]
 
   function send(event: FormEvent) {
     event.preventDefault()
@@ -199,7 +234,7 @@ function SessionView({ workspaceId, currentUser, role, refreshSignal, jobSignal,
       return
     }
     void run(async () => {
-      await api.promptAgent(workspaceId, text, sessionId, model ?? undefined)
+      await api.promptAgent(workspaceId, text, sessionId, chosenModel ?? undefined)
       setDraft('')
     }, 'Could not start the agent')
   }
@@ -259,7 +294,7 @@ function SessionView({ workspaceId, currentUser, role, refreshSignal, jobSignal,
       <div className="session-actions">
         {!done && !me && <button type="button" className="ghost" disabled={busy} onClick={() => void run(() => api.joinSession(sessionId, 'WATCH'), 'Could not join')}>Watch</button>}
         {!done && canEdit && me?.mode !== 'LANE' && <button type="button" className="ghost" disabled={busy} onClick={() => void run(() => api.joinSession(sessionId, 'LANE'), 'Could not join')}>Join with my agent</button>}
-        {!done && canEdit && !isDriver && key?.configured && <button type="button" className={session.status === 'AWAITING_TAKEOVER' ? 'primary' : 'ghost'} disabled={busy} onClick={takeOver}>Take over</button>}
+        {!done && canEdit && !isDriver && hasKey && <button type="button" className={session.status === 'AWAITING_TAKEOVER' ? 'primary' : 'ghost'} disabled={busy} onClick={takeOver}>Take over</button>}
         {!done && isDriver && <button type="button" className="ghost" disabled={busy} onClick={() => void handOff()}>Hand off</button>}
         {!done && (isDriver || role === 'OWNER') && hasRepository && (
           <button type="button" className="primary" disabled={busy} onClick={() => void run(async () => {
@@ -379,7 +414,7 @@ function SessionView({ workspaceId, currentUser, role, refreshSignal, jobSignal,
                 )}
                 {canEdit && !c.causedStepId && !done && <button type="button" className="link small" onClick={() => void run(() => api.commentToStep(workspaceId, c.id), 'Could not add the step')}>Make plan step</button>}
                 {c.causedStepId && <span className="muted small">became a plan step</span>}
-                {canEdit && c.createdBy === currentUser.id && !c.causedTurnId && key?.configured && !done && (
+                {canEdit && c.createdBy === currentUser.id && !c.causedTurnId && hasKey && !done && (
                   <button type="button" className="link small" onClick={() => void run(() => api.commentToPrompt(workspaceId, c.id), 'Could not send to your agent')}>Send to my agent</button>
                 )}
                 {c.causedTurnId && <span className="muted small">sent to an agent</span>}
@@ -391,13 +426,13 @@ function SessionView({ workspaceId, currentUser, role, refreshSignal, jobSignal,
 
       {notice && <p className="notice small agent-panel-error" role="status">{notice}</p>}
       {error && <p className="error small agent-panel-error" role="alert">{error}</p>}
-      {canEdit && !done && key && !key.configured && <AgentKeyForm onSaved={setKey} />}
-      {canEdit && !done && key?.configured && (
+      {canEdit && !done && keys && !hasKey && <AgentKeyForm onSaved={reloadKeys} />}
+      {canEdit && !done && hasKey && (
         <form className="agent-composer" onSubmit={send}>
           <label htmlFor="agent-prompt" className="small">
             {myRunning
               ? `Steer your running agent. Uses ${currentUser.displayName}'s API key.`
-              : `Prompt your agent. Uses ${currentUser.displayName}'s API key (${key.hint}).`}
+              : `Prompt your agent. Uses ${currentUser.displayName}'s ${chosenKey?.label ?? ''} API key (${chosenKey?.hint ?? ''}).`}
             {spend && <span className="muted"> Last 24 h: ${(spend.spentMicros / 1e6).toFixed(2)} of ${(spend.dailyCapMicros / 1e6).toFixed(2)}.</span>}
           </label>
           {spend && spend.dailyCapMicros > 0 && (
@@ -419,15 +454,29 @@ function SessionView({ workspaceId, currentUser, role, refreshSignal, jobSignal,
             }}
           />
           <div className="agent-send">
-            {!myRunning && models.length > 1 && (
-              <select aria-label="Model for this turn" value={model ?? models[0]} onChange={(e) => setModel(e.target.value)}>
-                {models.map((m) => <option key={m} value={m}>{modelName(m)}</option>)}
+            {!myRunning && (usable.length + (customFrom.length > 0 ? 1 : 0)) > 1 && (
+              <select aria-label="Model for this turn" value={picked ?? ''} onChange={(e) => setModel(e.target.value)}>
+                {usable.map((m) => <option key={m} value={m}>{modelName(m)}</option>)}
+                {customFrom.length > 0 && <option value={CUSTOM}>Another model…</option>}
               </select>
             )}
-            <button type="submit" className="primary" disabled={busy || !draft.trim()}>{myRunning ? 'Steer' : 'Send to agent'}</button>
+            {!myRunning && picked === CUSTOM && (
+              <>
+                {customFrom.length > 1 && (
+                  <select aria-label="Provider for this turn" value={customProviderNow ?? ''} onChange={(e) => setCustomProvider(e.target.value as AgentProvider)}>
+                    {customFrom.map((k) => <option key={k.provider} value={k.provider}>{k.label}</option>)}
+                  </select>
+                )}
+                <input className="agent-model-custom" aria-label={`${PROVIDERS.find((p) => p.id === customProviderNow)?.label ?? ''} model ID`}
+                  placeholder={customProviderNow === 'openrouter' ? 'vendor/model' : 'model ID'} value={customId}
+                  onChange={(e) => setCustomId(e.target.value)} maxLength={100} spellCheck={false} />
+              </>
+            )}
+            <button type="submit" className="primary" disabled={busy || !draft.trim() || (!myRunning && !chosenModel)}>{myRunning ? 'Steer' : 'Send to agent'}</button>
           </div>
         </form>
       )}
+      {canEdit && !done && keys && hasKey && <AgentKeyManager keys={keys} onChanged={reloadKeys} />}
     </section>
   )
 }

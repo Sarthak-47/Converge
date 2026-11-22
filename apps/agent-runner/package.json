@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "description": "Runs coding-agent turns on the Claude API; agents edit live documents as Yjs clients (design §13).",
+  "description": "Runs coding-agent turns on the Claude API or an OpenAI-compatible provider; agents edit live documents as Yjs clients (design §13).",
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.json",

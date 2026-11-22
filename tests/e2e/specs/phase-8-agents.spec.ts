@@ -46,7 +46,7 @@ test("a teammate's agent edits alongside a person, and reverting its turn keeps 
   await page.getByRole('button', { name: 'Start session' }).click()
   await page.getByLabel('Your Anthropic API key').fill(TEST_KEY)
   await page.getByRole('button', { name: 'Save key' }).click()
-  await expect(page.locator('.agent-composer')).toContainText("Uses Asha's API key (…0001)")
+  await expect(page.locator('.agent-composer')).toContainText("Uses Asha's Anthropic API key (…0001)")
 
   const added = 'const fromAgent = "written by the agent while Ben typed above it"'
   await page.getByLabel(/Prompt your agent/).fill([
