@@ -67,6 +67,11 @@ services:
       AGENT_RUNNER_LEASES: "true"
       GIT_ALLOW_INSECURE_REMOTES: ${GIT_ALLOW_INSECURE_REMOTES:-false}
       RATE_LIMIT_SCALE: ${RATE_LIMIT_SCALE:-1}
+      # true when the app is served over HTTPS (production): the session cookie is then sent only over HTTPS.
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      # Pages on this origin may open the live socket. Needed behind an HTTPS proxy, where the socket request
+      # reaches the API as plain HTTP and a same-origin check could not match the https:// page.
+      CONVERGE_WEBSOCKET_ALLOWED_ORIGINS: ${PUBLIC_ORIGIN:-http://localhost:8000}
       SECRETS_KEY: ${SECRETS_KEY:-ZGV2ZWxvcG1lbnQtb25seS1zZWNyZXRzLWtleS0zMiE=}
       # Spans go to this OTLP/HTTP endpoint when set (design §16.3); see the tracing profile below.
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}

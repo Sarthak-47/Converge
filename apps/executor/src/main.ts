@@ -27,6 +27,10 @@ async function run(job: Job) {
   const started = Date.now()
   let failed = true
   await reporter.notify().catch(() => undefined)
+  if (!config.sandbox) {
+    await reporter.status('FAILED', { error: 'Running commands is switched off on this server (it runs without Docker).' }).catch(() => undefined)
+    return
+  }
   try {
     const files = await workspaceFiles(db, job.workspaceId, config.maxFilesBytes)
     reporter.output('system', `$ ${job.command}\n`)
@@ -218,9 +222,10 @@ for (let attempt = 1; ; attempt++) {
 const interrupted = await markInterrupted(db)
 for (const id of interrupted) await new Reporter(config.apiUrl, config.internalToken, id).notify().catch(() => undefined)
 for (const id of await failInterruptedGitOperations(db)) await notifyGit(id)
-const removed = await sandbox.removeLeftovers()
-await sandbox.prepare()
-log('INFO', 'EXECUTOR_STARTED', { exportingSpans: startSpanExport('converge-executor'), image: config.image, runtime: config.runtime ?? 'default', interrupted: interrupted.length, removedContainers: removed })
+// Without Docker (SANDBOX=off) there are no sandboxes to tidy or images to pull; Git work goes on.
+const removed = config.sandbox ? await sandbox.removeLeftovers() : 0
+if (config.sandbox) await sandbox.prepare()
+log('INFO', 'EXECUTOR_STARTED', { exportingSpans: startSpanExport('converge-executor'), sandbox: config.sandbox, image: config.image, runtime: config.runtime ?? 'default', interrupted: interrupted.length, removedContainers: removed })
 const done = Promise.all([loop(), gitLoop()])
 
 const shutdown = () => {

@@ -16,6 +16,11 @@ export const config = {
   databaseUrl: required('DATABASE_URL', 'postgres://converge:converge@localhost:5432/converge'),
   apiUrl: required('API_URL', 'http://localhost:8080'),
   internalToken: process.env.INTERNAL_TOKEN ?? '',
+  /**
+   * Whether approved commands run, in sandbox containers. Needs Docker; "off" (SANDBOX=off) lets a server
+   * without Docker still do Git work, and each approved command then fails with a clear message.
+   */
+  sandbox: (process.env.SANDBOX ?? 'docker') !== 'off',
   /** Image every job runs in. */
   image: required('SANDBOX_IMAGE', 'node:24-alpine'),
   /** Optional container runtime, e.g. "runsc" for gVisor once execution is reachable by others (design §11.3). */

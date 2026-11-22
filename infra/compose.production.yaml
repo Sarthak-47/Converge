@@ -1,0 +1,28 @@
+# Production overrides for a server on the internet, used with the main file:
+#   docker compose -f compose.yaml -f infra/compose.production.yaml up -d --build
+# See docs/deploy/CLOUD_SERVER.md.
+#
+# Docker publishes ports past the host firewall (ufw does not see them), so nothing is published except nginx,
+# and nginx only on 127.0.0.1: the HTTPS proxy on the same machine is the one way in. Every service restarts
+# with the machine, and the session cookie is sent over HTTPS only.
+services:
+  postgres:
+    ports: !reset []
+    restart: unless-stopped
+  redis:
+    ports: !reset []
+    restart: unless-stopped
+  collab:
+    restart: unless-stopped
+  api:
+    restart: unless-stopped
+    environment:
+      COOKIE_SECURE: "true"
+  agent-runner:
+    restart: unless-stopped
+  executor:
+    restart: unless-stopped
+  nginx:
+    ports: !override
+      - "127.0.0.1:8000:80"
+    restart: unless-stopped
