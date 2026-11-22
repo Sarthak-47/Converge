@@ -21,7 +21,7 @@ test('a member brings an OpenAI key, and their agent edits the file on an OpenAI
   await page.getByRole('radio', { name: 'OpenAI' }).click()
   await page.getByLabel('Your OpenAI API key').fill('sk-ant-test-e2e-wrong-provider')
   await page.getByRole('button', { name: 'Save key' }).click()
-  await expect(page.getByRole('alert')).toContainText('not OpenAI')
+  await expect(page.locator('.agent-key-form').getByRole('alert')).toContainText('not OpenAI')
   await page.getByLabel('Your OpenAI API key').fill('sk-test-e2e-openai-asha-0001')
   await page.getByRole('button', { name: 'Save key' }).click()
 

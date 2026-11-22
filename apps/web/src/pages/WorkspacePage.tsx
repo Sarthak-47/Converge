@@ -156,6 +156,10 @@ export default function WorkspacePage() {
       const live = new CollabDocument(file.id, user, (state) => setSyncStates((s) => ({ ...s, [file.id]: state })))
       sources.current?.opened(file)
       const model = monaco.editor.createModel('', file.language ?? undefined, modelUri(file))
+      // The shared text uses "\n". An empty model takes the platform's line ending, so on Windows each remote
+      // "\n" would become "\r\n": the model grows a character per line break and later remote edits land
+      // early, so the view drifts from the document.
+      model.setEOL(monaco.editor.EndOfLineSequence.LF)
       open = { live, model }
       openFiles.current.set(file.id, open)
     }

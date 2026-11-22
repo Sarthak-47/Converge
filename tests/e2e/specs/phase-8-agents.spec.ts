@@ -66,7 +66,8 @@ test("a teammate's agent edits alongside a person, and reverting its turn keeps 
   await expect(turn.locator('.agent-tool.ok', { hasText: 'edited app.ts' })).toBeVisible()
   await expect(turn).toContainText('on Asha\'s key')
   for (const p of [page, ben.page]) {
-    await expect.poll(() => editorText(p), { timeout: 20_000 }).toContain('fromAgent')
+    // The exact line: a view out of step with the document (as with CRLF models on Windows) shows it garbled.
+    await expect.poll(() => editorText(p), { timeout: 20_000 }).toContain(added)
     await expect.poll(() => editorText(p), { timeout: 20_000 }).toContain('ben typed this const a = 1')
   }
   expect(await editorText(page)).toBe(await editorText(ben.page))
