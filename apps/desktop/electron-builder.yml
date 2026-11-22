@@ -1,0 +1,43 @@
+# Installers for the desktop app: `npm run dist --workspace @converge/desktop` builds the current platform's.
+# The release workflow (.github/workflows/release.yml) builds all three on a version tag. Unsigned: Windows
+# SmartScreen and macOS Gatekeeper warn on first open until a code-signing certificate is added.
+appId: dev.converge.desktop
+productName: Converge
+copyright: Copyright © 2026 Sarthak-47
+directories:
+  output: installers
+  buildResources: build
+# The main process is bundled into dist/main.js (scripts/bundle.mjs), so no node_modules ship.
+files:
+  - package.json
+  - dist/main.js
+  - dist/preload.cjs
+  - assets/**
+npmRebuild: false
+artifactName: ${productName}-${version}-${os}-${arch}.${ext}
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  shortcutName: Converge
+mac:
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+  category: public.app-category.developer-tools
+  identity: null
+linux:
+  target:
+    - target: AppImage
+      arch: [x64]
+    - target: deb
+      arch: [x64]
+  category: Development
+  maintainer: Sarthak-47 <0906sarthak@gmail.com>
+  synopsis: People and their agents edit the same file, live.
+publish: null

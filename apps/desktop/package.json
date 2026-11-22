@@ -1,22 +1,24 @@
 {
   "name": "@converge/desktop",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "description": "Converge desktop app: the web client plus a live local checkout (design §12).",
   "main": "dist/main.js",
   "scripts": {
-    "build": "npm run build --workspace @converge/sync-bridge && tsc -p tsconfig.json",
+    "build": "npm run build --workspace @converge/sync-bridge && tsc -p tsconfig.json && node scripts/bundle.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "setup": "node scripts/fetch-electron.mjs",
-    "start": "npm run build && electron ."
+    "start": "npm run build && electron .",
+    "dist": "npm run build && node scripts/dist.mjs"
   },
   "devDependencies": {
+    "@converge/sync-bridge": "^0.0.0",
     "@types/node": "^24.19.2",
-    "electron": "^44.11.5",
+    "electron": "44.11.5",
+    "electron-builder": "^26.18.0",
     "typescript": "~6.0.2"
   },
-  "dependencies": {
-    "@converge/sync-bridge": "^0.0.0"
-  }
+  "author": "Sarthak-47 <0906sarthak@gmail.com>",
+  "homepage": "https://github.com/Sarthak-47/Converge"
 }

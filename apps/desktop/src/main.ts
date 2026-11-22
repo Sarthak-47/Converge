@@ -1,16 +1,24 @@
 import { execFile } from 'node:child_process'
 import { appendFile, readFile } from 'node:fs/promises'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { app, BrowserWindow, dialog, ipcMain, session, shell, type IpcMainInvokeEvent } from 'electron'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+import { app, BrowserWindow, dialog, ipcMain, Menu, session, shell, type IpcMainInvokeEvent, type MenuItemConstructorOptions } from 'electron'
 import { HttpRemoteWorkspace, SyncBridge, type BridgeEvent } from '@converge/sync-bridge'
+import { loadServer, parseServer, probeServer, saveServer } from './serverConfig.js'
 
 /**
  * The desktop app (design §12): the same web client as the browser, plus a sync bridge in this main process
  * that keeps a local checkout in live two-way sync with the open workspace.
  */
-const SERVER = new URL(process.env.CONVERGE_URL ?? 'http://localhost:8000')
+/** The Converge server this app opens; null until the person has connected to one (see serverConfig.ts). */
+let SERVER: URL | null = null
 const here = path.dirname(fileURLToPath(import.meta.url))
+const CONNECT_PAGE = path.join(here, '..', 'assets', 'connect.html')
+
+function server(): URL {
+  if (!SERVER) throw new Error('Connect to a Converge server first')
+  return SERVER
+}
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 /**
  * End-to-end test hook: native folder pickers and message boxes cannot be automated, so when this variable
@@ -30,6 +38,10 @@ type Running = {
   paused: string | null
   watchBranch: NodeJS.Timeout | null
 }
+
+// The app's own data folder (%APPDATA%Converge on Windows), not one named after the npm package. Tests point
+// CONVERGE_USER_DATA at a throwaway folder; only whoever launches the app can set it.
+app.setPath('userData', process.env.CONVERGE_USER_DATA ? path.resolve(process.env.CONVERGE_USER_DATA) : path.join(app.getPath('appData'), 'Converge'))
 
 let window: BrowserWindow | null = null
 let running: Running | null = null
@@ -57,7 +69,7 @@ function createWindow() {
     return { action: 'deny' }
   })
   window.webContents.on('will-navigate', (event, url) => {
-    if (new URL(url).origin !== SERVER.origin) {
+    if (!SERVER || new URL(url).origin !== SERVER.origin) {
       event.preventDefault()
       void shell.openExternal(url)
     }
@@ -65,13 +77,63 @@ function createWindow() {
   window.on('closed', () => {
     window = null
   })
-  void window.loadURL(SERVER.href)
+  if (SERVER) void window.loadURL(SERVER.href)
+  else void window.loadFile(CONNECT_PAGE)
+}
+
+/** Shows the "connect to a server" screen, to set the server or change it. */
+function showConnect() {
+  if (!window) createWindow()
+  else void window.loadFile(CONNECT_PAGE)
+}
+
+/** The connect screen's calls must come from that local page, never from a server's page. */
+function fromConnectPage(event: IpcMainInvokeEvent) {
+  if (event.senderFrame?.url !== pathToFileURL(CONNECT_PAGE).href) throw new Error('Only the connect screen can change the server')
+}
+
+ipcMain.handle('server:current', (event) => {
+  fromConnectPage(event)
+  return SERVER?.origin ?? null
+})
+
+ipcMain.handle('server:connect', async (event, address: unknown) => {
+  fromConnectPage(event)
+  const parsed = parseServer(typeof address === 'string' ? address : '')
+  if ('error' in parsed) return { ok: false, error: parsed.error }
+  const probe = await probeServer(parsed.url)
+  if (!probe.ok) return probe
+  await saveServer(app.getPath('userData'), parsed.url)
+  // Sync belongs to a workspace on the old server; it stops before the app opens the new one.
+  if (SERVER?.origin !== parsed.url.origin) await stopSync()
+  SERVER = parsed.url
+  void window?.loadURL(SERVER.href)
+  return { ok: true }
+})
+
+function applicationMenu(): Menu {
+  const mac = process.platform === 'darwin'
+  const template: MenuItemConstructorOptions[] = [
+    ...(mac ? [{ role: 'appMenu' as const }] : []),
+    {
+      label: 'File',
+      submenu: [
+        { label: 'Change server…', click: () => showConnect() },
+        { type: 'separator' },
+        mac ? { role: 'close' } : { role: 'quit' },
+      ],
+    },
+    { role: 'editMenu' },
+    { role: 'viewMenu' },
+    { role: 'windowMenu' },
+  ]
+  return Menu.buildFromTemplate(template)
 }
 
 /** Every IPC call must come from the Converge page itself, never from other content. */
 function fromApp(event: IpcMainInvokeEvent) {
   const url = event.senderFrame?.url
-  if (!url || new URL(url).origin !== SERVER.origin) throw new Error('IPC is only available to the Converge app')
+  if (!url || !SERVER || new URL(url).origin !== SERVER.origin) throw new Error('IPC is only available to the Converge app')
 }
 
 type SyncNotice = BridgeEvent | { type: 'paused'; path: string; reason: string } | { type: 'resumed'; path: string }
@@ -141,7 +203,7 @@ async function expectedBranch(workspaceId: string, folder: string, cookies: Reco
   const checkedOut = await currentBranch(folder)
   if (checkedOut === null) return null
   try {
-    const response = await fetch(`${SERVER.origin}/api/v1/workspaces/${workspaceId}/git`, {
+    const response = await fetch(`${server().origin}/api/v1/workspaces/${workspaceId}/git`, {
       headers: { Cookie: Object.entries(cookies).map(([k, v]) => `${k}=${v}`).join('; ') },
     })
     if (response.status === 200) return ((await response.json()) as { defaultBranch: string }).defaultBranch
@@ -185,10 +247,10 @@ ipcMain.handle('sync:start', async (event, request: { workspaceId?: unknown; fol
 
   await stopSync()
   const cookies = Object.fromEntries(
-    (await session.defaultSession.cookies.get({ url: SERVER.origin })).map((c) => [c.name, c.value]),
+    (await session.defaultSession.cookies.get({ url: server().origin })).map((c) => [c.name, c.value]),
   )
   if (!cookies.CONVERGE_SESSION) throw new Error('Sign in before syncing')
-  const remote = new HttpRemoteWorkspace({ baseUrl: SERVER.origin, workspaceId, cookies })
+  const remote = new HttpRemoteWorkspace({ baseUrl: server().origin, workspaceId, cookies })
   const branch = await expectedBranch(workspaceId, folder, cookies)
   const checkedOut = await currentBranch(folder)
   running = { workspaceId, folder, bridge: null, remote, expectedBranch: branch, paused: null, watchBranch: null }
@@ -262,7 +324,9 @@ app.on('web-contents-created', (_event, contents) => {
   contents.on('will-attach-webview', (event) => event.preventDefault())
 })
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  SERVER = await loadServer(app.getPath('userData'))
+  Menu.setApplicationMenu(applicationMenu())
   createWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

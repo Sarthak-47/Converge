@@ -21,3 +21,7 @@ test-results/
 
 # Launch videos made with /brag (large, generated)
 brag-output*/
+
+# Desktop installers (built by electron-builder; published by the release workflow)
+apps/desktop/installers/
+apps/desktop/release/

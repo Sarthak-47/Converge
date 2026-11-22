@@ -18,3 +18,12 @@ contextBridge.exposeInMainWorld('convergeDesktop', {
     return () => ipcRenderer.off('sync:event', handler)
   },
 })
+
+// The first-run "connect to a server" screen is a local page; only it gets this, and the main process also
+// refuses these calls from anywhere else.
+if (location.protocol === 'file:') {
+  contextBridge.exposeInMainWorld('convergeConnect', {
+    current: (): Promise<string | null> => ipcRenderer.invoke('server:current'),
+    connect: (address: string): Promise<{ ok: true } | { ok: false; error: string }> => ipcRenderer.invoke('server:connect', address),
+  })
+}

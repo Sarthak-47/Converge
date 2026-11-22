@@ -1,0 +1,74 @@
+# Desktop installers for a version tag: push a tag such as v1.0.0 and this builds Windows, macOS and Linux
+# installers and attaches them to a GitHub Release. They are unsigned, so Windows SmartScreen and macOS
+# Gatekeeper warn on first open until signing certificates are added (see the README).
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build installers for (for example v1.0.0)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create the release
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - id: tag
+        run: echo "tag=${{ inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
+      - name: Create the release if it does not exist
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1 || \
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "Converge $TAG" --generate-notes --verify-tag
+
+  installers:
+    name: Installers (${{ matrix.os }})
+    needs: release
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.release.outputs.tag }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+      - uses: actions/cache@v6
+        with:
+          path: |
+            .cache/npm
+            .cache/electron
+            .cache/electron-builder
+          key: release-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: release-${{ runner.os }}-
+      - run: npm ci
+        env:
+          # The packaging step downloads the Electron it bundles; the dev binary is not needed.
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      - name: Build the installers
+        run: npm run dist --workspace @converge/desktop
+      - name: Attach them to the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release.outputs.tag }}
+        run: |
+          cd apps/desktop/installers
+          shopt -s nullglob
+          files=( *.exe *.dmg *.AppImage *.deb )
+          if [ ${#files[@]} -eq 0 ]; then echo "No installers were built"; exit 1; fi
+          gh release upload "$TAG" "${files[@]}" --clobber --repo "$GITHUB_REPOSITORY"

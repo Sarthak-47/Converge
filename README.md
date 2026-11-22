@@ -13,7 +13,7 @@ The full design — architecture, protocols, roadmap and decision log — is in 
 
 **Status:** every functional requirement in the design (§3.1) is built and tested, along with the stretch goals: agents, sessions, approvals, workspace memory, Git (including import and push webhooks) and the desktop app with live local sync. See [docs/WORKLOG.md](docs/WORKLOG.md) for the decisions behind each step and [docs/BASELINE.md](docs/BASELINE.md) for measured latency, load and fault recovery.
 
-**Known limit:** desktop builds are unsigned, because signing needs paid code-signing certificates.
+**Known limit:** the desktop installers are unsigned, because signing needs paid code-signing certificates. Windows SmartScreen shows "Windows protected your PC" on first open (choose **More info**, then **Run anyway**), and macOS asks you to allow the app under **System Settings → Privacy & Security**.
 
 **Scaling out:** the API, the collaboration service and the agent runner all run as several instances:
 
@@ -54,9 +54,15 @@ Open http://localhost:8000 to see the health of every service. The API's aggrega
 
 Default database credentials are development-only values from `.env.example`; copy it to `.env` to change them.
 
+## Desktop app
+
+Download the installer for Windows (`.exe`), macOS (`.dmg`) or Linux (`.AppImage` or `.deb`) from the [latest release](https://github.com/Sarthak-47/Converge/releases/latest). On first start it asks for your Converge server's address and remembers it; **File → Change server…** switches servers. It adds a live local checkout of a workspace to everything the browser app does.
+
+To build installers yourself, run `npm run dist --workspace @converge/desktop`; the current platform's installers land in `apps/desktop/installers`. Pushing a version tag (`git tag v1.0.0 && git push origin v1.0.0`) makes the release workflow build all three platforms and attach them to a GitHub Release.
+
 ## Deploy for a team
 
-Only the server needs Docker. Teammates open a link in a browser or the desktop app (`CONVERGE_URL` sets its server).
+Only the server needs Docker. Teammates open a link in a browser or install the desktop app.
 
 - **[On a cloud server](docs/deploy/CLOUD_SERVER.md):** one Ubuntu server, Docker Compose with [`infra/compose.production.yaml`](infra/compose.production.yaml) (nothing published but nginx on 127.0.0.1, HTTPS-only cookie, restarts on boot), and Caddy for HTTPS.
 - **[Without Docker](docs/deploy/WITHOUT_DOCKER.md):** every service run directly with systemd and nginx. Everything works except running approved commands, which needs Docker for its sandboxes; the executor runs with `SANDBOX=off` and still does all Git work.

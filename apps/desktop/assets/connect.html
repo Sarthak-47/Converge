@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'" />
+    <title>Connect to a server · Converge</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --ink: #111214;
+        --sheet: #1a1c20;
+        --text: #f2f2ee;
+        --muted: #a8abb2;
+        --line: #33363d;
+        --lemon: #ffd400;
+        --tomato: hsl(9 100% 59%);
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; margin: 0; }
+      body {
+        display: grid;
+        place-items: center;
+        background: var(--ink) radial-gradient(circle, #ffffff0d 1px, transparent 1.2px) 0 0 / 18px 18px;
+        color: var(--text);
+        font: 15px/1.5 system-ui, 'Segoe UI', sans-serif;
+      }
+      main {
+        width: min(440px, calc(100vw - 32px));
+        padding: 32px;
+        border: 1.5px solid var(--line);
+        border-radius: 14px;
+        background: var(--sheet);
+      }
+      .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
+      .brand img { width: 56px; height: 56px; }
+      .word {
+        padding: 4px 12px;
+        border-radius: 8px;
+        background: var(--lemon);
+        color: var(--ink);
+        font-weight: 900;
+        letter-spacing: 0.04em;
+        box-shadow: 0 0 0 2.5px var(--text);
+        transform: rotate(-2.5deg);
+      }
+      h1 { margin: 0 0 6px; font-size: 20px; }
+      p { margin: 0 0 20px; color: var(--muted); }
+      label { display: block; margin-bottom: 6px; font-weight: 600; }
+      input {
+        width: 100%;
+        height: 42px;
+        padding: 0 12px;
+        border: 1.5px solid var(--line);
+        border-radius: 8px;
+        background: var(--ink);
+        color: var(--text);
+        font: inherit;
+      }
+      input:focus { outline: 2px solid var(--lemon); outline-offset: 1px; }
+      button {
+        width: 100%;
+        height: 42px;
+        margin-top: 16px;
+        border: 0;
+        border-radius: 8px;
+        background: var(--lemon);
+        color: var(--ink);
+        font: inherit;
+        font-weight: 800;
+        cursor: pointer;
+      }
+      button:disabled { opacity: 0.6; cursor: progress; }
+      .error { min-height: 1.5em; margin: 12px 0 0; color: var(--tomato); }
+      .hint { margin: 16px 0 0; font-size: 13px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="brand"><img src="converge-mark.svg" alt="" /><span class="word">CONVERGE</span></div>
+      <h1>Connect to your Converge server</h1>
+      <p>Converge runs on your team's own server. Type the address you open it at in a browser.</p>
+      <form id="connect">
+        <label for="server">Server address</label>
+        <input id="server" name="server" placeholder="converge.example.com" autocomplete="url" spellcheck="false" required />
+        <p class="error" id="error" role="alert"></p>
+        <button type="submit" id="submit">Connect</button>
+      </form>
+      <p class="hint">Running Converge on this computer? Use http://localhost:8000. You can change the server later from File → Change server.</p>
+    </main>
+    <script src="connect.js"></script>
+  </body>
+</html>

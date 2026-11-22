@@ -67,6 +67,9 @@ jobs:
           RUNNER_TEST_REDIS_URL: redis://localhost:6379
       - name: Executor tests (allowlist parity; Git against git http-backend; sandbox isolation, Gate C)
         run: npm test --workspace @converge/executor
+      # The release workflow builds real installers on a tag; this catches a broken package on every push.
+      - name: Desktop app packages (unpacked, no installer)
+        run: npm run dist --workspace @converge/desktop -- --dir
 
   chaos:
     name: Fault injection (Toxiproxy)
